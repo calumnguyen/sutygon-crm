@@ -1,19 +1,19 @@
-"use client";
+'use client';
 import React from 'react';
-import { SecondLevelTabProps } from '@/types/tabs';
+import type { SecondLevelTab, TabProps } from '@/types/tabTypes';
 
 /**
  * SecondLevelTab Component
- * 
+ *
  * A component that renders a second-level tab in the browser tab bar.
  * These tabs are shown when a first-level tab is selected and provide sub-navigation options.
- * 
+ *
  * @component
- * @param {SecondLevelTabProps} props - Component props
+ * @param {TabProps<SecondLevelTab>} props - Component props
  * @param {SecondLevelTab} props.tab - The tab data containing id, label, and parentId
  * @param {boolean} [props.isActive=false] - Whether the tab is currently active
  * @param {Function} [props.onSelect] - Callback function when the tab is selected
- * 
+ *
  * @example
  * ```tsx
  * // Basic usage
@@ -26,7 +26,7 @@ import { SecondLevelTabProps } from '@/types/tabs';
  *   isActive={true}
  *   onSelect={(tab) => console.log('Tab selected:', tab)}
  * />
- * 
+ *
  * // With custom styling
  * <SecondLevelTab
  *   tab={tab}
@@ -35,17 +35,17 @@ import { SecondLevelTabProps } from '@/types/tabs';
  *   className="custom-tab"
  * />
  * ```
- * 
+ *
  * @remarks
  * - The component is used for sub-navigation under a first-level tab
  * - Each tab has a unique ID and a reference to its parent tab
  * - Active state is visually indicated through styling
  * - The component uses Tailwind CSS for styling
  * - The component is memoized for performance optimization
- * 
- * @see {@link SecondLevelTabProps} for more information about component props
+ *
+ * @see {@link TabProps} for more information about component props
  */
-const SecondLevelTab: React.FC<SecondLevelTabProps> = ({
+const SecondLevelTab: React.FC<TabProps<SecondLevelTab>> = ({
   tab,
   isActive = false,
   onSelect,
@@ -69,4 +69,4 @@ const SecondLevelTab: React.FC<SecondLevelTabProps> = ({
   );
 };
 
-export default React.memo(SecondLevelTab); 
+export default React.memo(SecondLevelTab);

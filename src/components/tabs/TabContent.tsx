@@ -1,27 +1,17 @@
+'use client';
 import React from 'react';
 import { useTabContext } from '@/context/TabContext';
 import { TAB_CONTENT_MAPPING } from '@/constants/tabs';
-import HomeContent from './content/HomeContent';
-import OrdersContent from './content/OrdersContent';
-import InventoryContent from './content/InventoryContent';
-import CustomersContent from './content/CustomersContent';
-import UsersContent from './content/UsersContent';
-import ReportsContent from './content/ReportsContent';
+import UsersContent from '@/components/tabs/content/UsersContent';
 
 const contentComponents = {
-  HomeContent,
-  OrdersContent,
-  InventoryContent,
-  CustomersContent,
-  UsersContent,
-  ReportsContent,
+  users: UsersContent,
 };
 
 const TabContent: React.FC = () => {
-  const { state } = useTabContext();
-  const { firstLevelTabs, activeFirstLevelTab } = state;
+  const { firstLevelTabs, activeFirstLevelTab } = useTabContext();
 
-  const activeTab = firstLevelTabs.find(tab => tab.id === activeFirstLevelTab?.id);
+  const activeTab = firstLevelTabs.find((tab) => tab.id === activeFirstLevelTab?.id);
   if (!activeTab) return null;
 
   const contentKey = TAB_CONTENT_MAPPING[activeTab.selectedOption?.id || 'home'];
@@ -34,4 +24,4 @@ const TabContent: React.FC = () => {
   );
 };
 
-export default TabContent; 
+export default TabContent;

@@ -1,14 +1,16 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BrowserTabBar from '@/components/tabs/browser/BrowserTabBar';
 import { AppProvider } from '@/context/AppContext';
 import { useTabContext } from '@/context/TabContext';
 import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
-import type { FirstLevelTab, TabOption } from '@/types/tabs';
+import type { FirstLevelTab, TabOption } from '@/types/tabTypes';
+import { createTabId } from '@/types/tabTypes';
 import UsersContent from '@/components/tabs/content/UsersContent';
 
-const defaultFirstLevelTab = {
-  id: 'home',
+const defaultFirstLevelTab: FirstLevelTab = {
+  id: createTabId('home'),
+  type: 'first',
   label: 'Trang Chủ',
   options: DEFAULT_TAB_OPTIONS,
   isDefault: true,
@@ -24,56 +26,40 @@ const DROPDOWN_CONTENT: Record<string, React.ReactNode> = {
 };
 
 const TabContent: React.FC = () => {
-  const { state, dispatch, removeFirstLevelTab, setActiveFirstLevelTab, setActiveSecondLevelTab } =
-    useTabContext();
+  const { firstLevelTabs, activeFirstLevelTab, addFirstLevelTab, activateTab } = useTabContext();
   const [selectedDropdownOption, setSelectedDropdownOption] = useState<TabOption>(
     DEFAULT_TAB_OPTIONS[0]
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     const initializeTabs = () => {
-      dispatch({ type: 'SET_FIRST_LEVEL_TABS', payload: [defaultFirstLevelTab] });
-      setActiveFirstLevelTab(defaultFirstLevelTab);
+      if (firstLevelTabs.length === 0) {
+        addFirstLevelTab(defaultFirstLevelTab);
+      }
     };
     initializeTabs();
-  }, []);
+  }, [firstLevelTabs.length, addFirstLevelTab]);
 
   // Handler for dropdown option selection
   const handleDropdownSelect = (option: TabOption) => {
     setSelectedDropdownOption(option);
     // Update the active tab's label based on the selected dropdown option
-    if (state.activeFirstLevelTab) {
-      dispatch({
-        type: 'UPDATE_FIRST_LEVEL_TAB',
-        payload: {
-          id: state.activeFirstLevelTab.id,
-          label: option.label,
-        },
-      });
+    if (activeFirstLevelTab) {
+      const updatedTab: FirstLevelTab = {
+        ...activeFirstLevelTab,
+        label: option.label,
+        selectedOption: option,
+      };
+      addFirstLevelTab(updatedTab);
+      activateTab(updatedTab.id);
     }
-  };
-
-  // Handler for closing tabs
-  const handleCloseTab = (tabToClose: FirstLevelTab) => {
-    // Don't allow closing the default tab
-    if (tabToClose.id === defaultFirstLevelTab.id) return;
-
-    // Remove the tab
-    removeFirstLevelTab(tabToClose.id);
   };
 
   return (
     <div className="flex flex-col h-full">
       <BrowserTabBar
-        firstLevelTabs={state.firstLevelTabs}
-        secondLevelTabs={state.secondLevelTabs}
-        activeFirstLevelTab={state.activeFirstLevelTab}
-        activeSecondLevelTab={state.activeSecondLevelTab}
-        onFirstLevelTabSelect={setActiveFirstLevelTab}
-        onSecondLevelTabSelect={setActiveSecondLevelTab}
         selectedDropdownOption={selectedDropdownOption}
         onDropdownSelect={handleDropdownSelect}
-        onCloseTab={handleCloseTab}
       />
       <div className="flex-1 p-4">{DROPDOWN_CONTENT[selectedDropdownOption.id]}</div>
     </div>

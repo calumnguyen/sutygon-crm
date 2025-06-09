@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import React, { useState, FormEvent, ChangeEvent } from 'react';
 
 interface SearchBarProps {
@@ -10,11 +10,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
   const handleSearch = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('Search submitted:', searchQuery);
     onSearch?.(searchQuery);
   };
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
+    const value = e.target.value;
+    console.log('Search input changed:', value);
+    setSearchQuery(value);
   };
 
   return (
@@ -69,4 +72,4 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   );
 };
 
-export default SearchBar; 
+export default SearchBar;

@@ -1,22 +1,42 @@
-"use client";
+'use client';
 import React from 'react';
 import Header from '@/components/layout/Header';
 import { useTabContext } from '@/context/TabContext';
+import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
+import { createTabId } from '@/types/tabTypes';
+import type { FirstLevelTab } from '@/types/tabTypes';
 
 const ClientLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { state, dispatch } = useTabContext();
+  const { firstLevelTabs, addFirstLevelTab, activateTab } = useTabContext();
 
   const addSearchTab = (query: string) => {
-    const searchTabId = `search-${query}`;
+    console.log('addSearchTab called with query:', query);
+
+    if (!query.trim()) {
+      console.log('Empty query, returning');
+      return;
+    }
+
+    const searchTabId = createTabId(`search-${query}`);
+    console.log('Search tab ID:', searchTabId);
+
     // Prevent duplicate search tabs
-    if (!state.firstLevelTabs.some(tab => tab.id === searchTabId)) {
-      const newTab = {
+    if (!firstLevelTabs.some((tab) => tab.id === searchTabId)) {
+      console.log('Creating new search tab');
+      const newTab: FirstLevelTab = {
         id: searchTabId,
+        type: 'first',
         label: `Search: ${query}`,
-        options: [],
+        options: DEFAULT_TAB_OPTIONS,
+        isDefault: false,
+        isClosable: true,
       };
-      dispatch({ type: 'SET_FIRST_LEVEL_TABS', payload: [...state.firstLevelTabs, newTab] });
-      dispatch({ type: 'SET_ACTIVE_FIRST_LEVEL_TAB', payload: newTab });
+      console.log('New tab:', newTab);
+      addFirstLevelTab(newTab);
+    } else {
+      console.log('Tab already exists, activating it');
+      // If tab exists, just activate it
+      activateTab(searchTabId);
     }
   };
 
@@ -28,4 +48,4 @@ const ClientLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   );
 };
 
-export default ClientLayout; 
+export default ClientLayout;

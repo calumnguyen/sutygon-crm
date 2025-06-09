@@ -1,5 +1,3 @@
-import type { TabOption } from '@/types/tabs';
-
 /**
  * Constants representing the different levels in the tab hierarchy.
  * Used to distinguish between top-level and sub-level tabs.
@@ -23,5 +21,10 @@ export const TAB_STYLES = {
   /** Styles for an inactive tab */
   INACTIVE: 'bg-gray-800/30 hover:bg-gray-700/30',
   /** Styles for the dropdown menu */
-  DROPDOWN: 'absolute top-full left-0 mt-1 w-48 rounded-md shadow-lg bg-gray-800/95 backdrop-blur-sm border border-gray-700 z-50',
-} as const; 
+  DROPDOWN:
+    'absolute top-full left-0 mt-1 w-48 rounded-md shadow-lg bg-gray-800/95 backdrop-blur-sm border border-gray-700 z-50',
+} as const;
+
+// Constants for the browser tab components
+export const TAB_ANIMATION_DURATION = 200; // ms
+export const TAB_DROPDOWN_OFFSET = 8; // px

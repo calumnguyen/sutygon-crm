@@ -1,16 +1,24 @@
-"use client";
-import React, { useRef, useState, useCallback, useMemo } from 'react';
-import { FirstLevelTabProps, TabOption } from '@/types/tabs';
-import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
+'use client';
+import React, { useState, useRef, useEffect } from 'react';
+import type { FirstLevelTab, TabOption } from '@/types/tabTypes';
 import TabDropdown from '@/components/common/dropdowns/TabDropdown';
-import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/solid';
+
+interface FirstLevelTabProps {
+  tab: FirstLevelTab;
+  isActive: boolean;
+  onSelect: (tab: FirstLevelTab) => void;
+  onClose: (tab: FirstLevelTab) => void;
+  dropdownOption?: TabOption;
+  onDropdownSelect?: (option: TabOption) => void;
+  isDefaultTab?: boolean;
+}
 
 /**
  * FirstLevelTab Component
- * 
+ *
  * A component that renders a first-level tab in the browser tab bar.
  * It includes a dropdown menu for selecting options and handles active state styling.
- * 
+ *
  * @component
  * @param {FirstLevelTabProps} props - Component props
  * @param {FirstLevelTab} props.tab - The tab data containing id, label, and options
@@ -20,7 +28,7 @@ import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/solid';
  * @param {TabOption} [props.dropdownOption] - The default option for the dropdown
  * @param {Function} [props.onDropdownSelect] - Callback function when an option is selected from the dropdown
  * @param {boolean} [props.isDefaultTab=false] - Whether the tab is a default tab
- * 
+ *
  * @example
  * ```tsx
  * // Basic usage
@@ -33,7 +41,7 @@ import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/solid';
  *   isActive={true}
  *   onSelect={(tab) => console.log('Tab selected:', tab)}
  * />
- * 
+ *
  * // With custom options
  * <FirstLevelTab
  *   tab={{
@@ -46,133 +54,107 @@ import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/24/solid';
  *   }}
  * />
  * ```
- * 
+ *
  * @remarks
  * - The component uses a dropdown menu for additional options
  * - Active state is visually indicated through styling
  * - Click-outside detection is implemented for the dropdown
  * - Smooth transitions are applied for state changes
  * - The component is memoized for performance optimization
- * 
+ *
  * @see {@link TabDropdown} for more information about the dropdown component
  * @see {@link DEFAULT_TAB_OPTIONS} for default dropdown options
  */
-const FirstLevelTab: React.FC<FirstLevelTabProps> = ({
+export default function FirstLevelTabComponent({
   tab,
-  isActive = false,
+  isActive,
   onSelect,
   onClose,
   dropdownOption,
   onDropdownSelect,
   isDefaultTab = false,
-}) => {
+}: FirstLevelTabProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const parentRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  /**
-   * Handles the selection of an option from the dropdown menu.
-   * 
-   * @param {TabOption} option - The selected option
-   */
-  const handleDropdownSelect = useCallback((option: TabOption) => {
-    onDropdownSelect?.(option);
-    setIsDropdownOpen(false);
-  }, [onDropdownSelect]);
-
-  /**
-   * Toggles the dropdown menu visibility.
-   */
-  const toggleDropdown = useCallback(() => {
-    setIsDropdownOpen(prev => !prev);
-  }, []);
-
-  /**
-   * Closes the dropdown menu when clicking outside.
-   * 
-   * @param {MouseEvent} event - The click event
-   */
-  const closeDropdown = useCallback((event: MouseEvent) => {
-    if (parentRef.current && !parentRef.current.contains(event.target as Node)) {
-      setIsDropdownOpen(false);
-    }
-  }, []);
-
-  /**
-   * Handles the close action for the tab.
-   * 
-   * @param {React.MouseEvent} e - The click event
-   */
-  const handleClose = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onClose?.(tab);
-  }, [onClose, tab]);
-
-  // Add click outside listener
-  React.useEffect(() => {
-    document.addEventListener('mousedown', closeDropdown);
-    return () => {
-      document.removeEventListener('mousedown', closeDropdown);
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
     };
-  }, [closeDropdown]);
 
-  /**
-   * Computed styles for the tab based on active state.
-   */
-  const tabStyles = useMemo(() => ({
-    base: 'relative px-6 py-2.5 text-sm font-medium rounded-t-lg transition-colors duration-200 flex items-center gap-2 h-10',
-    active: 'bg-gray-900 text-white shadow-md z-20',
-    inactive: 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white z-10',
-  }), []);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
-  /**
-   * Computed styles for the dropdown menu.
-   */
-  const dropdownStyles = useMemo(() => ({
-    base: 'absolute top-full left-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5',
-    hidden: 'hidden',
-    visible: 'block',
-  }), []);
+  const handleTabClick = () => {
+    onSelect(tab);
+  };
+
+  const handleCloseClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClose(tab);
+  };
+
+  const handleDropdownToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDropdownOpen(!isDropdownOpen);
+  };
+
+  const handleOptionSelect = (option: TabOption) => {
+    if (onDropdownSelect) {
+      onDropdownSelect(option);
+    }
+    setIsDropdownOpen(false);
+  };
 
   return (
-    <div ref={parentRef} className="relative">
-      <button
-        className={`${tabStyles.base} ${isActive ? tabStyles.active : tabStyles.inactive}`}
-        onClick={() => onSelect?.(tab)}
-      >
-        {tab.label}
+    <div
+      ref={dropdownRef}
+      className={`relative flex items-center px-4 py-2 rounded-t-lg cursor-pointer ${
+        isActive ? 'bg-gray-800 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+      }`}
+      onClick={handleTabClick}
+    >
+      <div className="flex items-center space-x-2">
+        <span>{dropdownOption?.label || tab.label}</span>
         {tab.options && tab.options.length > 0 && (
-          <span
-            className="ml-2"
-            onClick={e => {
-              e.stopPropagation();
-              toggleDropdown();
-            }}
-          >
-            <ChevronDownIcon className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-          </span>
+          <button onClick={handleDropdownToggle} className="p-1 hover:bg-gray-600 rounded">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
         )}
-        {!isDefaultTab && onClose && (
-          <div
-            onClick={handleClose}
-            className="ml-2 p-1 rounded-full hover:bg-gray-600 transition-colors cursor-pointer"
-          >
-            <XMarkIcon className="w-4 h-4" />
-          </div>
-        )}
-      </button>
-      {tab.options && tab.options.length > 0 && (
-        <div className={`${dropdownStyles.base} ${isDropdownOpen ? dropdownStyles.visible : dropdownStyles.hidden}`}>
-          <TabDropdown
-            options={tab.options}
-            onSelect={handleDropdownSelect}
-            parentRef={parentRef as React.RefObject<HTMLDivElement>}
-            isOpen={isDropdownOpen}
-            onClose={() => setIsDropdownOpen(false)}
-          />
-        </div>
+      </div>
+      {!isDefaultTab && (
+        <button onClick={handleCloseClick} className="ml-2 p-1 hover:bg-gray-600 rounded">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      )}
+      {isDropdownOpen && tab.options && dropdownRef.current && (
+        <TabDropdown
+          isOpen={isDropdownOpen}
+          onClose={() => setIsDropdownOpen(false)}
+          onSelect={handleOptionSelect}
+          options={tab.options}
+          parentRef={dropdownRef}
+        />
       )}
     </div>
   );
-};
-
-export default React.memo(FirstLevelTab); 
+}

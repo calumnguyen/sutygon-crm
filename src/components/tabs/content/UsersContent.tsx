@@ -1,92 +1,87 @@
 'use client';
+import React from 'react';
 
-import { useEffect, useState } from 'react';
-import { db } from '@/lib/db';
-import { users as usersTable } from '@/lib/schema';
-import type { User } from '@/lib/schema';
+interface Employee {
+  fullName: string;
+  email: string;
+  role: 'Admin' | 'Non-Admin';
+  status: 'Active' | 'Inactive';
+}
 
-export default function UsersContent() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const mockEmployees: Employee[] = [
+  {
+    fullName: 'Calum',
+    email: 'sutygon@icloud.com',
+    role: 'Admin',
+    status: 'Active',
+  },
+];
 
-  useEffect(() => {
-    async function fetchUsers() {
-      try {
-        const result = await db.select().from(usersTable);
-        setUsers(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch users');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchUsers();
-  }, []);
-
-  if (loading) {
-    return <div className="p-4">Loading users...</div>;
-  }
-
-  if (error) {
-    return <div className="p-4 text-red-500">Error: {error}</div>;
-  }
-
+const UsersContent: React.FC = () => {
   return (
-    <div className="p-4">
-      <div className="mb-4">
-        <h2 className="text-2xl font-bold">Employee Accounts</h2>
-        <p className="text-gray-600">Manage employee accounts and permissions</p>
-      </div>
+    <div className="p-6">
+      <h1 className="text-2xl font-semibold text-gray-200 mb-6">Quản Lý Tài Khoản Nhân Viên</h1>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-gray-800/50 rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-700">
+          <thead className="bg-gray-700/50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
+              <th
+                scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+              >
+                Họ và Tên
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+              >
                 Email
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
+              <th
+                scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+              >
+                Vai Trò
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Login
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
+              <th
+                scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+              >
+                Trạng Thái
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
-                    {user.firstName} {user.lastName}
-                  </div>
+          <tbody className="divide-y divide-gray-700">
+            {mockEmployees.map((employee, index) => (
+              <tr key={index} className="hover:bg-gray-700/30">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
+                  {employee.fullName}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-500">{user.email}</div>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
+                  {employee.email}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <span
                     className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      employee.role === 'Admin'
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'bg-blue-100 text-blue-800'
                     }`}
                   >
-                    {user.isActive ? 'Active' : 'Inactive'}
+                    {employee.role}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <button className="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
-                  <button className="text-red-600 hover:text-red-900">Delete</button>
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <span
+                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      employee.status === 'Active'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}
+                  >
+                    {employee.status}
+                  </span>
                 </td>
               </tr>
             ))}
@@ -95,4 +90,6 @@ export default function UsersContent() {
       </div>
     </div>
   );
-}
+};
+
+export default UsersContent;

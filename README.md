@@ -1,142 +1,85 @@
 # Sutygon CRM
 
-A modern, scalable CRM application built with Next.js, TypeScript, and Tailwind CSS.
-
-## Features
-
-- 🎯 Two-level tab navigation system
-- 🎨 Modern and responsive UI
-- 🔄 Real-time state management
-- 🛡️ Type-safe development
-- 📱 Mobile-first design
-- 🧪 Comprehensive test coverage
-- 📚 Well-documented codebase
+A modern, scalable CRM system built with Next.js and TypeScript.
 
 ## Project Structure
 
 ```
-sutygon-crm/
-├── src/
-│   ├── app/                 # Next.js app directory
-│   ├── components/         # React components
-│   │   ├── common/        # Shared components
-│   │   └── tabs/         # Tab-related components
-│   ├── context/          # React context providers
-│   ├── types/           # TypeScript type definitions
-│   ├── constants/      # Application constants
-│   └── styles/        # Global styles
-├── public/           # Static assets
-└── tests/          # Test files
+src/
+├── app/                 # Next.js app directory
+├── components/          # React components
+│   ├── common/         # Shared components
+│   └── tabs/           # Tab-related components
+├── context/            # React context providers
+├── hooks/              # Custom React hooks
+├── styles/             # Global styles
+├── types/              # TypeScript type definitions
+└── constants/          # Application constants
 ```
 
-## Component Architecture
+## Key Features
 
-### Tab System
-
-The application uses a two-level tab system:
-
-1. **First Level Tabs**
-   - Main navigation items
-   - Dropdown menu for options
-   - Active state management
-   - Click-outside detection
-
-2. **Second Level Tabs**
-   - Sub-navigation items
-   - Parent-child relationship
-   - Active state management
-
-### State Management
-
-The application uses React Context for state management:
-
-- `TabContext`: Manages tab state and actions
-- `AppContext`: Manages application-wide state
+- **Tab System**: Hierarchical tab management with first and second level tabs
+- **Search Functionality**: Dynamic tab creation based on search queries
+- **Responsive Design**: Modern UI with dark theme
+- **Type Safety**: Full TypeScript support
 
 ## Development
 
 ### Prerequisites
 
-- Node.js 18.x or later
-- npm 9.x or later
+- Node.js 18+
+- npm 9+
 
-### Installation
+### Setup
+
+1. Install dependencies:
 
 ```bash
-# Install dependencies
 npm install
+```
 
-# Run development server
+2. Run development server:
+
+```bash
 npm run dev
-
-# Run tests
-npm test
-
-# Run Storybook
-npm run storybook
 ```
 
-### Testing
-
-The project uses Jest and React Testing Library for testing:
+3. Build for production:
 
 ```bash
-# Run all tests
-npm test
-
-# Run tests with coverage
-npm test -- --coverage
-
-# Run tests in watch mode
-npm test -- --watch
+npm run build
 ```
 
-### Storybook
+## Architecture
 
-The project uses Storybook for component development and documentation:
+### Tab System
 
-```bash
-# Start Storybook
-npm run storybook
-```
+The tab system is built with scalability in mind:
 
-## Performance Optimizations
+- **TabContext**: Manages tab state and operations
+- **TabId**: Branded type for type-safe tab identification
+- **Tab Actions**: Centralized tab operations
+- **Tab Components**: Reusable tab UI components
 
-1. **Memoization**
-   - Component memoization with `React.memo`
-   - Callback memoization with `useCallback`
-   - Value memoization with `useMemo`
+### Error Handling
 
-2. **State Management**
-   - Efficient state updates
-   - Proper state initialization
-   - Error handling
+- Error boundaries for component-level error catching
+- Type-safe error handling with TypeScript
+- Graceful fallbacks for failed operations
 
-3. **Rendering**
-   - Conditional rendering
-   - Lazy loading
-   - Code splitting
+### Performance
 
-## Error Handling
-
-1. **Error Boundaries**
-   - Component-level error catching
-   - Fallback UI
-   - Error logging
-
-2. **Type Safety**
-   - TypeScript strict mode
-   - Proper type definitions
-   - Null checks
+- Lazy loading for tab content
+- Memoized components to prevent unnecessary re-renders
+- Efficient state management with React Context
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Create a feature branch
+2. Make your changes
+3. Submit a pull request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT

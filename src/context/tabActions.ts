@@ -1,4 +1,5 @@
-import type { TabAction, FirstLevelTab, SecondLevelTab } from '@/types/tabs';
+import type { TabAction, FirstLevelTab, SecondLevelTab, TabError } from '@/types/tabTypes';
+import { createTabId } from '@/types/tabTypes';
 
 // Action Types
 export const TAB_ACTIONS = {
@@ -40,7 +41,7 @@ export const setLoading = (isLoading: boolean): TabAction => ({
   payload: isLoading,
 });
 
-export const setError = (error: Error | null): TabAction => ({
+export const setError = (error: TabError | null): TabAction => ({
   type: TAB_ACTIONS.SET_ERROR,
   payload: error,
 });
@@ -52,7 +53,7 @@ export const addFirstLevelTab = (tab: FirstLevelTab): TabAction => ({
 
 export const removeFirstLevelTab = (tabId: string): TabAction => ({
   type: TAB_ACTIONS.REMOVE_FIRST_LEVEL_TAB,
-  payload: tabId,
+  payload: createTabId(tabId),
 });
 
 export const addSecondLevelTab = (tab: SecondLevelTab): TabAction => ({
@@ -62,5 +63,5 @@ export const addSecondLevelTab = (tab: SecondLevelTab): TabAction => ({
 
 export const removeSecondLevelTab = (tabId: string): TabAction => ({
   type: TAB_ACTIONS.REMOVE_SECOND_LEVEL_TAB,
-  payload: tabId,
-}); 
+  payload: createTabId(tabId),
+});

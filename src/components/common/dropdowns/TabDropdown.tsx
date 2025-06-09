@@ -1,21 +1,21 @@
-"use client";
+'use client';
 import React, { useEffect, useRef } from 'react';
-import type { TabDropdownProps, TabOption } from '@/types/tabs';
+import type { TabDropdownProps, TabOption } from '@/types/tabTypes';
 
 /**
  * TabDropdown Component
- * 
+ *
  * A reusable dropdown menu component for tab navigation.
  * It displays a list of options and handles option selection.
- * 
+ *
  * @component
  * @param {TabDropdownProps} props - Component props
  * @param {TabOption[]} props.options - List of options to display in the dropdown
  * @param {Function} props.onSelect - Callback function when an option is selected
- * @param {React.RefObject<HTMLDivElement>} props.parentRef - Reference to the parent element for click-outside detection
+ * @param {React.RefObject<HTMLDivElement | null>} props.parentRef - Reference to the parent element for click-outside detection
  * @param {boolean} props.isOpen - Whether the dropdown is currently open
  * @param {Function} props.onClose - Callback function to close the dropdown
- * 
+ *
  * @example
  * ```tsx
  * // Basic usage
@@ -29,7 +29,7 @@ import type { TabDropdownProps, TabOption } from '@/types/tabs';
  *   isOpen={isDropdownOpen}
  *   onClose={() => setIsDropdownOpen(false)}
  * />
- * 
+ *
  * // With custom styling
  * <TabDropdown
  *   options={options}
@@ -40,14 +40,14 @@ import type { TabDropdownProps, TabOption } from '@/types/tabs';
  *   className="custom-dropdown"
  * />
  * ```
- * 
+ *
  * @remarks
  * - The dropdown is positioned absolutely relative to its parent
  * - Click-outside detection is implemented using the parentRef
  * - Options are rendered as a list of clickable items
  * - Each option has a unique ID and display label
  * - The dropdown can be styled using Tailwind CSS classes
- * 
+ *
  * @see {@link TabOption} for more information about option structure
  * @see {@link TabDropdownProps} for more information about component props
  */
@@ -79,7 +79,7 @@ const TabDropdown: React.FC<TabDropdownProps> = ({
 
   /**
    * Handles the selection of an option.
-   * 
+   *
    * @param {TabOption} option - The selected option
    */
   const handleSelect = (option: TabOption) => {
@@ -109,4 +109,4 @@ const TabDropdown: React.FC<TabDropdownProps> = ({
   );
 };
 
-export default TabDropdown; 
+export default TabDropdown;

@@ -1,18 +1,17 @@
-"use client";
+'use client';
 import React from 'react';
-import { FirstLevelTab, SecondLevelTab, TabOption } from '@/types/tabs';
+import type { FirstLevelTab, SecondLevelTab, TabOption } from '@/types/tabTypes';
 import { useTabContext } from '@/context/TabContext';
 import FirstLevelTabComponent from './FirstLevelTab';
 import SecondLevelTabComponent from './SecondLevelTab';
-import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
 
 /**
  * BrowserTabBar Component
- * 
+ *
  * A two-level tab navigation system that provides a hierarchical navigation structure.
  * The first level contains main navigation items with dropdown menus, while the second level
  * shows related sub-navigation items.
- * 
+ *
  * @component
  * @param {BrowserTabBarProps} props - Component props
  * @param {FirstLevelTab[]} [props.firstLevelTabs=[]] - Array of first-level tabs
@@ -24,7 +23,7 @@ import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
  * @param {TabOption} [props.selectedDropdownOption] - Selected dropdown option for the first tab
  * @param {Function} [props.onDropdownSelect] - Callback when a dropdown option is selected
  * @param {Function} [props.onCloseTab] - Callback when a tab is closed
- * 
+ *
  * @example
  * ```tsx
  * // Basic usage
@@ -45,7 +44,7 @@ import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
  *   onDropdownSelect={(option) => console.log('Dropdown option selected:', option)}
  *   onCloseTab={(tab) => console.log('Tab closed:', tab)}
  * />
- * 
+ *
  * // With default home tab
  * <BrowserTabBar
  *   firstLevelTabs={[]}
@@ -60,7 +59,7 @@ import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
  *   onCloseTab={(tab) => console.log('Tab closed:', tab)}
  * />
  * ```
- * 
+ *
  * @remarks
  * - The component provides a two-level navigation structure
  * - First-level tabs can have dropdown menus with additional options
@@ -68,62 +67,47 @@ import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
  * - The component handles undefined tabs gracefully
  * - A default home tab is shown if no first-level tabs are provided
  * - The component uses Tailwind CSS for styling
- * 
+ *
  * @see {@link FirstLevelTabComponent} for more information about first-level tabs
  * @see {@link SecondLevelTabComponent} for more information about second-level tabs
  * @see {@link DEFAULT_TAB_OPTIONS} for default dropdown options
  */
 interface BrowserTabBarProps {
-  firstLevelTabs?: FirstLevelTab[];
-  secondLevelTabs?: SecondLevelTab[];
-  activeFirstLevelTab?: FirstLevelTab;
-  activeSecondLevelTab?: SecondLevelTab;
-  onFirstLevelTabSelect?: (tab: FirstLevelTab) => void;
-  onSecondLevelTabSelect?: (tab: SecondLevelTab) => void;
   selectedDropdownOption?: TabOption;
   onDropdownSelect?: (option: TabOption) => void;
-  onCloseTab?: (tab: FirstLevelTab) => void;
 }
 
 export default function BrowserTabBar({
-  firstLevelTabs,
-  secondLevelTabs,
-  activeFirstLevelTab,
-  activeSecondLevelTab,
-  onFirstLevelTabSelect,
-  onSecondLevelTabSelect,
   selectedDropdownOption,
   onDropdownSelect,
-  onCloseTab
 }: BrowserTabBarProps) {
   const {
-    state,
-    setActiveFirstLevelTab,
-    setActiveSecondLevelTab,
-    removeFirstLevelTab
+    firstLevelTabs,
+    secondLevelTabs,
+    activeFirstLevelTab,
+    activeSecondLevelTab,
+    activateTab,
+    removeTab,
   } = useTabContext();
 
   const handleFirstLevelTabSelect = (tab: FirstLevelTab) => {
-    setActiveFirstLevelTab(tab);
-    onFirstLevelTabSelect?.(tab);
+    activateTab(tab.id);
   };
 
   const handleSecondLevelTabSelect = (tab: SecondLevelTab) => {
-    setActiveSecondLevelTab(tab);
-    onSecondLevelTabSelect?.(tab);
+    activateTab(tab.id);
   };
 
   const handleCloseTab = (tab: FirstLevelTab) => {
     if (!tab.isDefault) {
-      removeFirstLevelTab(tab.id);
-      onCloseTab?.(tab);
+      removeTab(tab.id);
     }
   };
 
   return (
     <div className="flex flex-col w-full">
       <div className="flex items-center space-x-2 p-2 border-b border-gray-800/100">
-        {firstLevelTabs?.map((tab) => (
+        {firstLevelTabs.map((tab) => (
           <FirstLevelTabComponent
             key={tab.id}
             tab={tab}
@@ -136,7 +120,7 @@ export default function BrowserTabBar({
           />
         ))}
       </div>
-      {secondLevelTabs && secondLevelTabs.length > 0 && (
+      {secondLevelTabs.length > 0 && (
         <div className="flex items-center space-x-2 p-2 border-b border-gray-800/20">
           {secondLevelTabs.map((tab) => (
             <SecondLevelTabComponent
@@ -150,4 +134,4 @@ export default function BrowserTabBar({
       )}
     </div>
   );
-} 
+}
