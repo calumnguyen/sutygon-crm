@@ -2,12 +2,12 @@ import type { ReactNode } from 'react';
 
 /**
  * Represents a tab option in the dropdown menu.
- * 
+ *
  * @interface TabOption
  * @property {string} id - Unique identifier for the option
  * @property {string} label - Display label for the option
  * @property {ReactNode} [content] - Optional content to display when option is selected
- * 
+ *
  * @example
  * ```tsx
  * const option: TabOption = {
@@ -25,7 +25,7 @@ export interface TabOption {
 
 /**
  * Represents a first-level tab in the browser tab bar.
- * 
+ *
  * @interface FirstLevelTab
  * @property {string} id - Unique identifier for the tab
  * @property {string} label - Display label for the tab
@@ -33,7 +33,7 @@ export interface TabOption {
  * @property {boolean} [isClosable=true] - Whether the tab can be closed
  * @property {boolean} [isDefault=false] - Whether this is the default tab
  * @property {TabOption} [selectedOption] - Currently selected option from the dropdown
- * 
+ *
  * @example
  * ```tsx
  * const tab: FirstLevelTab = {
@@ -60,13 +60,13 @@ export interface FirstLevelTab {
 
 /**
  * Represents a second-level tab in the browser tab bar.
- * 
+ *
  * @interface SecondLevelTab
  * @property {string} id - Unique identifier for the tab
  * @property {string} label - Display label for the tab
  * @property {string} parentId - ID of the parent first-level tab
  * @property {boolean} [isClosable=true] - Whether the tab can be closed
- * 
+ *
  * @example
  * ```tsx
  * const tab: SecondLevelTab = {
@@ -86,7 +86,7 @@ export interface SecondLevelTab {
 
 /**
  * Represents the state of the tab system.
- * 
+ *
  * @interface TabState
  * @property {FirstLevelTab[]} firstLevelTabs - Array of first-level tabs
  * @property {SecondLevelTab[]} secondLevelTabs - Array of second-level tabs
@@ -94,7 +94,7 @@ export interface SecondLevelTab {
  * @property {SecondLevelTab} [activeSecondLevelTab] - Currently active second-level tab
  * @property {boolean} isLoading - Loading state indicator
  * @property {Error | null} error - Error state if any
- * 
+ *
  * @example
  * ```tsx
  * const state: TabState = {
@@ -118,11 +118,11 @@ export interface TabState {
 
 /**
  * Represents an action that can be dispatched to update the tab state.
- * 
+ *
  * @type {TabAction}
  * @property {string} type - The type of action
  * @property {any} payload - The data associated with the action
- * 
+ *
  * @example
  * ```tsx
  * const action: TabAction = {
@@ -141,18 +141,19 @@ export type TabAction =
   | { type: 'ADD_FIRST_LEVEL_TAB'; payload: FirstLevelTab }
   | { type: 'REMOVE_FIRST_LEVEL_TAB'; payload: string }
   | { type: 'ADD_SECOND_LEVEL_TAB'; payload: SecondLevelTab }
-  | { type: 'REMOVE_SECOND_LEVEL_TAB'; payload: string };
+  | { type: 'REMOVE_SECOND_LEVEL_TAB'; payload: string }
+  | { type: 'UPDATE_FIRST_LEVEL_TAB'; payload: { id: string; label: string } };
 
 /**
  * Props for the TabDropdown component.
- * 
+ *
  * @interface TabDropdownProps
  * @property {boolean} isOpen - Whether the dropdown is currently open
  * @property {() => void} onClose - Callback function when dropdown should close
  * @property {(option: TabOption) => void} onSelect - Callback function when an option is selected
  * @property {TabOption[]} options - Array of options to display in the dropdown
  * @property {React.RefObject<HTMLDivElement>} [parentRef] - Reference to the parent element for click-outside detection
- * 
+ *
  * @example
  * ```tsx
  * const props: TabDropdownProps = {
@@ -177,7 +178,7 @@ export interface TabDropdownProps {
 
 /**
  * Props for the FirstLevelTab component.
- * 
+ *
  * @interface FirstLevelTabProps
  * @property {FirstLevelTab} tab - The tab data
  * @property {boolean} isActive - Whether the tab is currently active
@@ -186,7 +187,7 @@ export interface TabDropdownProps {
  * @property {(option: TabOption) => void} [onDropdownSelect] - Callback function when a dropdown option is selected
  * @property {(tab: FirstLevelTab) => void} onClose - Callback function when the tab is closed
  * @property {boolean} isDefaultTab - Whether the tab is the default tab
- * 
+ *
  * @example
  * ```tsx
  * const props: FirstLevelTabProps = {
@@ -218,12 +219,12 @@ export interface FirstLevelTabProps {
 
 /**
  * Props for the SecondLevelTab component.
- * 
+ *
  * @interface SecondLevelTabProps
  * @property {SecondLevelTab} tab - The tab data
  * @property {boolean} isActive - Whether the tab is currently active
  * @property {(tab: SecondLevelTab) => void} onSelect - Callback function when the tab is selected
- * 
+ *
  * @example
  * ```tsx
  * const props: SecondLevelTabProps = {
@@ -245,7 +246,7 @@ export interface SecondLevelTabProps {
 
 /**
  * Props for the BrowserTabBar component.
- * 
+ *
  * @interface BrowserTabBarProps
  * @property {FirstLevelTab[]} firstLevelTabs - Array of first-level tabs
  * @property {SecondLevelTab[]} secondLevelTabs - Array of second-level tabs
@@ -256,7 +257,7 @@ export interface SecondLevelTabProps {
  * @property {TabOption} [selectedDropdownOption] - Currently selected dropdown option
  * @property {(option: TabOption) => void} [onDropdownSelect] - Callback function when a dropdown option is selected
  * @property {(tab: FirstLevelTab) => void} onCloseTab - Callback function when a first-level tab is closed
- * 
+ *
  * @example
  * ```tsx
  * const props: BrowserTabBarProps = {
@@ -282,4 +283,4 @@ export interface BrowserTabBarProps {
   selectedDropdownOption?: TabOption;
   onDropdownSelect?: (option: TabOption) => void;
   onCloseTab?: (tab: FirstLevelTab) => void;
-} 
+}

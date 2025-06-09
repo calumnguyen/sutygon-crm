@@ -1,18 +1,17 @@
-"use client";
+'use client';
 import React, { useState } from 'react';
 import BrowserTabBar from '@/components/tabs/browser/BrowserTabBar';
 import { AppProvider } from '@/context/AppContext';
 import { useTabContext } from '@/context/TabContext';
 import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
-import ContentManager from '@/components/tabs/browser/content/ContentManager';
-import type { FirstLevelTab, SecondLevelTab, TabOption } from '@/types/tabs';
+import type { FirstLevelTab, TabOption } from '@/types/tabs';
 
 const defaultFirstLevelTab = {
   id: 'home',
   label: 'Trang Chủ',
   options: DEFAULT_TAB_OPTIONS,
   isDefault: true,
-  isClosable: false
+  isClosable: false,
 };
 
 // Placeholder content for each dropdown option
@@ -24,8 +23,11 @@ const DROPDOWN_CONTENT: Record<string, React.ReactNode> = {
 };
 
 const TabContent: React.FC = () => {
-  const { state, dispatch, addFirstLevelTab, removeFirstLevelTab, setActiveFirstLevelTab, setActiveSecondLevelTab } = useTabContext();
-  const [selectedDropdownOption, setSelectedDropdownOption] = useState<TabOption>(DEFAULT_TAB_OPTIONS[0]);
+  const { state, dispatch, removeFirstLevelTab, setActiveFirstLevelTab, setActiveSecondLevelTab } =
+    useTabContext();
+  const [selectedDropdownOption, setSelectedDropdownOption] = useState<TabOption>(
+    DEFAULT_TAB_OPTIONS[0]
+  );
 
   React.useEffect(() => {
     const initializeTabs = () => {
@@ -38,26 +40,15 @@ const TabContent: React.FC = () => {
   // Handler for dropdown option selection
   const handleDropdownSelect = (option: TabOption) => {
     setSelectedDropdownOption(option);
-  };
-
-  // Function to add a new Level 1 tab for search (scalable, robust)
-  const addSearchTab = (query: string) => {
-    const searchTabId = `search-${query}`;
-    // Prevent duplicate search tabs
-    if (!state.firstLevelTabs.some(tab => tab.id === searchTabId)) {
-      const newTab: FirstLevelTab = {
-        id: searchTabId,
-        label: `Search: ${query}`,
-        options: [],
-        isClosable: true
-      };
-      addFirstLevelTab(newTab);
-    }
-  };
-
-  const handleSearch = (query: string) => {
-    if (query.trim()) {
-      addSearchTab(query);
+    // Update the active tab's label based on the selected dropdown option
+    if (state.activeFirstLevelTab) {
+      dispatch({
+        type: 'UPDATE_FIRST_LEVEL_TAB',
+        payload: {
+          id: state.activeFirstLevelTab.id,
+          label: option.label,
+        },
+      });
     }
   };
 
@@ -83,9 +74,7 @@ const TabContent: React.FC = () => {
         onDropdownSelect={handleDropdownSelect}
         onCloseTab={handleCloseTab}
       />
-      <div className="flex-1 p-4">
-        {DROPDOWN_CONTENT[selectedDropdownOption.id]}
-      </div>
+      <div className="flex-1 p-4">{DROPDOWN_CONTENT[selectedDropdownOption.id]}</div>
     </div>
   );
 };
