@@ -109,7 +109,7 @@ export default function UserModal({
               }
               className="mt-1 block w-full rounded-lg bg-gray-800 border border-gray-600 text-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition px-4 py-2 appearance-none"
               required
-              disabled={isEditingSelf}
+              disabled={isEditingSelf ?? false}
             >
               <option value="user">{TRANSLATIONS.users.roles.user}</option>
               <option value="admin">{TRANSLATIONS.users.roles.admin}</option>
