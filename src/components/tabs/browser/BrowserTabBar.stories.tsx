@@ -1,4 +1,5 @@
-import type { Meta, StoryObj } from '@storybook/nextjs';
+/* eslint-disable storybook/no-renderer-packages */
+import type { Meta, StoryObj } from '@storybook/react';
 import BrowserTabBar from './BrowserTabBar';
 import { TabProvider } from '@/context/TabContext';
 
