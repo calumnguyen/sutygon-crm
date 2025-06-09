@@ -117,7 +117,8 @@ export const TabProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logger.info('Adding first level tab', { tabId: tab.id });
         dispatch(addFirstLevelTab(tab));
       } catch (error) {
-        logger.error('Failed to add first level tab', { error, tabId: tab.id });
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to add first level tab', { error: errorMessage, tabId: tab.id });
         throw error;
       }
     },
@@ -130,7 +131,8 @@ export const TabProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logger.info('Adding second level tab', { tabId: tab.id });
         dispatch(addSecondLevelTab(tab));
       } catch (error) {
-        logger.error('Failed to add second level tab', { error, tabId: tab.id });
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to add second level tab', { error: errorMessage, tabId: tab.id });
         throw error;
       }
     },
@@ -152,7 +154,8 @@ export const TabProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           logger.warn('Tab not found for removal', { tabId: id });
         }
       } catch (error) {
-        logger.error('Failed to remove tab', { error, tabId: id });
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to remove tab', { error: errorMessage, tabId: id });
         throw error;
       }
     },
@@ -174,7 +177,8 @@ export const TabProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           logger.warn('Tab not found for activation', { tabId: id });
         }
       } catch (error) {
-        logger.error('Failed to activate tab', { error, tabId: id });
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to activate tab', { error: errorMessage, tabId: id });
         throw error;
       }
     },
