@@ -9,15 +9,23 @@
     "lint": "next lint",
     "prepare": "husky install",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@neondatabase/serverless": "^1.0.1",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.44.2",
+    "lucide-react": "^0.513.0",
     "next": "15.3.3",
+    "next-intl": "^4.1.0",
     "pg": "^8.16.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^4",
@@ -37,6 +45,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "ajv": "^8.12.0",
+    "drizzle-kit": "^0.31.1",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
     "eslint-plugin-storybook": "9.0.6",

@@ -1,85 +1,80 @@
 # Sutygon CRM
 
-A modern, scalable CRM system built with Next.js and TypeScript.
+A modern, scalable CRM system built with Next.js, TypeScript, and PostgreSQL.
 
-## Project Structure
+## Features
 
-```
-src/
-├── app/                 # Next.js app directory
-├── components/          # React components
-│   ├── common/         # Shared components
-│   └── tabs/           # Tab-related components
-├── context/            # React context providers
-├── hooks/              # Custom React hooks
-├── styles/             # Global styles
-├── types/              # TypeScript type definitions
-└── constants/          # Application constants
-```
+- 🔐 Secure authentication and authorization
+- 👥 User management with role-based access control
+- 🌐 Modern, responsive UI
+- 🚀 Server-side rendering for optimal performance
+- 📱 Mobile-friendly design
+- 🌍 Vietnamese language support
 
-## Key Features
-
-- **Tab System**: Hierarchical tab management with first and second level tabs
-- **Search Functionality**: Dynamic tab creation based on search queries
-- **Responsive Design**: Modern UI with dark theme
-- **Type Safety**: Full TypeScript support
-
-## Development
+## Quick Start
 
 ### Prerequisites
 
 - Node.js 18+
-- npm 9+
+- pnpm
+- PostgreSQL
 
-### Setup
+### Installation
 
-1. Install dependencies:
+1. Clone the repository:
 
-```bash
-npm install
-```
+   ```bash
+   git clone https://github.com/your-username/sutygon-crm.git
+   cd sutygon-crm
+   ```
 
-2. Run development server:
+2. Install dependencies:
 
-```bash
-npm run dev
-```
+   ```bash
+   pnpm install
+   ```
 
-3. Build for production:
+3. Set up environment variables:
 
-```bash
-npm run build
-```
+   ```bash
+   cp .env.example .env.local
+   ```
 
-## Architecture
+   Edit `.env.local` with your configuration.
 
-### Tab System
+4. Run the development server:
 
-The tab system is built with scalability in mind:
+   ```bash
+   pnpm dev
+   ```
 
-- **TabContext**: Manages tab state and operations
-- **TabId**: Branded type for type-safe tab identification
-- **Tab Actions**: Centralized tab operations
-- **Tab Components**: Reusable tab UI components
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Error Handling
+## Documentation
 
-- Error boundaries for component-level error catching
-- Type-safe error handling with TypeScript
-- Graceful fallbacks for failed operations
-
-### Performance
-
-- Lazy loading for tab content
-- Memoized components to prevent unnecessary re-renders
-- Efficient state management with React Context
+- [Architecture Overview](./docs/ARCHITECTURE.md)
+- [Development Guide](./docs/DEVELOPMENT_GUIDE.md)
+- [API Documentation](./docs/API.md)
+- [Technical Report](./docs/TECHNICAL_REPORT.md)
 
 ## Contributing
 
-1. Create a feature branch
-2. Make your changes
-3. Submit a pull request
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For support, email support@sutygon.com or open an issue in the repository.
+
+## Acknowledgments
+
+- Next.js team for the amazing framework
+- Vercel for hosting
+- All contributors who have helped shape this project
