@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
 // Types
@@ -7,15 +7,32 @@ interface User {
   isAuthenticated: boolean;
 }
 
+interface SearchFilter {
+  [key: string]: string | number | boolean | string[] | number[] | boolean[];
+}
+
 interface SearchState {
   query: string;
   history: string[];
-  filters: Record<string, any>;
+  filters: SearchFilter;
+}
+
+interface Tab {
+  id: string;
+  label: string;
+  type: string;
+  parentId?: string;
+  options?: TabOption[];
+}
+
+interface TabOption {
+  id: string;
+  label: string;
+  value: string;
 }
 
 interface UIState {
-  theme: 'light' | 'dark';
-  animations: boolean;
+  isAnimationsEnabled: boolean;
   layout: 'default' | 'compact';
 }
 
@@ -29,13 +46,18 @@ interface AppContextType {
   searchState: SearchState;
   updateSearch: (query: string) => void;
   clearSearchHistory: () => void;
-  updateSearchFilters: (filters: Record<string, any>) => void;
+  updateSearchFilters: (filters: SearchFilter) => void;
 
   // UI state
   uiState: UIState;
-  toggleTheme: () => void;
   toggleAnimations: () => void;
   setLayout: (layout: 'default' | 'compact') => void;
+
+  tabs: Tab[];
+  activeTab: Tab | null;
+  addTab: (tab: Tab) => void;
+  removeTab: (tabId: string) => void;
+  setActiveTab: (tab: Tab) => void;
 }
 
 // Create context
@@ -61,7 +83,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const updateSearch = useCallback((query: string) => {
-    setSearchState(prev => ({
+    setSearchState((prev) => ({
       ...prev,
       query,
       history: [query, ...prev.history.slice(0, 9)], // Keep last 10 searches
@@ -69,39 +91,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const clearSearchHistory = useCallback(() => {
-    setSearchState(prev => ({ ...prev, history: [] }));
+    setSearchState((prev) => ({ ...prev, history: [] }));
   }, []);
 
-  const updateSearchFilters = useCallback((filters: Record<string, any>) => {
-    setSearchState(prev => ({ ...prev, filters }));
+  const updateSearchFilters = useCallback((filters: SearchFilter) => {
+    setSearchState((prev) => ({ ...prev, filters }));
   }, []);
 
   // UI state
   const [uiState, setUIState] = useState<UIState>({
-    theme: 'dark',
-    animations: true,
+    isAnimationsEnabled: true,
     layout: 'default',
   });
 
-  const toggleTheme = useCallback(() => {
-    setUIState(prev => ({
-      ...prev,
-      theme: prev.theme === 'light' ? 'dark' : 'light',
-    }));
-  }, []);
-
   const toggleAnimations = useCallback(() => {
-    setUIState(prev => ({
-      ...prev,
-      animations: !prev.animations,
-    }));
+    setUIState((prev) => ({ ...prev, isAnimationsEnabled: !prev.isAnimationsEnabled }));
   }, []);
 
   const setLayout = useCallback((layout: 'default' | 'compact') => {
-    setUIState(prev => ({ ...prev, layout }));
+    setUIState((prev) => ({ ...prev, layout }));
   }, []);
 
-  const value = {
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab | null>(null);
+
+  const addTab = useCallback((tab: Tab) => {
+    setTabs((prevTabs) => [...prevTabs, tab]);
+  }, []);
+
+  const removeTab = useCallback(
+    (tabId: string) => {
+      setTabs((prevTabs) => prevTabs.filter((tab) => tab.id !== tabId));
+      if (activeTab?.id === tabId) {
+        setActiveTab(null);
+      }
+    },
+    [activeTab]
+  );
+
+  const handleSetActiveTab = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+  }, []);
+
+  const value: AppContextType = {
     // User state
     user,
     setUser,
@@ -115,9 +147,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // UI state
     uiState,
-    toggleTheme,
     toggleAnimations,
     setLayout,
+
+    tabs,
+    activeTab,
+    addTab,
+    removeTab,
+    setActiveTab: handleSetActiveTab,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -130,4 +167,4 @@ export const useApp = () => {
     throw new Error('useApp must be used within an AppProvider');
   }
   return context;
-}; 
+};

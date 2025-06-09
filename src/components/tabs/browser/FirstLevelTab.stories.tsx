@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/nextjs';
 import FirstLevelTab from './FirstLevelTab';
 import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
 
@@ -74,4 +74,4 @@ export const WithCloseButton: Story = {
     isDefaultTab: false,
     onClose: () => {},
   },
-}; 
+};

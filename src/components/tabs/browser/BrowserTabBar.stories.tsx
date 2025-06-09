@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/nextjs';
 import BrowserTabBar from './BrowserTabBar';
 import { TabProvider } from '@/context/TabContext';
 import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
@@ -103,4 +103,4 @@ export const WithDropdown: Story = {
     onSecondLevelTabSelect: () => {},
     onDropdownSelect: () => {},
   },
-}; 
+};

@@ -1,26 +1,20 @@
-import React from 'react';
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
 import ClientLayout from './ClientLayout';
-import { metadata } from './metadata';
 import { TabProvider } from '@/context/TabContext';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ['latin'] });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export { metadata };
+export const metadata: Metadata = {
+  title: 'Sutygon CRM',
+  description: 'Sutygon CRM - Your Business Management Solution',
+};
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <html lang="en">
-      <body>
+      <body className={inter.className}>
         <TabProvider>
           <ClientLayout>{children}</ClientLayout>
         </TabProvider>

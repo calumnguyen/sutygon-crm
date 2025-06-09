@@ -1,11 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   output: 'standalone',
   experimental: {
-    turbo: true,
-  },
+    turbo: {
+      enabled: true
+    }
+  }
 };
 
 export default nextConfig; 
