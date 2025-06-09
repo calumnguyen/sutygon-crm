@@ -5,6 +5,7 @@ import { AppProvider } from '@/context/AppContext';
 import { useTabContext } from '@/context/TabContext';
 import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
 import type { FirstLevelTab, TabOption } from '@/types/tabs';
+import UsersContent from '@/components/tabs/content/UsersContent';
 
 const defaultFirstLevelTab = {
   id: 'home',
@@ -19,7 +20,7 @@ const DROPDOWN_CONTENT: Record<string, React.ReactNode> = {
   home: <div className="text-white text-xl">Trang Chủ Content Placeholder</div>,
   customers: <div className="text-white text-xl">Khách Hàng Content Placeholder</div>,
   inventory: <div className="text-white text-xl">Kho Content Placeholder</div>,
-  users: <div className="text-white text-xl">Nhân Viên Content Placeholder</div>,
+  users: <UsersContent />,
 };
 
 const TabContent: React.FC = () => {
