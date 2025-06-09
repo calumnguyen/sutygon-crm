@@ -120,7 +120,7 @@ export default function FirstLevelTabComponent({
       onClick={handleTabClick}
     >
       <div className="flex items-center space-x-2">
-        <span>{dropdownOption?.label || tab.label}</span>
+        <span>{isDefaultTab ? dropdownOption?.label || tab.label : tab.label}</span>
         {tab.options && tab.options.length > 0 && !tab.label.startsWith('Search:') && (
           <button onClick={handleDropdownToggle} className="p-1 hover:bg-gray-600 rounded">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

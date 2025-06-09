@@ -43,8 +43,8 @@ const TabContent: React.FC = () => {
   // Handler for dropdown option selection
   const handleDropdownSelect = (option: TabOption) => {
     setSelectedDropdownOption(option);
-    // Update the active tab's label based on the selected dropdown option
-    if (activeFirstLevelTab) {
+    // Only update the label if the active tab is the default tab
+    if (activeFirstLevelTab && activeFirstLevelTab.isDefault) {
       const updatedTab: FirstLevelTab = {
         ...activeFirstLevelTab,
         label: option.label,
