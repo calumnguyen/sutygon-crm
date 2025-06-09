@@ -1,6 +1,8 @@
-import type { Meta, StoryObj } from '@storybook/nextjs';
+/* eslint-disable storybook/no-renderer-packages */
+import type { Meta, StoryObj } from '@storybook/react';
 import FirstLevelTab from './FirstLevelTab';
 import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
+import { createTabId } from '@/types/tabTypes';
 
 const meta: Meta<typeof FirstLevelTab> = {
   title: 'Components/Tabs/FirstLevelTab',
@@ -22,14 +24,16 @@ export default meta;
 type Story = StoryObj<typeof FirstLevelTab>;
 
 const defaultTab = {
-  id: 'home',
+  id: createTabId('home'),
   label: 'Trang Chủ',
+  type: 'first' as const,
   options: DEFAULT_TAB_OPTIONS,
 };
 
 const searchTab = {
-  id: 'search-1',
+  id: createTabId('search-1'),
   label: 'Search: test query',
+  type: 'first' as const,
   options: DEFAULT_TAB_OPTIONS,
 };
 

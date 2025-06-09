@@ -1,5 +1,7 @@
-import type { Meta, StoryObj } from '@storybook/nextjs';
+/* eslint-disable storybook/no-renderer-packages */
+import type { Meta, StoryObj } from '@storybook/react';
 import SecondLevelTab from './SecondLevelTab';
+import { createTabId } from '@/types/tabTypes';
 
 const meta = {
   title: 'Components/Tabs/SecondLevelTab',
@@ -21,9 +23,10 @@ export default meta;
 type Story = StoryObj<typeof SecondLevelTab>;
 
 const defaultTab = {
-  id: 'sub-1',
+  id: createTabId('sub-1'),
   label: 'Sub Tab 1',
-  parentId: 'home',
+  type: 'second' as const,
+  parentId: createTabId('home'),
 };
 
 export const Default: Story = {
