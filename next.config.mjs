@@ -3,9 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   experimental: {
-    turbo: {
-      enabled: true
-    }
+    turbopack: true
   }
 };
 
