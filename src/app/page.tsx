@@ -1,103 +1,98 @@
-import Image from "next/image";
+"use client";
+import React, { useState } from 'react';
+import BrowserTabBar from '@/components/tabs/browser/BrowserTabBar';
+import { AppProvider } from '@/context/AppContext';
+import { useTabContext } from '@/context/TabContext';
+import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
+import ContentManager from '@/components/tabs/browser/content/ContentManager';
+import type { FirstLevelTab, SecondLevelTab, TabOption } from '@/types/tabs';
+
+const defaultFirstLevelTab = {
+  id: 'home',
+  label: 'Trang Chủ',
+  options: DEFAULT_TAB_OPTIONS,
+  isDefault: true,
+  isClosable: false
+};
+
+// Placeholder content for each dropdown option
+const DROPDOWN_CONTENT: Record<string, React.ReactNode> = {
+  home: <div className="text-white text-xl">Trang Chủ Content Placeholder</div>,
+  customers: <div className="text-white text-xl">Khách Hàng Content Placeholder</div>,
+  inventory: <div className="text-white text-xl">Kho Content Placeholder</div>,
+};
+
+const TabContent: React.FC = () => {
+  const { state, dispatch, addFirstLevelTab, removeFirstLevelTab, setActiveFirstLevelTab, setActiveSecondLevelTab } = useTabContext();
+  const [selectedDropdownOption, setSelectedDropdownOption] = useState<TabOption>(DEFAULT_TAB_OPTIONS[0]);
+
+  React.useEffect(() => {
+    const initializeTabs = () => {
+      dispatch({ type: 'SET_FIRST_LEVEL_TABS', payload: [defaultFirstLevelTab] });
+      setActiveFirstLevelTab(defaultFirstLevelTab);
+    };
+    initializeTabs();
+  }, []);
+
+  // Handler for dropdown option selection
+  const handleDropdownSelect = (option: TabOption) => {
+    setSelectedDropdownOption(option);
+  };
+
+  // Function to add a new Level 1 tab for search (scalable, robust)
+  const addSearchTab = (query: string) => {
+    const searchTabId = `search-${query}`;
+    // Prevent duplicate search tabs
+    if (!state.firstLevelTabs.some(tab => tab.id === searchTabId)) {
+      const newTab: FirstLevelTab = {
+        id: searchTabId,
+        label: `Search: ${query}`,
+        options: [],
+        isClosable: true
+      };
+      addFirstLevelTab(newTab);
+    }
+  };
+
+  const handleSearch = (query: string) => {
+    if (query.trim()) {
+      addSearchTab(query);
+    }
+  };
+
+  // Handler for closing tabs
+  const handleCloseTab = (tabToClose: FirstLevelTab) => {
+    // Don't allow closing the default tab
+    if (tabToClose.id === defaultFirstLevelTab.id) return;
+
+    // Remove the tab
+    removeFirstLevelTab(tabToClose.id);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <BrowserTabBar
+        firstLevelTabs={state.firstLevelTabs}
+        secondLevelTabs={state.secondLevelTabs}
+        activeFirstLevelTab={state.activeFirstLevelTab}
+        activeSecondLevelTab={state.activeSecondLevelTab}
+        onFirstLevelTabSelect={setActiveFirstLevelTab}
+        onSecondLevelTabSelect={setActiveSecondLevelTab}
+        selectedDropdownOption={selectedDropdownOption}
+        onDropdownSelect={handleDropdownSelect}
+        onCloseTab={handleCloseTab}
+      />
+      <div className="flex-1 p-4">
+        {DROPDOWN_CONTENT[selectedDropdownOption.id]}
+      </div>
+    </div>
+  );
+};
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+    <AppProvider>
+      <TabContent />
+    </AppProvider>
   );
 }

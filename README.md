@@ -1,36 +1,142 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sutygon CRM
 
-## Getting Started
+A modern, scalable CRM application built with Next.js, TypeScript, and Tailwind CSS.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- 🎯 Two-level tab navigation system
+- 🎨 Modern and responsive UI
+- 🔄 Real-time state management
+- 🛡️ Type-safe development
+- 📱 Mobile-first design
+- 🧪 Comprehensive test coverage
+- 📚 Well-documented codebase
+
+## Project Structure
+
+```
+sutygon-crm/
+├── src/
+│   ├── app/                 # Next.js app directory
+│   ├── components/         # React components
+│   │   ├── common/        # Shared components
+│   │   └── tabs/         # Tab-related components
+│   ├── context/          # React context providers
+│   ├── types/           # TypeScript type definitions
+│   ├── constants/      # Application constants
+│   └── styles/        # Global styles
+├── public/           # Static assets
+└── tests/          # Test files
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Component Architecture
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Tab System
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The application uses a two-level tab system:
 
-## Learn More
+1. **First Level Tabs**
+   - Main navigation items
+   - Dropdown menu for options
+   - Active state management
+   - Click-outside detection
 
-To learn more about Next.js, take a look at the following resources:
+2. **Second Level Tabs**
+   - Sub-navigation items
+   - Parent-child relationship
+   - Active state management
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### State Management
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The application uses React Context for state management:
 
-## Deploy on Vercel
+- `TabContext`: Manages tab state and actions
+- `AppContext`: Manages application-wide state
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Development
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Prerequisites
+
+- Node.js 18.x or later
+- npm 9.x or later
+
+### Installation
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Run tests
+npm test
+
+# Run Storybook
+npm run storybook
+```
+
+### Testing
+
+The project uses Jest and React Testing Library for testing:
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with coverage
+npm test -- --coverage
+
+# Run tests in watch mode
+npm test -- --watch
+```
+
+### Storybook
+
+The project uses Storybook for component development and documentation:
+
+```bash
+# Start Storybook
+npm run storybook
+```
+
+## Performance Optimizations
+
+1. **Memoization**
+   - Component memoization with `React.memo`
+   - Callback memoization with `useCallback`
+   - Value memoization with `useMemo`
+
+2. **State Management**
+   - Efficient state updates
+   - Proper state initialization
+   - Error handling
+
+3. **Rendering**
+   - Conditional rendering
+   - Lazy loading
+   - Code splitting
+
+## Error Handling
+
+1. **Error Boundaries**
+   - Component-level error catching
+   - Fallback UI
+   - Error logging
+
+2. **Type Safety**
+   - TypeScript strict mode
+   - Proper type definitions
+   - Null checks
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
