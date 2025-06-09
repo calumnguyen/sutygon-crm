@@ -2,7 +2,6 @@
 import React from 'react';
 import Header from '@/components/layout/Header';
 import { useTabContext } from '@/context/TabContext';
-import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
 import { createTabId } from '@/types/tabTypes';
 import type { FirstLevelTab } from '@/types/tabTypes';
 
@@ -27,7 +26,7 @@ const ClientLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         id: searchTabId,
         type: 'first',
         label: `Search: ${query}`,
-        options: DEFAULT_TAB_OPTIONS,
+        options: [], // Search tabs don't need dropdown options
         isDefault: false,
         isClosable: true,
       };
