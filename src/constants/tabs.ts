@@ -11,6 +11,7 @@ export const DEFAULT_TAB_OPTIONS: TabOption[] = [
   { id: 'home', label: 'Trang Chủ' },
   { id: 'customers', label: 'Khách Hàng' },
   { id: 'inventory', label: 'Kho' },
+  { id: 'users', label: 'Nhân Viên' },
 ];
 
 /**
@@ -63,6 +64,20 @@ export const DEFAULT_SECOND_LEVEL_OPTIONS: Record<string, TabOption[]> = {
       label: 'Khách Hàng VIP',
     },
   ],
+  users: [
+    {
+      id: 'all',
+      label: 'Tất Cả',
+    },
+    {
+      id: 'active',
+      label: 'Đang Hoạt Động',
+    },
+    {
+      id: 'inactive',
+      label: 'Không Hoạt Động',
+    },
+  ],
 };
 
 /**
@@ -73,5 +88,6 @@ export const TAB_CONTENT_MAPPING: Record<string, string> = {
   orders: 'OrdersContent',
   inventory: 'InventoryContent',
   customers: 'CustomersContent',
+  users: 'UsersContent',
   reports: 'ReportsContent',
 }; 

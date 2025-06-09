@@ -32,6 +32,7 @@ export interface TabOption {
  * @property {TabOption[]} options - Array of options for the dropdown menu
  * @property {boolean} [isClosable=true] - Whether the tab can be closed
  * @property {boolean} [isDefault=false] - Whether this is the default tab
+ * @property {TabOption} [selectedOption] - Currently selected option from the dropdown
  * 
  * @example
  * ```tsx
@@ -43,7 +44,8 @@ export interface TabOption {
  *     { id: 'settings', label: 'Settings' }
  *   ],
  *   isClosable: false,
- *   isDefault: true
+ *   isDefault: true,
+ *   selectedOption: { id: 'dashboard', label: 'Dashboard' }
  * };
  * ```
  */
@@ -53,6 +55,7 @@ export interface FirstLevelTab {
   options: TabOption[];
   isClosable?: boolean;
   isDefault?: boolean;
+  selectedOption?: TabOption;
 }
 
 /**

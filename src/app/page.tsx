@@ -20,6 +20,7 @@ const DROPDOWN_CONTENT: Record<string, React.ReactNode> = {
   home: <div className="text-white text-xl">Trang Chủ Content Placeholder</div>,
   customers: <div className="text-white text-xl">Khách Hàng Content Placeholder</div>,
   inventory: <div className="text-white text-xl">Kho Content Placeholder</div>,
+  users: <div className="text-white text-xl">Nhân Viên Content Placeholder</div>,
 };
 
 const TabContent: React.FC = () => {
