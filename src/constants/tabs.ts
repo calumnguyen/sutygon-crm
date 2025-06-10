@@ -13,6 +13,7 @@ export const DEFAULT_TAB_OPTIONS: TabOption[] = [
   { id: createTabId('customers'), label: 'Khách Hàng' },
   { id: createTabId('inventory'), label: 'Kho' },
   { id: createTabId('users'), label: 'Nhân Viên' },
+  { id: createTabId('store-password'), label: 'Key Cửa Hàng' },
 ];
 
 /**

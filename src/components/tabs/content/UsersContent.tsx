@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Pencil, Trash2 } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
 import UserModal from './UserModal';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 import { createUser, getUsers, deleteUser, updateUser } from '@/lib/actions/users';
@@ -8,6 +8,7 @@ import Button from '@/components/common/dropdowns/Button';
 import { TABLE_CONFIG } from '@/config/table';
 import { TRANSLATIONS } from '@/config/translations';
 import { User, UserRole } from '@/types/user';
+import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
 
 export default function UsersContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -17,6 +18,16 @@ export default function UsersContent() {
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [identityModal, setIdentityModal] = useState<{ open: boolean; userId: number | null }>({
+    open: false,
+    userId: null,
+  });
+  const [revealedKeys, setRevealedKeys] = useState<Record<number, boolean>>({});
+  const [pendingRevealId, setPendingRevealId] = useState<number | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    type: 'add' | 'edit' | 'delete' | null;
+    userId: number | null;
+  }>({ type: null, userId: null });
 
   // Fetch users on mount
   useEffect(() => {
@@ -32,12 +43,17 @@ export default function UsersContent() {
     setCurrentUser({
       id: 1,
       name: 'Calum',
-      email: 'calum@sutygon.com',
       role: 'admin' as UserRole,
       status: 'active',
       createdAt: new Date(),
       updatedAt: new Date(),
+      employeeKey: '123456',
     });
+  }, []);
+
+  useEffect(() => {
+    setRevealedKeys({});
+    setPendingRevealId(null);
   }, []);
 
   const handleAddUser = async (userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -54,7 +70,7 @@ export default function UsersContent() {
     if (!userToEdit) return;
     try {
       const updatedUser = await updateUser(userToEdit.id, userData);
-      setUsers((prev) => prev.map((user) => (user.id === updatedUser.id ? updatedUser : user)));
+      setUsers((prev) => prev.map((_user) => (_user.id === updatedUser.id ? updatedUser : _user)));
       setIsModalOpen(false);
       setUserToEdit(null);
     } catch (error) {
@@ -62,8 +78,45 @@ export default function UsersContent() {
     }
   };
 
+  const handleEditUser = (userId: string) => {
+    setPendingAction({ type: 'edit', userId: parseInt(userId) });
+    setIdentityModal({ open: true, userId: parseInt(userId) });
+  };
+
   const handleDeleteUser = (userId: string) => {
-    setUserToDelete(userId);
+    setPendingAction({ type: 'delete', userId: parseInt(userId) });
+    setIdentityModal({ open: true, userId: parseInt(userId) });
+  };
+
+  const handleAddUserClick = () => {
+    setPendingAction({ type: 'add', userId: null });
+    setIdentityModal({ open: true, userId: null });
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleIdentitySuccess = (user: { id: number }) => {
+    if (pendingAction.type === 'add') {
+      setModalMode('add');
+      setIsModalOpen(true);
+    } else if (pendingAction.type === 'edit' && pendingAction.userId !== null) {
+      const userToEdit = users.find((_user) => _user.id === pendingAction.userId);
+      if (userToEdit) {
+        setUserToEdit(userToEdit);
+        setModalMode('edit');
+        setIsModalOpen(true);
+      }
+    } else if (pendingAction.type === 'delete' && pendingAction.userId !== null) {
+      handleDeleteUserConfirmed(pendingAction.userId);
+    } else if (pendingRevealId !== null) {
+      setRevealedKeys((prev) => ({ ...prev, [pendingRevealId]: true }));
+    }
+    setIdentityModal({ open: false, userId: null });
+    setPendingAction({ type: null, userId: null });
+    setPendingRevealId(null);
+  };
+
+  const handleDeleteUserConfirmed = (userId: number) => {
+    setUserToDelete(userId.toString());
     setDeleteModalOpen(true);
   };
 
@@ -71,20 +124,11 @@ export default function UsersContent() {
     if (!userToDelete) return;
     try {
       await deleteUser(parseInt(userToDelete));
-      setUsers((prev) => prev.filter((user) => user.id.toString() !== userToDelete));
+      setUsers((prev) => prev.filter((_user) => _user.id.toString() !== userToDelete));
       setDeleteModalOpen(false);
       setUserToDelete(null);
     } catch (error) {
       console.error('Failed to delete user:', error);
-    }
-  };
-
-  const handleEditUser = (userId: string) => {
-    const user = users.find((u) => u.id.toString() === userId);
-    if (user) {
-      setUserToEdit(user);
-      setModalMode('edit');
-      setIsModalOpen(true);
     }
   };
 
@@ -99,16 +143,27 @@ export default function UsersContent() {
     return true; // Allow all users to edit
   };
 
+  const handleRequestReveal = (userId: number) => {
+    setPendingRevealId(userId);
+    setIdentityModal({ open: true, userId });
+  };
+
+  const handleCloseIdentityModal = () => {
+    setIdentityModal({ open: false, userId: null });
+    setPendingRevealId(null);
+  };
+
+  const handleHideKey = (userId: number) => {
+    setRevealedKeys((prev) => ({ ...prev, [userId]: false }));
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-white">{TRANSLATIONS.users.title}</h1>
         <Button
           variant="primary"
-          onClick={() => {
-            setModalMode('add');
-            setIsModalOpen(true);
-          }}
+          onClick={handleAddUserClick}
           leftIcon={<UserPlus className="w-5 h-5" />}
         >
           {TRANSLATIONS.users.addUser}
@@ -130,15 +185,43 @@ export default function UsersContent() {
             </tr>
           </thead>
           <tbody className="bg-gray-800 divide-y divide-gray-700">
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{user.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{user.email}</td>
+            {users.map((_user) => (
+              <tr key={_user.id}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{_user.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  {TRANSLATIONS.users.roles[user.role]}
+                  <span>
+                    {revealedKeys[_user.id] ? (
+                      <>
+                        {_user.employeeKey}
+                        <button
+                          className="ml-2 text-gray-400 hover:text-blue-400 focus:outline-none"
+                          onClick={() => handleHideKey(_user.id)}
+                          type="button"
+                          aria-label="Ẩn mã"
+                        >
+                          <EyeOff className="inline w-4 h-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {'•'.repeat(_user.employeeKey.length)}
+                        <button
+                          className="ml-2 text-gray-400 hover:text-blue-400 focus:outline-none"
+                          onClick={() => handleRequestReveal(_user.id)}
+                          type="button"
+                          aria-label="Hiện mã"
+                        >
+                          <Eye className="inline w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  {TRANSLATIONS.users.status[user.status]}
+                  {TRANSLATIONS.users.roles[_user.role]}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                  {TRANSLATIONS.users.status[_user.status]}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                   <div className="flex space-x-2">
@@ -147,7 +230,7 @@ export default function UsersContent() {
                         variant="secondary"
                         size="sm"
                         leftIcon={<Pencil className="w-4 h-4" />}
-                        onClick={() => handleEditUser(user.id.toString())}
+                        onClick={() => handleEditUser(_user.id.toString())}
                       >
                         {TRANSLATIONS.users.table.edit}
                       </Button>
@@ -157,7 +240,7 @@ export default function UsersContent() {
                         variant="danger"
                         size="sm"
                         leftIcon={<Trash2 className="w-4 h-4" />}
-                        onClick={() => handleDeleteUser(user.id.toString())}
+                        onClick={() => handleDeleteUser(_user.id.toString())}
                       >
                         {TRANSLATIONS.users.table.delete}
                       </Button>
@@ -190,6 +273,13 @@ export default function UsersContent() {
         message={TRANSLATIONS.confirmation.deleteUser.message}
         confirmText={TRANSLATIONS.confirmation.deleteUser.confirmText}
         cancelText={TRANSLATIONS.confirmation.deleteUser.cancelText}
+      />
+
+      <IdentityConfirmModal
+        open={identityModal.open}
+        onClose={handleCloseIdentityModal}
+        onSuccess={handleIdentitySuccess}
+        requiredRole="admin"
       />
     </div>
   );

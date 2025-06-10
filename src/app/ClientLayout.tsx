@@ -4,9 +4,12 @@ import Header from '@/components/layout/Header';
 import { useTabContext } from '@/context/TabContext';
 import { createTabId } from '@/types/tabTypes';
 import type { FirstLevelTab } from '@/types/tabTypes';
+import { usePathname } from 'next/navigation';
 
 const ClientLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { firstLevelTabs, addFirstLevelTab, activateTab } = useTabContext();
+  const pathname = usePathname();
+  const isLoginPage = pathname === '/login';
 
   const addSearchTab = (query: string) => {
     console.log('addSearchTab called with query:', query);
@@ -41,7 +44,7 @@ const ClientLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   return (
     <>
-      <Header onSearch={addSearchTab} />
+      {!isLoginPage && <Header onSearch={addSearchTab} />}
       <main>{children}</main>
     </>
   );

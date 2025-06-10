@@ -2,7 +2,7 @@ export const TABLE_CONFIG = {
   users: {
     columns: [
       { key: 'name', label: 'Tên' },
-      { key: 'email', label: 'Email' },
+      { key: 'employeeKey', label: 'Mã Nhân Viên' },
       { key: 'role', label: 'Vai Trò' },
       { key: 'status', label: 'Trạng Thái' },
       { key: 'actions', label: 'Thao Tác' },

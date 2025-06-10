@@ -1,8 +1,8 @@
-"use client";
+'use client';
 import React from 'react';
 import Logo from '@/components/common/Logo';
 import SearchBar from '@/components/common/SearchBar';
-import AccountButton from '@/components/common/buttons/AccountButton';
+import SignOutButton from '@/components/common/buttons/SignOutButton';
 
 interface HeaderProps {
   onSearch?: (query: string) => void;
@@ -21,10 +21,20 @@ const Header: React.FC<HeaderProps> = ({ onSearch }) => {
         <div className="flex-1 max-w-2xl mx-4">
           <SearchBar onSearch={onSearch} />
         </div>
-        <AccountButton />
+        <SignOutButton
+          onSignOut={() => {
+            // Clear all local/session storage and redirect to login
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('storeCode');
+              localStorage.clear();
+              sessionStorage.clear();
+              window.location.href = '/login';
+            }
+          }}
+        />
       </div>
     </header>
   );
 };
 
-export default Header; 
+export default Header;

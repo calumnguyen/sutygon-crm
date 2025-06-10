@@ -20,4 +20,29 @@ header {
   font-size: 2rem;
   font-weight: bold;
   color: #ffffff;
+}
+
+/* Hide the native password reveal icon in WebKit browsers (Safari, Chrome) */
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-input-decoration,
+input[type="password"]::-webkit-input-password-reveal,
+input[type="password"]::-webkit-input-password-reveal-button {
+  display: none !important;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* Hide the native password reveal icon in Edge/Chromium */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none !important;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* Hide the icon in Firefox (not usually present, but for completeness) */
+input[type="password"]::-moz-input-password-reveal {
+  display: none !important;
+  pointer-events: none;
+  visibility: hidden;
 } 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Button from '@/components/common/dropdowns/Button';
 import { TRANSLATIONS } from '@/config/translations';
 import { User, UserRole, UserStatus } from '@/types/user';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface UserModalProps {
   isOpen: boolean;
@@ -22,37 +23,51 @@ export default function UserModal({
 }: UserModalProps) {
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
     role: 'user' as UserRole,
     status: 'active' as UserStatus,
+    employeeKey: '',
   });
+  const [showEmployeeKey, setShowEmployeeKey] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (mode === 'edit' && userToEdit) {
       setFormData({
         name: userToEdit.name,
-        email: userToEdit.email,
         role: userToEdit.role,
         status: userToEdit.status,
+        employeeKey: userToEdit.employeeKey || '',
       });
     } else {
       setFormData({
         name: '',
-        email: '',
         role: 'user',
         status: 'active',
+        employeeKey: '',
       });
     }
   }, [mode, userToEdit]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    if (!/^\d{6}$/.test(formData.employeeKey)) {
+      setError('Mã nhân viên phải gồm 6 chữ số.');
+      return;
+    }
+    // Check uniqueness of employeeKey
+    const res = await fetch(`/api/users/by-key?employeeKey=${formData.employeeKey}`);
+    const data = await res.json();
+    if (data.user && (mode === 'add' || (mode === 'edit' && data.user.id !== userToEdit?.id))) {
+      setError('Mã nhân viên này đã được sử dụng.');
+      return;
+    }
     await onSubmit(formData);
     setFormData({
       name: '',
-      email: '',
       role: 'user',
       status: 'active',
+      employeeKey: '',
     });
   };
 
@@ -61,7 +76,6 @@ export default function UserModal({
   const isEditingSelf =
     mode === 'edit' && currentUser && userToEdit && currentUser.id === userToEdit.id;
   const isAdmin = currentUser?.role === 'admin';
-  const isEmailEditable = mode === 'add' || isAdmin || !isEditingSelf;
   const isRoleEditable = mode === 'add' || (isAdmin && !isEditingSelf);
 
   const inputBaseClasses =
@@ -89,24 +103,6 @@ export default function UserModal({
               placeholder="Nhập tên người dùng"
               className={`${inputBaseClasses} ${inputEnabledClasses}`}
               required
-            />
-          </div>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
-              {TRANSLATIONS.users.table.email}
-              {!isEmailEditable && (
-                <span className="ml-2 text-xs text-gray-400">(Không thể thay đổi)</span>
-              )}
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={formData.email}
-              onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-              placeholder="example@email.com"
-              className={`${inputBaseClasses} ${isEmailEditable ? inputEnabledClasses : inputDisabledClasses}`}
-              required
-              disabled={!isEmailEditable}
             />
           </div>
           <div>
@@ -147,6 +143,38 @@ export default function UserModal({
               <option value="inactive">{TRANSLATIONS.users.status.inactive}</option>
             </select>
           </div>
+          <div>
+            <label htmlFor="employeeKey" className="block text-sm font-medium text-gray-300 mb-1">
+              Mã Nhân Viên (6 số)
+            </label>
+            <div className="relative">
+              <input
+                type={showEmployeeKey ? 'text' : 'password'}
+                id="employeeKey"
+                value={formData.employeeKey}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setFormData((prev) => ({ ...prev, employeeKey: val }));
+                }}
+                placeholder="Nhập mã nhân viên"
+                className={`${inputBaseClasses} ${inputEnabledClasses} pr-10`}
+                required
+                maxLength={6}
+                minLength={6}
+                pattern="\d{6}"
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-400 focus:outline-none"
+                onClick={() => setShowEmployeeKey((v) => !v)}
+                tabIndex={-1}
+                aria-label={showEmployeeKey ? 'Ẩn mã' : 'Hiện mã'}
+              >
+                {showEmployeeKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
           <div className="mt-8 flex justify-end space-x-3">
             <Button variant="secondary" onClick={onClose} type="button">
               {TRANSLATIONS.users.cancel}
@@ -155,6 +183,7 @@ export default function UserModal({
               {mode === 'add' ? TRANSLATIONS.users.save : TRANSLATIONS.users.update}
             </Button>
           </div>
+          {error && <div className="text-red-400 text-sm text-center mt-2">{error}</div>}
         </form>
       </div>
     </div>
