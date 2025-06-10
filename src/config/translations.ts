@@ -10,7 +10,7 @@ export const TRANSLATIONS = {
     update: 'Cập nhật',
     table: {
       name: 'Tên',
-      email: 'Email',
+      employeeKey: 'Mã nhân viên',
       role: 'Vai trò',
       status: 'Trạng thái',
       actions: 'Thao tác',

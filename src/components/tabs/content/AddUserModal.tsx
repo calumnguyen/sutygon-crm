@@ -23,7 +23,7 @@ export default function UserModal({
 }: AddUserModalProps) {
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
+    employeeKey: '',
     role: 'user' as UserRole,
     status: 'active' as UserStatus,
   });
@@ -32,14 +32,14 @@ export default function UserModal({
     if (mode === 'edit' && userToEdit) {
       setFormData({
         name: userToEdit.name,
-        email: userToEdit.email,
+        employeeKey: userToEdit.employeeKey,
         role: userToEdit.role,
         status: userToEdit.status,
       });
     } else {
       setFormData({
         name: '',
-        email: '',
+        employeeKey: '',
         role: 'user',
         status: 'active',
       });
@@ -51,7 +51,7 @@ export default function UserModal({
     await onSubmit(formData);
     setFormData({
       name: '',
-      email: '',
+      employeeKey: '',
       role: 'user',
       status: 'active',
     });
@@ -84,17 +84,20 @@ export default function UserModal({
             />
           </div>
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
-              {TRANSLATIONS.users.table.email}
+            <label htmlFor="employeeKey" className="block text-sm font-medium text-gray-300 mb-1">
+              {TRANSLATIONS.users.table.employeeKey}
             </label>
             <input
-              type="email"
-              id="email"
-              value={formData.email}
-              onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-              placeholder="example@email.com"
+              type="text"
+              id="employeeKey"
+              value={formData.employeeKey}
+              onChange={(e) => setFormData((prev) => ({ ...prev, employeeKey: e.target.value }))}
+              placeholder="Nhập mã nhân viên"
               className="mt-1 block w-full rounded-lg bg-gray-800 border border-gray-600 text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition px-4 py-2"
               required
+              pattern="\d{6}"
+              maxLength={6}
+              minLength={6}
             />
           </div>
           <div>
