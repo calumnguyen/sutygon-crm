@@ -10,6 +10,6 @@ export async function getUserById(id: number) {
   return await db.select().from(users).where(eq(users.id, id));
 }
 
-export async function getUserByEmail(email: string) {
-  return await db.select().from(users).where(eq(users.email, email));
+export async function getUserByEmployeeKey(employeeKey: string) {
+  return await db.select().from(users).where(eq(users.employeeKey, employeeKey));
 }
