@@ -108,13 +108,13 @@ export async function POST(req: NextRequest) {
     categoryCounter = 1;
   }
 
-  // Insert item with the per-category counter (category_counter) and let id auto-increment
+  // Insert item with the per-category counter (categoryCounter) and let id auto-increment
   const [item] = await db
     .insert(inventoryItems)
     .values({
       name,
       category,
-      categoryCounter,
+      categoryCounter: categoryCounter,
       imageUrl,
     })
     .returning();
