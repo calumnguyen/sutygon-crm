@@ -18,9 +18,10 @@ export const storeSettings = pgTable('store_settings', {
 });
 
 export const inventoryItems = pgTable('inventory_items', {
-  id: integer('id').primaryKey(),
+  id: serial('id').primaryKey(),
   name: text('name').notNull(),
   category: text('category').notNull(),
+  categoryCounter: integer('category_counter').notNull(),
   imageUrl: text('image_url'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

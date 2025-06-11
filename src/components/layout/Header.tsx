@@ -3,12 +3,16 @@ import React from 'react';
 import Logo from '@/components/common/Logo';
 import SearchBar from '@/components/common/SearchBar';
 import SignOutButton from '@/components/common/buttons/SignOutButton';
+import { useRouter } from 'next/navigation';
+import { useApp } from '@/context/AppContext';
 
 interface HeaderProps {
   onSearch?: (query: string) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ onSearch }) => {
+  const router = useRouter();
+  const appContext = useApp();
   return (
     <header className="w-full bg-transparent pt-6">
       <div className="flex items-center justify-between px-4 py-2">
@@ -25,7 +29,8 @@ const Header: React.FC<HeaderProps> = ({ onSearch }) => {
           onSignOut={() => {
             if (typeof window !== 'undefined') {
               localStorage.removeItem('storeCode');
-              window.location.href = '/login';
+              appContext?.logout();
+              router.replace('/login');
             }
           }}
         />
