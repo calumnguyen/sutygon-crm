@@ -27,6 +27,32 @@ export const TRANSLATIONS = {
       inactive: 'Không hoạt động',
     },
   },
+  inventory: {
+    title: 'Quản lý kho',
+    addItem: 'Thêm sản phẩm',
+    editItem: 'Cập nhật sản phẩm',
+    loading: 'Đang tải...',
+    error: 'Có lỗi xảy ra',
+    cancel: 'Hủy',
+    save: 'Lưu',
+    update: 'Cập nhật',
+    table: {
+      name: 'Tên sản phẩm',
+      sku: 'Mã sản phẩm',
+      quantity: 'Số lượng',
+      price: 'Giá',
+      status: 'Trạng thái',
+      actions: 'Thao tác',
+      edit: 'Sửa',
+      delete: 'Xóa',
+      createdAt: 'Ngày tạo',
+    },
+    status: {
+      inStock: 'Còn hàng',
+      outOfStock: 'Hết hàng',
+      lowStock: 'Sắp hết',
+    },
+  },
   confirmation: {
     deleteUser: {
       title: 'Xóa người dùng',
