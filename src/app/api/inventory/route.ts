@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { inventoryItems, inventorySizes, tags, inventoryTags } from '@/lib/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import {
+  inventoryItems,
+  inventorySizes,
+  tags,
+  inventoryTags,
+  categoryCounters,
+} from '@/lib/db/schema';
+import { eq, inArray, sql } from 'drizzle-orm';
 
 // Define a minimal InventoryItem type for this context
 interface InventoryItemForId {
@@ -85,19 +91,44 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   // Expect: { name, category, imageUrl, tags: string[], sizes: [{title, quantity, onHand, price}] }
   const { name, category, imageUrl, tags: tagNames, sizes } = body;
-  // Insert item
-  const [item] = await db.insert(inventoryItems).values({ name, category, imageUrl }).returning();
+
+  // Try to increment the counter for the category
+  let newId: number | undefined;
+  const [counter] = await db
+    .update(categoryCounters)
+    .set({ counter: sql`${categoryCounters.counter} + 1` })
+    .where(eq(categoryCounters.category, category))
+    .returning({ counter: categoryCounters.counter });
+
+  if (counter && counter.counter) {
+    newId = counter.counter;
+  } else {
+    // If counter doesn't exist, create it and use 1
+    await db.insert(categoryCounters).values({ category, counter: 1 });
+    newId = 1;
+  }
+
+  // Insert item with the category-specific counter as id
+  const [item] = await db
+    .insert(inventoryItems)
+    .values({
+      id: newId,
+      name,
+      category,
+      imageUrl,
+    })
+    .returning();
+
   // Insert sizes
   if (sizes && sizes.length) {
-    await db
-      .insert(inventorySizes)
-      .values(
-        sizes.map((s: { title: string; quantity: number; onHand: number; price: number }) => ({
-          ...s,
-          itemId: item.id,
-        }))
-      );
+    await db.insert(inventorySizes).values(
+      sizes.map((s: { title: string; quantity: number; onHand: number; price: number }) => ({
+        ...s,
+        itemId: item.id,
+      }))
+    );
   }
+
   // Insert tags (create if not exist)
   const tagIds: number[] = [];
   if (tagNames && tagNames.length) {
@@ -111,6 +142,7 @@ export async function POST(req: NextRequest) {
     // Insert into inventory_tags
     await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId: item.id, tagId })));
   }
+
   // Return the created item in UI structure
   return GET();
 }
