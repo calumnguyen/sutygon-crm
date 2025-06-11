@@ -56,6 +56,7 @@ A modern, scalable CRM system built with Next.js, TypeScript, and PostgreSQL.
 - [Development Guide](./docs/DEVELOPMENT_GUIDE.md)
 - [API Documentation](./docs/API.md)
 - [Technical Report](./docs/TECHNICAL_REPORT.md)
+- [Inventory & Database](./docs/INVENTORY_AND_DB.md)
 
 ## Contributing
 
