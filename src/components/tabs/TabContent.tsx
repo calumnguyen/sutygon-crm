@@ -3,9 +3,11 @@ import React from 'react';
 import { useTabContext } from '@/context/TabContext';
 import { TAB_CONTENT_MAPPING } from '@/constants/tabs';
 import UsersContent from '@/components/tabs/content/UsersContent';
+import CustomerContent from '@/components/tabs/content/CustomerContent';
 
 const contentComponents = {
   users: UsersContent,
+  customers: CustomerContent,
 };
 
 const TabContent: React.FC = () => {
