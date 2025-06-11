@@ -10,6 +10,7 @@ import UsersContent from '@/components/tabs/content/UsersContent';
 import ClientLayout from './ClientLayout';
 import StorePasswordContent from '@/components/tabs/content/StorePasswordContent';
 import { useRouter } from 'next/navigation';
+import InventoryContent from '@/components/tabs/content/InventoryContent';
 
 const defaultFirstLevelTab: FirstLevelTab = {
   id: createTabId('home'),
@@ -24,7 +25,7 @@ const defaultFirstLevelTab: FirstLevelTab = {
 const DROPDOWN_CONTENT: Record<string, React.ReactNode> = {
   home: <div className="text-white text-xl">Trang Chủ Content Placeholder</div>,
   customers: <div className="text-white text-xl">Khách Hàng Content Placeholder</div>,
-  inventory: <div className="text-white text-xl">Kho Content Placeholder</div>,
+  inventory: <InventoryContent />,
   users: <UsersContent />,
   'store-password': <StorePasswordContent />,
 };

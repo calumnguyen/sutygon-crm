@@ -23,11 +23,8 @@ const Header: React.FC<HeaderProps> = ({ onSearch }) => {
         </div>
         <SignOutButton
           onSignOut={() => {
-            // Clear all local/session storage and redirect to login
             if (typeof window !== 'undefined') {
               localStorage.removeItem('storeCode');
-              localStorage.clear();
-              sessionStorage.clear();
               window.location.href = '/login';
             }
           }}

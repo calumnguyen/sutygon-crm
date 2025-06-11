@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp, varchar, integer } from 'drizzle-orm/pg-core';
 import { UserRole, UserStatus } from '@/types/user';
 
 export const users = pgTable('users', {
@@ -15,4 +15,38 @@ export const storeSettings = pgTable('store_settings', {
   id: serial('id').primaryKey(),
   storeCode: varchar('store_code', { length: 8 }).notNull(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const inventoryItems = pgTable('inventory_items', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  category: text('category').notNull(),
+  imageUrl: text('image_url'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const inventorySizes = pgTable('inventory_sizes', {
+  id: serial('id').primaryKey(),
+  itemId: integer('item_id')
+    .notNull()
+    .references(() => inventoryItems.id),
+  title: text('title').notNull(),
+  quantity: integer('quantity').notNull(),
+  onHand: integer('on_hand').notNull(),
+  price: integer('price').notNull(),
+});
+
+export const tags = pgTable('tags', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull().unique(),
+});
+
+export const inventoryTags = pgTable('inventory_tags', {
+  itemId: integer('item_id')
+    .notNull()
+    .references(() => inventoryItems.id),
+  tagId: integer('tag_id')
+    .notNull()
+    .references(() => tags.id),
 });
