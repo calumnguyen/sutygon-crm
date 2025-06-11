@@ -55,10 +55,14 @@ const InventoryContent: React.FC = () => {
     if (priceRangeInvalid) return false;
     const q = searchQuery.trim().toLowerCase();
     if (q) {
+      // Allow search by formattedId (case-insensitive, ignore dashes)
+      const formattedId = (item.formattedId || '').toLowerCase().replace(/-/g, '');
+      const qNoDash = q.replace(/-/g, '');
+      const inFormattedId = formattedId.includes(qNoDash);
       const inId = String(item.id).toLowerCase().includes(q);
       const inName = item.name.toLowerCase().includes(q);
       const inTags = item.tags.some((tag) => tag.toLowerCase().includes(q));
-      if (!(inId || inName || inTags)) return false;
+      if (!(inFormattedId || inId || inName || inTags)) return false;
     }
     if (selectedCategories.length > 0 && !selectedCategories.includes(item.category)) return false;
     const price = getItemPrice(item);
