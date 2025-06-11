@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
   const { name, category, imageUrl, tags: tagNames, sizes } = body;
 
   // Try to increment the counter for the category
-  let newId: number | undefined;
+  let categoryCounter: number;
   const [counter] = await db
     .update(categoryCounters)
     .set({ counter: sql`${categoryCounters.counter} + 1` })
@@ -101,20 +101,20 @@ export async function POST(req: NextRequest) {
     .returning({ counter: categoryCounters.counter });
 
   if (counter && counter.counter) {
-    newId = counter.counter;
+    categoryCounter = counter.counter;
   } else {
     // If counter doesn't exist, create it and use 1
     await db.insert(categoryCounters).values({ category, counter: 1 });
-    newId = 1;
+    categoryCounter = 1;
   }
 
-  // Insert item with the category-specific counter as id
+  // Insert item with the per-category counter (category_counter) and let id auto-increment
   const [item] = await db
     .insert(inventoryItems)
     .values({
-      id: newId,
       name,
       category,
+      categoryCounter,
       imageUrl,
     })
     .returning();
