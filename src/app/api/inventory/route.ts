@@ -16,8 +16,8 @@ interface InventoryItemForId {
 }
 
 // Helper: get formatted ID (e.g., AD-000001)
-function getFormattedId(item: InventoryItemForId) {
-  let code = (item.category || 'XX')
+function getFormattedId(category: string, categoryCounter: number) {
+  let code = (category || 'XX')
     .split(' ')
     .map((w: string) => w[0])
     .join('');
@@ -28,7 +28,7 @@ function getFormattedId(item: InventoryItemForId) {
     .replace(/\p{Diacritic}/gu, '')
     .replace(/\u0300-\u036f/g, '');
   code = code.toUpperCase().slice(0, 2);
-  return `${code}-${String(item.id).padStart(6, '0')}`;
+  return `${code}-${String(categoryCounter).padStart(6, '0')}`;
 }
 
 export async function GET() {
@@ -74,7 +74,7 @@ export async function GET() {
     const itemTags = allTags.filter((t) => itemTagIds.includes(t.id)).map((t) => t.name);
     return {
       id: item.id,
-      formattedId: getFormattedId(item),
+      formattedId: getFormattedId(item.category, item.categoryCounter),
       name: item.name,
       category: item.category,
       imageUrl: item.imageUrl,

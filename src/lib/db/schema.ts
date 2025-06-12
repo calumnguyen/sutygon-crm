@@ -56,3 +56,16 @@ export const inventoryTags = pgTable('inventory_tags', {
     .notNull()
     .references(() => tags.id),
 });
+
+export const customers = pgTable('customers', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  phone: varchar('phone', { length: 20 }).notNull().unique(),
+  company: varchar('company', { length: 255 }),
+  address: varchar('address', { length: 255 }),
+  notes: text('notes'),
+  activeOrdersCount: integer('active_orders_count').notNull().default(0),
+  lateOrdersCount: integer('late_orders_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});

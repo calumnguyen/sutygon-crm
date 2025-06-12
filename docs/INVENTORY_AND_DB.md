@@ -1,5 +1,80 @@
 # Inventory & Database Documentation
 
+## Visual ER Diagram
+
+```mermaid
+erDiagram
+  USERS {
+    SERIAL id PK
+    TEXT name
+    VARCHAR employee_key
+    VARCHAR role
+    VARCHAR status
+    TIMESTAMP created_at
+    TIMESTAMP updated_at
+  }
+  STORE_SETTINGS {
+    SERIAL id PK
+    VARCHAR store_code
+    TIMESTAMP updated_at
+  }
+  INVENTORY_ITEMS {
+    SERIAL id PK
+    TEXT name
+    TEXT category
+    INTEGER category_counter
+    TEXT image_url
+    TIMESTAMP created_at
+    TIMESTAMP updated_at
+  }
+  CATEGORY_COUNTERS {
+    TEXT category PK
+    INTEGER counter
+  }
+  TAGS {
+    SERIAL id PK
+    TEXT name
+  }
+  INVENTORY_SIZES {
+    SERIAL id PK
+    INTEGER item_id FK
+    TEXT title
+    INTEGER quantity
+    INTEGER on_hand
+    INTEGER price
+  }
+  INVENTORY_TAGS {
+    INTEGER item_id FK
+    INTEGER tag_id FK
+  }
+
+  INVENTORY_ITEMS ||--o{ INVENTORY_SIZES : has
+  INVENTORY_ITEMS ||--o{ INVENTORY_TAGS : has
+  TAGS ||--o{ INVENTORY_TAGS : has
+  INVENTORY_ITEMS ||--o{ CATEGORY_COUNTERS : category
+```
+
+---
+
+## Database Structure Summary
+
+- **users**: User accounts and roles.
+- **store_settings**: Store-wide settings (store code/password).
+- **inventory_items**: Products.
+  - `id`: Global unique serial.
+  - `category_counter`: Per-category item number (for display).
+- **category_counters**: Tracks the next available counter for each category.
+- **tags**: Product tags.
+- **inventory_sizes**: Size/variant info for each item.
+- **inventory_tags**: Many-to-many join between items and tags.
+
+### Relationships
+
+- Each `inventory_item` can have many `inventory_sizes`.
+- Each `inventory_item` can have many tags (via `inventory_tags`).
+- Each tag can belong to many items (via `inventory_tags`).
+- Each category in `inventory_items` is tracked in `category_counters` for per-category numbering.
+
 ## Inventory System Overview
 
 The inventory system manages products, their categories, sizes, tags, and supports per-category item ID counters for unique, human-readable item codes.

@@ -11,6 +11,7 @@ import ClientLayout from './ClientLayout';
 import StorePasswordContent from '@/components/tabs/content/StorePasswordContent';
 import { useRouter } from 'next/navigation';
 import InventoryContent from '@/components/tabs/content/InventoryContent';
+import CustomerContent from '@/components/tabs/content/CustomerContent';
 
 const defaultFirstLevelTab: FirstLevelTab = {
   id: createTabId('home'),
@@ -24,7 +25,7 @@ const defaultFirstLevelTab: FirstLevelTab = {
 // Placeholder content for each dropdown option
 const DROPDOWN_CONTENT: Record<string, React.ReactNode> = {
   home: <div className="text-white text-xl">Trang Chủ Content Placeholder</div>,
-  customers: <div className="text-white text-xl">Khách Hàng Content Placeholder</div>,
+  customers: <CustomerContent />,
   inventory: <InventoryContent />,
   users: <UsersContent />,
   'store-password': <StorePasswordContent />,
