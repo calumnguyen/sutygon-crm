@@ -11,8 +11,9 @@ export function useInventoryTable(inventory: InventoryItem[]) {
   const [nameSort, setNameSort] = useState<'asc' | 'desc' | ''>('');
   const [idSort, setIdSort] = useState<'asc' | 'desc' | ''>('');
 
-  const priceRangeInvalid =
-    priceRange.min && priceRange.max && Number(priceRange.max) < Number(priceRange.min);
+  const priceRangeInvalid = Boolean(
+    priceRange.min && priceRange.max && Number(priceRange.max) < Number(priceRange.min)
+  );
 
   const filteredInventory = useMemo(() => {
     let result = inventory.filter((item) => {
