@@ -162,7 +162,7 @@ export default function CustomerContent() {
         <h1 className="text-2xl font-bold text-white">Quản Lý Khách Hàng</h1>
         <Button
           variant="primary"
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleAddCustomerClick}
           leftIcon={<UserPlus className="w-5 h-5" />}
         >
           Thêm khách hàng mới
@@ -236,6 +236,7 @@ export default function CustomerContent() {
         open={identityModal.open}
         onClose={() => setIdentityModal({ open: false, customerId: null })}
         onSuccess={handleIdentitySuccess}
+        requiredRole="any"
       />
 
       <ConfirmationModal

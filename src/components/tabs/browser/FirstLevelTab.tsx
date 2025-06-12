@@ -8,7 +8,6 @@ interface FirstLevelTabProps {
   isActive: boolean;
   onSelect: (tab: FirstLevelTab) => void;
   onClose: (tab: FirstLevelTab) => void;
-  dropdownOption?: TabOption;
   onDropdownSelect?: (option: TabOption) => void;
   isDefaultTab?: boolean;
 }
@@ -25,7 +24,6 @@ interface FirstLevelTabProps {
  * @param {boolean} [props.isActive=false] - Whether the tab is currently active
  * @param {Function} [props.onSelect] - Callback function when the tab is selected
  * @param {Function} [props.onClose] - Callback function when the tab is closed
- * @param {TabOption} [props.dropdownOption] - The default option for the dropdown
  * @param {Function} [props.onDropdownSelect] - Callback function when an option is selected from the dropdown
  * @param {boolean} [props.isDefaultTab=false] - Whether the tab is a default tab
  *
@@ -70,7 +68,6 @@ export default function FirstLevelTabComponent({
   isActive,
   onSelect,
   onClose,
-  dropdownOption,
   onDropdownSelect,
   isDefaultTab = false,
 }: FirstLevelTabProps) {
@@ -104,13 +101,6 @@ export default function FirstLevelTabComponent({
     setIsDropdownOpen(!isDropdownOpen);
   };
 
-  const handleOptionSelect = (option: TabOption) => {
-    if (onDropdownSelect) {
-      onDropdownSelect(option);
-    }
-    setIsDropdownOpen(false);
-  };
-
   return (
     <div
       ref={dropdownRef}
@@ -120,7 +110,7 @@ export default function FirstLevelTabComponent({
       onClick={handleTabClick}
     >
       <div className="flex items-center space-x-2">
-        <span>{isDefaultTab ? dropdownOption?.label || tab.label : tab.label}</span>
+        <span>{isDefaultTab ? tab.selectedOption?.label || tab.label : tab.label}</span>
         {tab.options && tab.options.length > 0 && !tab.label.startsWith('Search:') && (
           <button onClick={handleDropdownToggle} className="p-1 hover:bg-gray-600 rounded">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,7 +140,7 @@ export default function FirstLevelTabComponent({
         <TabDropdown
           isOpen={isDropdownOpen}
           onClose={() => setIsDropdownOpen(false)}
-          onSelect={handleOptionSelect}
+          onSelect={onDropdownSelect || (() => {})}
           options={tab.options}
           parentRef={dropdownRef}
         />

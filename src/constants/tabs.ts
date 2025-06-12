@@ -10,6 +10,7 @@ import { createTabId } from '@/types/tabTypes';
  */
 export const DEFAULT_TAB_OPTIONS: TabOption[] = [
   { id: createTabId('home'), label: 'Trang Chủ' },
+  { id: createTabId('orders'), label: 'Đơn Hàng' },
   { id: createTabId('customers'), label: 'Khách Hàng' },
   { id: createTabId('inventory'), label: 'Kho' },
   { id: createTabId('users'), label: 'Nhân Viên' },
@@ -42,4 +43,7 @@ export const DEFAULT_SECOND_LEVEL_OPTIONS: Record<string, TabOption[]> = {
 export const TAB_CONTENT_MAPPING: Record<string, string> = {
   users: 'users',
   customers: 'customers',
+  orders: 'orders',
+  inventory: 'inventory',
+  'store-password': 'store-password',
 };

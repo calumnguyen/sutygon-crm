@@ -88,10 +88,16 @@ export default function BrowserTabBar({
     activeSecondLevelTab,
     activateTab,
     removeTab,
+    updateFirstLevelTabOption,
   } = useTabContext();
 
   const handleFirstLevelTabSelect = (tab: FirstLevelTab) => {
     activateTab(tab.id);
+  };
+
+  const handleDropdownSelect = (tabId: string, option: TabOption) => {
+    updateFirstLevelTabOption(tabId, option);
+    activateTab(tabId);
   };
 
   const handleSecondLevelTabSelect = (tab: SecondLevelTab) => {
@@ -114,8 +120,7 @@ export default function BrowserTabBar({
             isActive={activeFirstLevelTab?.id === tab.id}
             onSelect={handleFirstLevelTabSelect}
             onClose={handleCloseTab}
-            dropdownOption={selectedDropdownOption}
-            onDropdownSelect={onDropdownSelect}
+            onDropdownSelect={(option) => handleDropdownSelect(tab.id, option)}
             isDefaultTab={tab.isDefault}
           />
         ))}

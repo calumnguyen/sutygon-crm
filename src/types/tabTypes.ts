@@ -90,7 +90,8 @@ export type TabAction =
   | { type: 'REMOVE_SECOND_LEVEL_TAB'; payload: TabId }
   | { type: 'REMOVE_SEARCH_TAB'; payload: TabId }
   | { type: 'UPDATE_FIRST_LEVEL_TAB'; payload: { id: TabId; label: string } }
-  | { type: 'UPDATE_TAB_RELATIONSHIP'; payload: TabRelationship };
+  | { type: 'UPDATE_TAB_RELATIONSHIP'; payload: TabRelationship }
+  | { type: 'UPDATE_FIRST_LEVEL_TAB_OPTION'; payload: { id: TabId; selectedOption: TabOption } };
 
 // Tab context interface
 export interface TabContextType {

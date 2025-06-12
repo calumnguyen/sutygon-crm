@@ -10,6 +10,7 @@ import { formatPriceVND } from './inventory/InventoryUtils';
 import { CATEGORY_OPTIONS } from './inventory/InventoryConstants';
 import { useInventory } from './inventory/useInventory';
 import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
+import { usePopper } from 'react-popper';
 
 const initialForm: AddItemFormState = {
   name: '',
@@ -38,8 +39,18 @@ const InventoryContent: React.FC = () => {
   const [idSort, setIdSort] = useState<'asc' | 'desc' | ''>('');
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
   const [identityModalOpen, setIdentityModalOpen] = useState(false);
+  const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
+  const [referenceElement, setReferenceElement] = useState<HTMLButtonElement | null>(null);
+  const { styles, attributes, update } = usePopper(referenceElement, popperElement, {
+    placement: 'bottom-end',
+    modifiers: [
+      { name: 'preventOverflow', options: { padding: 8 } },
+      { name: 'flip', options: { fallbackPlacements: ['top-end', 'bottom-end'] } },
+    ],
+  });
 
   const priceRangeInvalid =
     priceRange.min && priceRange.max && Number(priceRange.max) < Number(priceRange.min);
@@ -208,17 +219,27 @@ const InventoryContent: React.FC = () => {
             </Button>
             <div className="relative">
               <Button
+                ref={filterButtonRef}
                 variant="secondary"
                 className="p-2 border-blue-500 text-blue-400 hover:bg-blue-900/30 hover:text-blue-300 focus:ring-2 focus:ring-blue-500 border"
                 title="Sắp xếp/Lọc"
-                onClick={() => setShowFilter((v) => !v)}
+                onClick={() => {
+                  setShowFilter((v) => !v);
+                  setReferenceElement(filterButtonRef.current);
+                  setTimeout(() => update && update(), 0);
+                }}
               >
                 <SlidersHorizontal className="w-5 h-5" />
               </Button>
               {showFilter && (
                 <div
-                  ref={filterDropdownRef}
-                  className="absolute right-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50 p-4 space-y-4 text-sm"
+                  ref={(el) => {
+                    filterDropdownRef.current = el;
+                    setPopperElement(el);
+                  }}
+                  style={styles.popper}
+                  {...attributes.popper}
+                  className="z-50 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg p-4 space-y-4 text-sm max-h-[80vh] overflow-y-auto"
                 >
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-semibold text-white">Bộ lọc & Sắp xếp</span>

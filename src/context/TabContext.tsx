@@ -1,7 +1,14 @@
 'use client';
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { useLogger } from '@/hooks/useLogger';
-import type { TabState, TabId, FirstLevelTab, SecondLevelTab, TabAction } from '@/types/tabTypes';
+import type {
+  TabState,
+  TabId,
+  FirstLevelTab,
+  SecondLevelTab,
+  TabAction,
+  TabOption,
+} from '@/types/tabTypes';
 import {
   setActiveFirstLevelTab,
   setActiveSecondLevelTab,
@@ -9,6 +16,7 @@ import {
   removeFirstLevelTab,
   addSecondLevelTab,
   removeSecondLevelTab,
+  updateFirstLevelTabOption,
 } from './tabActions';
 
 const initialState: TabState = {
@@ -93,6 +101,21 @@ function tabReducer(state: TabState, action: TabAction): TabState {
             ? undefined
             : state.activeSecondLevelTab,
       };
+    case 'UPDATE_FIRST_LEVEL_TAB_OPTION': {
+      const { id, selectedOption } = action.payload;
+      const updatedTabs = state.firstLevelTabs.map((tab) =>
+        tab.id === id ? { ...tab, selectedOption, label: selectedOption.label } : tab
+      );
+      const updatedActive =
+        state.activeFirstLevelTab?.id === id
+          ? { ...state.activeFirstLevelTab, selectedOption, label: selectedOption.label }
+          : state.activeFirstLevelTab;
+      return {
+        ...state,
+        firstLevelTabs: updatedTabs,
+        activeFirstLevelTab: updatedActive,
+      };
+    }
     default:
       return state;
   }
@@ -103,6 +126,7 @@ interface TabContextType extends TabState {
   addSecondLevelTab: (tab: SecondLevelTab) => void;
   removeTab: (id: TabId) => void;
   activateTab: (id: TabId) => void;
+  updateFirstLevelTabOption: (id: TabId, selectedOption: TabOption) => void;
 }
 
 const TabContext = createContext<TabContextType | undefined>(undefined);
@@ -185,12 +209,17 @@ export const TabProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [logger, state.firstLevelTabs, state.secondLevelTabs]
   );
 
+  const handleUpdateFirstLevelTabOption = useCallback((id: TabId, selectedOption: TabOption) => {
+    dispatch(updateFirstLevelTabOption(id, selectedOption));
+  }, []);
+
   const value = {
     ...state,
     addFirstLevelTab: handleAddFirstLevelTab,
     addSecondLevelTab: handleAddSecondLevelTab,
     removeTab: handleRemoveTab,
     activateTab: handleActivateTab,
+    updateFirstLevelTabOption: handleUpdateFirstLevelTabOption,
   };
 
   return <TabContext.Provider value={value}>{children}</TabContext.Provider>;
