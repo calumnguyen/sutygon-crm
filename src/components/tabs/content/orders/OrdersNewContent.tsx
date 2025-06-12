@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { formatPhoneNumber } from '@/lib/utils/phone';
 import { Calendar } from 'lucide-react';
 import AddCustomerModal from '../customers/AddCustomerModal';
@@ -6,6 +6,8 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { vi } from 'date-fns/locale';
 import { parse, format } from 'date-fns';
+import OrdersNewStep3 from './OrdersNewStep3';
+import { useOrderNewFlow } from './hooks';
 
 const steps = ['Khách Hàng', 'Chọn Ngày Thuê', 'Sản Phẩm', 'Thanh Toán'];
 
@@ -36,151 +38,37 @@ function getExpectedReturnDate(dateStr: string): { date: string; day: string } |
 }
 
 const OrdersNewContent: React.FC<{ tabId: string }> = () => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [phone, setPhone] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [date, setDate] = useState('');
-  const [showCalendarModal, setShowCalendarModal] = useState(false);
-
-  // Modal state
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [existingPhones, setExistingPhones] = useState<string[]>([]);
-  const [prefillPhone, setPrefillPhone] = useState('');
-
-  // Fetch all customer phones for validation
-  useEffect(() => {
-    async function fetchPhones() {
-      try {
-        const res = await fetch('/api/customers');
-        const customers = await res.json();
-        setExistingPhones(customers.map((c: Customer) => c.phone));
-      } catch (err) {
-        setExistingPhones([]);
-      }
-    }
-    fetchPhones();
-  }, []);
-
-  const handlePhoneInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Only allow numbers, max 11 digits
-    const value = e.target.value.replace(/\D/g, '').slice(0, 11);
-    setPhone(value);
-    setSearched(false);
-    setCustomer(null);
-  };
-
-  const handlePhoneEnter = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && phone) {
-      setSearching(true);
-      setSearched(false);
-      setCustomer(null);
-      try {
-        const res = await fetch(`/api/customers?phone=${phone}`);
-        const data = await res.json();
-        setCustomer(data);
-      } catch (err) {
-        setCustomer(null);
-      } finally {
-        setSearching(false);
-        setSearched(true);
-      }
-    }
-  };
-
-  // Add customer handler (copied from CustomerContent)
-  const handleAddCustomer = async (customerData: {
-    name: string;
-    phone: string;
-    company?: string;
-    notes?: string;
-  }) => {
-    try {
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: customerData.name,
-          phone: customerData.phone,
-          company: customerData.company ?? null,
-          notes: customerData.notes ?? null,
-          address: null,
-          activeOrdersCount: 0,
-          lateOrdersCount: 0,
-        }),
-      });
-      if (!res.ok) throw new Error('Failed to add customer');
-      const inserted = await res.json();
-      setCustomer(inserted);
-      setIsAddModalOpen(false);
-      setExistingPhones((prev) => [...prev, inserted.phone]);
-      return true;
-    } catch (error) {
-      console.error('Failed to add customer:', error);
-      return false;
-    }
-  };
-
-  // Open modal and prefill phone
-  const handleOpenAddModal = () => {
-    setPrefillPhone(phone);
-    setIsAddModalOpen(true);
-  };
-
-  // Handle customer selection and move to step 2
-  const handleCustomerSelect = () => {
-    if (customer) {
-      setCurrentStep(1);
-    }
-  };
-
-  const handleDateInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/[^\d]/g, '').slice(0, 8); // Only digits, max 8
-    let formatted = '';
-    if (value.length > 0) {
-      formatted = value.slice(0, 2);
-    }
-    if (value.length > 2) {
-      formatted += '/' + value.slice(2, 4);
-    }
-    if (value.length > 4) {
-      formatted += '/' + value.slice(4, 8);
-    }
-    setDate(formatted);
-  };
-
-  // Validate the complete date (including year range)
-  const validateDate = (dateStr: string): boolean => {
-    if (!dateStr || dateStr.length !== 10) return false;
-    const [day, month, year] = dateStr.split('/').map(Number);
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return false;
-    if (year < 2000 || year > 2100) return false;
-    if (month < 1 || month > 12) return false;
-    const daysInMonth = new Date(year, month, 0).getDate();
-    if (day < 1 || day > daysInMonth) return false;
-    return true;
-  };
-
-  // Helper to parse DD/MM/YYYY to Date
-  const parseDate = (str: string): Date | null => {
-    if (!str || str.length !== 10) return null;
-    const parsed = parse(str, 'dd/MM/yyyy', new Date());
-    return isNaN(parsed.getTime()) ? null : parsed;
-  };
-
-  // Helper to format Date to DD/MM/YYYY
-  const formatDateString = (date: Date): string => {
-    return format(date, 'dd/MM/yyyy');
-  };
-
-  // Auto-advance to step 3 when a valid date is set in step 2
-  useEffect(() => {
-    if (currentStep === 1 && validateDate(date)) {
-      const timeout = setTimeout(() => setCurrentStep(2), 350); // allow for UI feedback
-      return () => clearTimeout(timeout);
-    }
-  }, [date, currentStep]);
+  const {
+    currentStep,
+    setCurrentStep,
+    phone,
+    setPhone,
+    searching,
+    setSearching,
+    searched,
+    setSearched,
+    customer,
+    setCustomer,
+    date,
+    setDate,
+    showCalendarModal,
+    setShowCalendarModal,
+    isAddModalOpen,
+    setIsAddModalOpen,
+    existingPhones,
+    setExistingPhones,
+    prefillPhone,
+    setPrefillPhone,
+    handlePhoneInput,
+    handlePhoneEnter,
+    handleAddCustomer,
+    handleOpenAddModal,
+    handleCustomerSelect,
+    handleDateInput,
+    validateDate,
+    parseDate,
+    formatDateString,
+  } = useOrderNewFlow();
 
   return (
     <div className="p-6">
@@ -197,86 +85,16 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
           </React.Fragment>
         ))}
       </div>
-      <div
-        className={`bg-gray-800 rounded-lg shadow-lg overflow-hidden min-h-[200px] flex items-center gap-8 transition-all duration-500 ${currentStep >= 2 && validateDate(date) && searched && customer ? 'justify-start' : 'justify-center'}`}
-      >
-        {/* Step 3+ layout: Rent Date box and Customer box side by side */}
-        {currentStep >= 2 && validateDate(date) && searched && customer ? (
-          <>
-            {/* Customer Box */}
-            <div className="flex flex-col items-center min-w-[320px] animate-fade-in-move">
-              <div
-                className="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full flex flex-col items-center cursor-pointer hover:bg-gray-800 transition-colors"
-                title="Chỉnh sửa khách hàng"
-                onClick={() => {
-                  // Only allow going back to step 1 to update customer
-                  setCurrentStep(0);
-                }}
-              >
-                <div className="text-xl font-bold text-blue-400 mb-2">Khách hàng</div>
-                <div className="text-white text-lg mb-1">
-                  Tên: <span className="font-semibold">{customer.name}</span>
-                </div>
-                {customer.company && (
-                  <div className="text-gray-300 text-base mb-1">
-                    Công ty: <span className="font-semibold">{customer.company}</span>
-                  </div>
-                )}
-                <div className="text-gray-300 text-base">
-                  Số điện thoại:{' '}
-                  <span className="font-mono">{formatPhoneNumber(customer.phone)}</span>
-                </div>
-              </div>
-            </div>
-            {/* Rent Date Box (stacked, compact, aligned) */}
-            <div className="flex flex-col gap-2 min-w-[180px] animate-fade-in-move justify-between h-full">
-              <div className="bg-gray-900 rounded-lg p-3 shadow-lg border border-gray-700 w-full flex flex-col items-center">
-                <div className="text-sm font-bold text-blue-400 mb-1">Ngày Thuê</div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base font-bold text-white">{date}</span>
-                  <span className="text-sm text-blue-300 font-semibold">{getDayLabel(date)}</span>
-                </div>
-              </div>
-              <div className="bg-gray-900 rounded-lg p-3 shadow-lg border border-gray-700 w-full flex flex-col items-center">
-                <div className="text-sm font-bold text-green-400 mb-1">Ngày trả dự kiến</div>
-                {getExpectedReturnDate(date) && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-bold text-white">
-                      {getExpectedReturnDate(date)!.date}
-                    </span>
-                    <span className="text-sm text-green-300 font-semibold">
-                      {getExpectedReturnDate(date)!.day}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* Summary Boxes Group (right-aligned) */}
-            <div className="flex gap-6 ml-auto">
-              {/* Tổng Sản Phẩm Box */}
-              <div className="animate-fade-in-move">
-                <div className="p-[3px] rounded-2xl bg-gradient-to-tr from-pink-500 via-yellow-400 to-pink-500 shadow-neon">
-                  <div className="bg-gray-900 rounded-2xl px-10 py-8 flex flex-col items-center min-w-[200px] min-h-[140px]">
-                    <div className="text-base font-bold text-pink-400 mb-2">Tổng Sản Phẩm</div>
-                    <div className="text-3xl font-extrabold text-white mb-1">0</div>
-                    <div className="text-sm text-gray-400">sản phẩm</div>
-                  </div>
-                </div>
-              </div>
-              {/* Tổng Hoá Đơn Box */}
-              <div className="animate-fade-in-move">
-                <div className="p-[3px] rounded-2xl bg-gradient-to-tr from-blue-500 via-green-400 to-blue-500 shadow-neon">
-                  <div className="bg-gray-900 rounded-2xl px-10 py-8 flex flex-col items-center min-w-[200px] min-h-[140px]">
-                    <div className="text-base font-bold text-blue-400 mb-2">Tổng Hoá Đơn</div>
-                    <div className="text-3xl font-extrabold text-white mb-1">0</div>
-                    <div className="text-sm text-gray-400">Việt Nam Đồng</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </>
-        ) : (
-          // Steps 1 & 2: original search and date picking UI (no compact rent date box)
+      {currentStep >= 2 && validateDate(date) && searched && customer ? (
+        <OrdersNewStep3
+          customer={customer}
+          date={date}
+          setDate={setDate}
+          setCurrentStep={setCurrentStep}
+        />
+      ) : (
+        <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden min-h-[200px] flex items-center gap-8 transition-all duration-500 justify-center">
+          {/* Step 1 & 2: original search and date picking UI (no compact rent date box) */}
           <>
             <div
               className={`flex flex-col items-center gap-6 transition-all duration-500 ${currentStep === 1 ? 'translate-x-[-120px] opacity-80' : ''}`}
@@ -382,8 +200,8 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
               </div>
             )}
           </>
-        )}
-      </div>
+        </div>
+      )}
       {/* Add Customer Modal */}
       <AddCustomerModal
         isOpen={isAddModalOpen}
