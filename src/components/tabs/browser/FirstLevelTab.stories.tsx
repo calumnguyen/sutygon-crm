@@ -66,8 +66,6 @@ export const WithDropdown: Story = {
     tab: defaultTab,
     isActive: true,
     isDefaultTab: true,
-    dropdownOption: DEFAULT_TAB_OPTIONS[0],
-    onDropdownSelect: () => {},
   },
 };
 
