@@ -23,6 +23,25 @@ interface CustomerApi {
   [key: string]: unknown;
 }
 
+const DAY_LABELS = ['CN', 'Th 2', 'Th 3', 'Th 4', 'Th 5', 'Th 6', 'Th 7'];
+
+function getDayLabel(dateStr: string): string | null {
+  if (!dateStr || dateStr.length !== 10) return null;
+  const parsed = parse(dateStr, 'dd/MM/yyyy', new Date());
+  if (isNaN(parsed.getTime())) return null;
+  return DAY_LABELS[parsed.getDay()];
+}
+
+// Helper to get expected return date string and day
+function getExpectedReturnDate(dateStr: string): { date: string; day: string } | null {
+  const parsed = parse(dateStr, 'dd/MM/yyyy', new Date());
+  if (isNaN(parsed.getTime())) return null;
+  const returnDate = new Date(parsed.getTime());
+  returnDate.setDate(returnDate.getDate() + 3);
+  const formatted = format(returnDate, 'dd/MM/yyyy');
+  return { date: formatted, day: DAY_LABELS[returnDate.getDay()] };
+}
+
 const OrdersNewContent: React.FC<{ tabId: string }> = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [phone, setPhone] = useState('');
@@ -169,6 +188,14 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
     return format(date, 'dd/MM/yyyy');
   };
 
+  // Auto-advance to step 3 when a valid date is set in step 2
+  useEffect(() => {
+    if (currentStep === 1 && validateDate(date)) {
+      const timeout = setTimeout(() => setCurrentStep(2), 350); // allow for UI feedback
+      return () => clearTimeout(timeout);
+    }
+  }, [date, currentStep]);
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -184,98 +211,182 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
           </React.Fragment>
         ))}
       </div>
-      {/* Step content goes here */}
-      <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden min-h-[200px] flex items-center justify-center gap-8 transition-all duration-500">
-        <div
-          className={`flex flex-col items-center gap-6 transition-all duration-500 ${currentStep === 1 ? 'translate-x-[-120px] opacity-80' : ''}`}
-          style={{ minWidth: 340 }}
-        >
-          <span className="text-lg text-white font-semibold transition-all duration-300">
-            {currentStep === 0 ? 'Nhập số điện thoại khách hàng' : 'Chọn ngày thuê đồ'}
-          </span>
-          {currentStep === 0 ? (
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={formatPhoneNumber(phone)}
-              onChange={handlePhoneInput}
-              onKeyDown={handlePhoneEnter}
-              placeholder="Nhập số điện thoại"
-              className="w-full max-w-md text-2xl px-6 py-4 rounded-lg bg-gray-900 border-2 border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 text-center text-white placeholder-gray-500"
-              disabled={searching}
-            />
-          ) : (
-            <div className="flex items-center gap-2 w-full max-w-md relative">
-              <input
-                type="text"
-                value={date}
-                onChange={handleDateInput}
-                placeholder="DD/MM/YYYY"
-                maxLength={10}
-                className={`w-full text-2xl px-6 py-4 rounded-lg bg-gray-900 border-2 ${
-                  date.length === 10
-                    ? validateDate(date)
-                      ? 'border-green-500'
-                      : 'border-red-500'
-                    : 'border-blue-500'
-                } focus:outline-none focus:ring-2 focus:ring-blue-400 text-center text-white placeholder-gray-500`}
-              />
-              <button
-                className="p-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-                title="Chọn ngày"
-                type="button"
-                onClick={() => setShowCalendarModal(true)}
-              >
-                <Calendar className="w-6 h-6" />
-              </button>
-            </div>
-          )}
-        </div>
-        {searched && customer && (
-          <div
-            className={`flex flex-col items-center gap-4 min-w-[320px] transition-all duration-500 ${
-              currentStep === 0 ? 'animate-fade-in' : 'translate-x-[120px]'
-            }`}
-          >
-            <div
-              className={`bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full ${
-                currentStep === 0 ? 'cursor-pointer hover:bg-gray-800 transition-colors' : ''
-              }`}
-              onClick={currentStep === 0 ? handleCustomerSelect : undefined}
-            >
-              <div className="text-xl font-bold text-blue-400 mb-2">Khách hàng</div>
-              <div className="text-white text-lg mb-1">
-                Tên: <span className="font-semibold">{customer.name}</span>
+      <div
+        className={`bg-gray-800 rounded-lg shadow-lg overflow-hidden min-h-[200px] flex items-center gap-8 transition-all duration-500 ${currentStep >= 2 && validateDate(date) && searched && customer ? 'justify-start' : 'justify-center'}`}
+      >
+        {/* Step 3+ layout: Rent Date box and Customer box side by side */}
+        {currentStep >= 2 && validateDate(date) && searched && customer ? (
+          <>
+            {/* Customer Box */}
+            <div className="flex flex-col items-center min-w-[320px] animate-fade-in-move">
+              <div className="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full flex flex-col items-center">
+                <div className="text-xl font-bold text-blue-400 mb-2">Khách hàng</div>
+                <div className="text-white text-lg mb-1">
+                  Tên: <span className="font-semibold">{customer.name}</span>
+                </div>
+                {customer.company && (
+                  <div className="text-gray-300 text-base mb-1">
+                    Công ty: <span className="font-semibold">{customer.company}</span>
+                  </div>
+                )}
+                <div className="text-gray-300 text-base">
+                  Số điện thoại:{' '}
+                  <span className="font-mono">{formatPhoneNumber(customer.phone)}</span>
+                </div>
               </div>
-              {customer.company && (
-                <div className="text-gray-300 text-base mb-1">
-                  Công ty: <span className="font-semibold">{customer.company}</span>
+            </div>
+            {/* Rent Date Box (now includes expected return date, compact layout) */}
+            <div className="flex flex-col items-center min-w-[200px] animate-fade-in-move">
+              <div className="bg-gray-900 rounded-lg p-4 shadow-lg border border-gray-700 w-full flex flex-col items-center">
+                <div className="text-base font-bold text-blue-400 mb-1">Ngày Thuê</div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg font-bold text-white">{date}</span>
+                  <span className="text-base text-blue-300 font-semibold">{getDayLabel(date)}</span>
+                </div>
+                <div className="text-sm font-bold text-green-400 mb-1">Ngày trả dự kiến</div>
+                {getExpectedReturnDate(date) && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-white">
+                      {getExpectedReturnDate(date)!.date}
+                    </span>
+                    <span className="text-base text-green-300 font-semibold">
+                      {getExpectedReturnDate(date)!.day}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Summary Boxes Group (right-aligned) */}
+            <div className="flex gap-6 ml-auto">
+              {/* Tổng Sản Phẩm Box */}
+              <div className="animate-fade-in-move">
+                <div className="p-[3px] rounded-2xl bg-gradient-to-tr from-pink-500 via-yellow-400 to-pink-500 shadow-neon">
+                  <div className="bg-gray-900 rounded-2xl px-10 py-8 flex flex-col items-center min-w-[200px] min-h-[140px]">
+                    <div className="text-base font-bold text-pink-400 mb-2">Tổng Sản Phẩm</div>
+                    <div className="text-3xl font-extrabold text-white mb-1">0</div>
+                    <div className="text-sm text-gray-400">sản phẩm</div>
+                  </div>
+                </div>
+              </div>
+              {/* Tổng Hoá Đơn Box */}
+              <div className="animate-fade-in-move">
+                <div className="p-[3px] rounded-2xl bg-gradient-to-tr from-blue-500 via-green-400 to-blue-500 shadow-neon">
+                  <div className="bg-gray-900 rounded-2xl px-10 py-8 flex flex-col items-center min-w-[200px] min-h-[140px]">
+                    <div className="text-base font-bold text-blue-400 mb-2">Tổng Hoá Đơn</div>
+                    <div className="text-3xl font-extrabold text-white mb-1">0</div>
+                    <div className="text-sm text-gray-400">Việt Nam Đồng</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          // Steps 1 & 2: original search and date picking UI (no compact rent date box)
+          <>
+            <div
+              className={`flex flex-col items-center gap-6 transition-all duration-500 ${currentStep === 1 ? 'translate-x-[-120px] opacity-80' : ''}`}
+              style={{ minWidth: 340 }}
+            >
+              <span className="text-lg text-white font-semibold transition-all duration-300">
+                {currentStep === 0 ? 'Nhập số điện thoại khách hàng' : 'Chọn ngày thuê đồ'}
+              </span>
+              {currentStep === 0 ? (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={formatPhoneNumber(phone)}
+                  onChange={handlePhoneInput}
+                  onKeyDown={handlePhoneEnter}
+                  placeholder="Nhập số điện thoại"
+                  className="w-full max-w-md text-2xl px-6 py-4 rounded-lg bg-gray-900 border-2 border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 text-center text-white placeholder-gray-500"
+                  disabled={searching}
+                />
+              ) : (
+                <div className="flex items-center gap-2 w-full max-w-md relative">
+                  <input
+                    type="text"
+                    value={date}
+                    onChange={handleDateInput}
+                    placeholder="DD/MM/YYYY"
+                    maxLength={10}
+                    className={`w-full text-2xl px-6 py-4 rounded-lg bg-gray-900 border-2 ${
+                      date.length === 10
+                        ? validateDate(date)
+                          ? 'border-green-500'
+                          : 'border-red-500'
+                        : 'border-blue-500'
+                    } focus:outline-none focus:ring-2 focus:ring-blue-400 text-center text-white placeholder-gray-500`}
+                  />
+                  <button
+                    className="p-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                    title="Chọn ngày"
+                    type="button"
+                    onClick={() => setShowCalendarModal(true)}
+                  >
+                    <Calendar className="w-6 h-6" />
+                  </button>
+                  <button
+                    type="button"
+                    className="ml-2 px-3 py-2 rounded bg-gray-700 hover:bg-blue-600 text-white text-xs font-medium transition-colors"
+                    onClick={() => {
+                      const today = new Date();
+                      setDate(formatDateString(today));
+                    }}
+                  >
+                    Hôm nay
+                  </button>
                 </div>
               )}
-              <div className="text-gray-300 text-base">
-                Số điện thoại:{' '}
-                <span className="font-mono">{formatPhoneNumber(customer.phone)}</span>
-              </div>
             </div>
-          </div>
-        )}
-        {searched && !customer && currentStep === 0 && (
-          <div className="flex flex-col items-center gap-4 min-w-[320px] animate-fade-in">
-            <div className="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full flex flex-col items-center">
-              <div className="text-xl font-bold text-red-400 mb-2">Không tìm thấy khách hàng.</div>
-              <div className="text-white text-base mb-4">
-                Thêm khách hàng mới cho số{' '}
-                <span className="font-mono text-blue-400">{formatPhoneNumber(phone)}</span>?
-              </div>
-              <button
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition text-lg"
-                onClick={handleOpenAddModal}
+            {searched && customer && (
+              <div
+                className={`flex flex-col items-center gap-4 min-w-[320px] transition-all duration-500 ${
+                  currentStep === 0 ? 'animate-fade-in' : 'translate-x-[120px]'
+                }`}
               >
-                Thêm khách hàng này ngay
-              </button>
-            </div>
-          </div>
+                <div
+                  className={`bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full ${
+                    currentStep === 0 ? 'cursor-pointer hover:bg-gray-800 transition-colors' : ''
+                  }`}
+                  onClick={currentStep === 0 ? handleCustomerSelect : undefined}
+                >
+                  <div className="text-xl font-bold text-blue-400 mb-2">Khách hàng</div>
+                  <div className="text-white text-lg mb-1">
+                    Tên: <span className="font-semibold">{customer.name}</span>
+                  </div>
+                  {customer.company && (
+                    <div className="text-gray-300 text-base mb-1">
+                      Công ty: <span className="font-semibold">{customer.company}</span>
+                    </div>
+                  )}
+                  <div className="text-gray-300 text-base">
+                    Số điện thoại:{' '}
+                    <span className="font-mono">{formatPhoneNumber(customer.phone)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {searched && !customer && currentStep === 0 && (
+              <div className="flex flex-col items-center gap-4 min-w-[320px] animate-fade-in">
+                <div className="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full flex flex-col items-center">
+                  <div className="text-xl font-bold text-red-400 mb-2">
+                    Không tìm thấy khách hàng.
+                  </div>
+                  <div className="text-white text-base mb-4">
+                    Thêm khách hàng mới cho số{' '}
+                    <span className="font-mono text-blue-400">{formatPhoneNumber(phone)}</span>?
+                  </div>
+                  <button
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition text-lg"
+                    onClick={handleOpenAddModal}
+                  >
+                    Thêm khách hàng này ngay
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
       {/* Add Customer Modal */}
