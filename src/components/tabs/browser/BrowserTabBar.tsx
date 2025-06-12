@@ -4,6 +4,7 @@ import type { FirstLevelTab, SecondLevelTab, TabOption } from '@/types/tabTypes'
 import { useTabContext } from '@/context/TabContext';
 import FirstLevelTabComponent from './FirstLevelTab';
 import SecondLevelTabComponent from './SecondLevelTab';
+import { createTabId } from '@/types/tabTypes';
 
 /**
  * BrowserTabBar Component
@@ -96,8 +97,9 @@ export default function BrowserTabBar({
   };
 
   const handleDropdownSelect = (tabId: string, option: TabOption) => {
-    updateFirstLevelTabOption(tabId, option);
-    activateTab(tabId);
+    const id = createTabId(tabId);
+    updateFirstLevelTabOption(id, option);
+    activateTab(id);
   };
 
   const handleSecondLevelTabSelect = (tab: SecondLevelTab) => {
