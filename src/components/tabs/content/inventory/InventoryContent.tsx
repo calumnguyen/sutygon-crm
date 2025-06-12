@@ -170,7 +170,7 @@ const InventoryContent: React.FC = () => {
                     CATEGORY_OPTIONS={CATEGORY_OPTIONS}
                     selectedCategories={selectedCategories}
                     setSelectedCategories={setSelectedCategories}
-                    categoryDropdownOpen={!!categoryDropdownOpen}
+                    categoryDropdownOpen={Boolean(categoryDropdownOpen)}
                     setCategoryDropdownOpen={setCategoryDropdownOpen}
                     categoryDropdownRef={categoryDropdownRef as React.RefObject<HTMLDivElement>}
                     lastModifiedSort={lastModifiedSort}
