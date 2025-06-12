@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { formatPhoneNumber } from '@/lib/utils/phone';
-import { formatDate } from '@/lib/utils/date';
 import { Calendar } from 'lucide-react';
 import AddCustomerModal from '../customers/AddCustomerModal';
 import DatePicker from 'react-datepicker';
@@ -15,12 +14,6 @@ interface Customer {
   name: string;
   company?: string | null;
   phone: string;
-}
-
-// Define a type for customer API response
-interface CustomerApi {
-  phone: string;
-  [key: string]: unknown;
 }
 
 const DAY_LABELS = ['CN', 'Th 2', 'Th 3', 'Th 4', 'Th 5', 'Th 6', 'Th 7'];
@@ -48,7 +41,6 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [animateLeft, setAnimateLeft] = useState(false);
   const [date, setDate] = useState('');
   const [showCalendarModal, setShowCalendarModal] = useState(false);
 
@@ -57,16 +49,13 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
   const [existingPhones, setExistingPhones] = useState<string[]>([]);
   const [prefillPhone, setPrefillPhone] = useState('');
 
-  // Track previous value to detect backspace
-  const prevDateRef = React.useRef('');
-
   // Fetch all customer phones for validation
   useEffect(() => {
     async function fetchPhones() {
       try {
         const res = await fetch('/api/customers');
         const customers = await res.json();
-        setExistingPhones(customers.map((c: CustomerApi) => c.phone));
+        setExistingPhones(customers.map((c: Customer) => c.phone));
       } catch (err) {
         setExistingPhones([]);
       }
@@ -80,7 +69,6 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
     setPhone(value);
     setSearched(false);
     setCustomer(null);
-    setAnimateLeft(false);
   };
 
   const handlePhoneEnter = async (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -88,7 +76,6 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
       setSearching(true);
       setSearched(false);
       setCustomer(null);
-      setAnimateLeft(false);
       try {
         const res = await fetch(`/api/customers?phone=${phone}`);
         const data = await res.json();
@@ -98,7 +85,6 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
       } finally {
         setSearching(false);
         setSearched(true);
-        setTimeout(() => setAnimateLeft(true), 100); // trigger animation
       }
     }
   };

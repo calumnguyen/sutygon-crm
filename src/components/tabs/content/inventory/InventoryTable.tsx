@@ -1,8 +1,6 @@
 import React from 'react';
 import { InventoryItem } from '@/types/inventory';
-import { formatPriceVND } from './InventoryUtils';
 import Button from '@/components/common/dropdowns/Button';
-import { Eye } from 'lucide-react';
 
 interface InventoryTableProps {
   filteredInventory: InventoryItem[];
@@ -79,9 +77,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ filteredInventory, setP
                       <span className="text-gray-400 font-mono text-xs sm:text-sm break-all">
                         {size.title}:
                       </span>
-                      <span className="text-xs sm:text-sm break-all">
-                        {formatPriceVND(size.price)}
-                      </span>
+                      <span className="text-xs sm:text-sm break-all">{size.price}</span>
                     </div>
                   ))}
                 </div>
@@ -93,7 +89,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ filteredInventory, setP
                   className="p-2"
                   title="Xem trước sản phẩm"
                 >
-                  <Eye className="w-4 h-4" />
+                  Xem
                 </Button>
               </td>
             </tr>

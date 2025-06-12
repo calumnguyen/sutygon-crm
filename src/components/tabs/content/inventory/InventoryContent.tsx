@@ -1,12 +1,9 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, List, Grid, Search, Eye, SlidersHorizontal } from 'lucide-react';
+import { Plus, List, Grid, Search, SlidersHorizontal } from 'lucide-react';
 import Button from '@/components/common/dropdowns/Button';
 import { TRANSLATIONS } from '@/config/translations';
-import AddItemStep1 from './AddItemStep1';
-import AddItemStep2 from './AddItemStep2';
-import { AddItemFormState, InventoryItem } from '@/types/inventory';
-import { formatPriceVND, getItemPrice } from './InventoryUtils';
+import { AddItemFormState } from '@/types/inventory';
 import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { useInventory } from './useInventory';
 import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
@@ -17,16 +14,6 @@ import InventoryGrid from './InventoryGrid';
 import InventoryFilterDropdown from './InventoryFilterDropdown';
 import InventoryPreviewModal from './InventoryPreviewModal';
 import InventoryAddItemModal from './InventoryAddItemModal';
-
-const initialForm: AddItemFormState = {
-  name: '',
-  category: 'Áo Dài',
-  tags: [],
-  tagsInput: '',
-  photoFile: null,
-  sizes: [{ title: '', quantity: '', onHand: '', price: '' }],
-  samePrice: true,
-};
 
 const InventoryContent: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');

@@ -1,9 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Pencil, Trash2 } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import Button from '@/components/common/dropdowns/Button';
-import { TABLE_CONFIG } from '@/config/table';
-import { TRANSLATIONS } from '@/config/translations';
 import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 import AddCustomerModal from './AddCustomerModal';
@@ -29,7 +27,6 @@ export default function CustomerContent() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<string | null>(null);
   const [customerToEdit, setCustomerToEdit] = useState<Customer | null>(null);
-  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [identityModal, setIdentityModal] = useState<{ open: boolean; customerId: number | null }>({
     open: false,
     customerId: null,
@@ -80,38 +77,6 @@ export default function CustomerContent() {
     }
   };
 
-  const handleUpdateCustomer = async (
-    customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>
-  ) => {
-    if (!customerToEdit) return;
-    try {
-      // Replace with actual API call
-      const updatedCustomer: Customer = {
-        ...customerData,
-        id: customerToEdit.id,
-        createdAt: customerToEdit.createdAt,
-        updatedAt: new Date(),
-      };
-      setCustomers((prev) =>
-        prev.map((_customer) => (_customer.id === updatedCustomer.id ? updatedCustomer : _customer))
-      );
-      setIsModalOpen(false);
-      setCustomerToEdit(null);
-    } catch (error) {
-      console.error('Failed to update customer:', error);
-    }
-  };
-
-  const handleEditCustomer = (customerId: string) => {
-    setPendingAction({ type: 'edit', customerId: parseInt(customerId) });
-    setIdentityModal({ open: true, customerId: parseInt(customerId) });
-  };
-
-  const handleDeleteCustomer = (customerId: string) => {
-    setPendingAction({ type: 'delete', customerId: parseInt(customerId) });
-    setIdentityModal({ open: true, customerId: parseInt(customerId) });
-  };
-
   const handleAddCustomerClick = () => {
     setPendingAction({ type: 'add', customerId: null });
     setIdentityModal({ open: true, customerId: null });
@@ -119,7 +84,6 @@ export default function CustomerContent() {
 
   const handleIdentitySuccess = (customer: { id: number }) => {
     if (pendingAction.type === 'add') {
-      setModalMode('add');
       setIsModalOpen(true);
     } else if (pendingAction.type === 'edit' && pendingAction.customerId !== null) {
       const customerToEdit = customers.find(
@@ -127,7 +91,6 @@ export default function CustomerContent() {
       );
       if (customerToEdit) {
         setCustomerToEdit(customerToEdit);
-        setModalMode('edit');
         setIsModalOpen(true);
       }
     } else if (pendingAction.type === 'delete' && pendingAction.customerId !== null) {
