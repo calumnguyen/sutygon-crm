@@ -1,3 +1,5 @@
+import type { InventoryItem } from '@/types/inventory';
+
 // Format a number string with commas
 export function formatNumberWithCommas(value: string) {
   if (!value) return '';
@@ -41,3 +43,9 @@ export function generateItemId(category: string, count: number) {
     .replace(/\u0300-\u036f/g, '');
   return `${code}-${count.toString().padStart(6, '0')}`;
 }
+
+// Helper: get min price for an item
+export const getItemPrice = (item: InventoryItem): number => {
+  if (!item.sizes.length) return 0;
+  return Math.min(...item.sizes.map((s: { price: number }) => s.price));
+};

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '@/components/common/dropdowns/Button';
 import { validatePhoneNumber, formatPhoneNumber } from '@/lib/utils/phone';
 
@@ -12,6 +12,7 @@ interface AddCustomerModalProps {
     notes?: string;
   }) => Promise<boolean>;
   existingPhones: string[];
+  prefillPhone?: string;
 }
 
 const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
@@ -19,6 +20,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   onClose,
   onSubmit,
   existingPhones,
+  prefillPhone,
 }) => {
   const [form, setForm] = useState({
     name: '',
@@ -28,6 +30,14 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && prefillPhone) {
+      setForm((f) => ({ ...f, phone: prefillPhone }));
+    } else if (!isOpen) {
+      setForm({ name: '', phone: '', company: '', notes: '' });
+    }
+  }, [isOpen, prefillPhone]);
 
   if (!isOpen) return null;
 

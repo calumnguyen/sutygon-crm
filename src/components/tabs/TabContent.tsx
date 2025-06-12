@@ -4,12 +4,12 @@ import { useTabContext } from '@/context/TabContext';
 import { TAB_CONTENT_MAPPING } from '@/constants/tabs';
 import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
 import { createTabId } from '@/types/tabTypes';
-import UsersContent from '@/components/tabs/content/UsersContent';
-import CustomerContent from '@/components/tabs/content/CustomerContent';
-import OrdersContent from '@/components/tabs/content/OrdersContent';
-import OrdersNewContent from '@/components/tabs/content/OrdersNewContent';
-import InventoryContent from '@/components/tabs/content/InventoryContent';
-import StorePasswordContent from '@/components/tabs/content/StorePasswordContent';
+import UsersContent from '@/components/tabs/content/users/UsersContent';
+import CustomerContent from '@/components/tabs/content/customers/CustomerContent';
+import OrdersContent from '@/components/tabs/content/orders/OrdersContent';
+import OrdersNewContent from '@/components/tabs/content/orders/OrdersNewContent';
+import InventoryContent from '@/components/tabs/content/inventory/InventoryContent';
+import StorePasswordContent from '@/components/tabs/content/store-password/StorePasswordContent';
 
 const contentComponents = {
   users: UsersContent,
@@ -37,30 +37,48 @@ const TabContent: React.FC = () => {
     }
   }, [firstLevelTabs.length, addFirstLevelTab]);
 
-  const activeTab = firstLevelTabs.find((tab) => tab.id === activeFirstLevelTab?.id);
-  if (!activeTab) return null;
-
-  // Check if the active tab is a new order tab
-  if (activeTab.id.startsWith('orders-new-')) {
-    return (
-      <div className="flex-1 overflow-auto">
-        <OrdersNewContent tabId={activeTab.id} />
-      </div>
-    );
-  }
-
-  const contentKey = TAB_CONTENT_MAPPING[activeTab.selectedOption?.id || 'home'];
+  if (!activeFirstLevelTab) return null;
 
   return (
     <div className="flex-1 overflow-auto">
-      {Object.entries(contentComponents).map(([key, Component]) => (
-        <div key={key} style={{ display: key === contentKey ? 'block' : 'none', height: '100%' }}>
-          <Component />
-        </div>
-      ))}
-      {!(contentComponents as Record<string, React.FC>)[contentKey] && (
-        <div>No content available</div>
-      )}
+      {firstLevelTabs.map((tab) => {
+        // Special case for new order tabs
+        if (tab.id.startsWith('orders-new-')) {
+          return (
+            <div
+              key={tab.id}
+              style={{
+                display: tab.id === activeFirstLevelTab.id ? 'block' : 'none',
+                height: '100%',
+              }}
+            >
+              <OrdersNewContent tabId={tab.id} />
+            </div>
+          );
+        }
+        const contentKey = TAB_CONTENT_MAPPING[tab.selectedOption?.id || 'home'];
+        return (
+          <div
+            key={tab.id}
+            style={{
+              display: tab.id === activeFirstLevelTab.id ? 'block' : 'none',
+              height: '100%',
+            }}
+          >
+            {Object.entries(contentComponents).map(([key, Component]) => (
+              <div
+                key={key}
+                style={{ display: key === contentKey ? 'block' : 'none', height: '100%' }}
+              >
+                <Component />
+              </div>
+            ))}
+            {!(contentComponents as Record<string, React.FC>)[contentKey] && (
+              <div>No content available</div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };
