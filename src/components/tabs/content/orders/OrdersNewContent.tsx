@@ -205,7 +205,14 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
           <>
             {/* Customer Box */}
             <div className="flex flex-col items-center min-w-[320px] animate-fade-in-move">
-              <div className="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full flex flex-col items-center">
+              <div
+                className="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full flex flex-col items-center cursor-pointer hover:bg-gray-800 transition-colors"
+                title="Chỉnh sửa khách hàng"
+                onClick={() => {
+                  // Only allow going back to step 1 to update customer
+                  setCurrentStep(0);
+                }}
+              >
                 <div className="text-xl font-bold text-blue-400 mb-2">Khách hàng</div>
                 <div className="text-white text-lg mb-1">
                   Tên: <span className="font-semibold">{customer.name}</span>
@@ -221,21 +228,23 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
                 </div>
               </div>
             </div>
-            {/* Rent Date Box (now includes expected return date, compact layout) */}
-            <div className="flex flex-col items-center min-w-[200px] animate-fade-in-move">
-              <div className="bg-gray-900 rounded-lg p-4 shadow-lg border border-gray-700 w-full flex flex-col items-center">
-                <div className="text-base font-bold text-blue-400 mb-1">Ngày Thuê</div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg font-bold text-white">{date}</span>
-                  <span className="text-base text-blue-300 font-semibold">{getDayLabel(date)}</span>
+            {/* Rent Date Box (stacked, compact, aligned) */}
+            <div className="flex flex-col gap-2 min-w-[180px] animate-fade-in-move justify-between h-full">
+              <div className="bg-gray-900 rounded-lg p-3 shadow-lg border border-gray-700 w-full flex flex-col items-center">
+                <div className="text-sm font-bold text-blue-400 mb-1">Ngày Thuê</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base font-bold text-white">{date}</span>
+                  <span className="text-sm text-blue-300 font-semibold">{getDayLabel(date)}</span>
                 </div>
+              </div>
+              <div className="bg-gray-900 rounded-lg p-3 shadow-lg border border-gray-700 w-full flex flex-col items-center">
                 <div className="text-sm font-bold text-green-400 mb-1">Ngày trả dự kiến</div>
                 {getExpectedReturnDate(date) && (
                   <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-white">
+                    <span className="text-base font-bold text-white">
                       {getExpectedReturnDate(date)!.date}
                     </span>
-                    <span className="text-base text-green-300 font-semibold">
+                    <span className="text-sm text-green-300 font-semibold">
                       {getExpectedReturnDate(date)!.day}
                     </span>
                   </div>
