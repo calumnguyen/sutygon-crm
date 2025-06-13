@@ -16,7 +16,10 @@ export function useInventoryTable(inventory: InventoryItem[]) {
   );
 
   const filteredInventory = useMemo(() => {
-    let result = inventory.filter((item) => {
+    // Helper to remove accent marks
+    const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    let result = inventory.filter((item: InventoryItem) => {
       if (priceRangeInvalid) return false;
       const q = searchQuery.trim().toLowerCase();
       if (q) {
@@ -24,9 +27,26 @@ export function useInventoryTable(inventory: InventoryItem[]) {
         const qNoDash = q.replace(/-/g, '');
         const inFormattedId = formattedId.includes(qNoDash);
         const inId = String(item.id).toLowerCase().includes(q);
-        const inName = item.name.toLowerCase().includes(q);
-        const inTags = item.tags.some((tag) => tag.toLowerCase().includes(q));
-        if (!(inFormattedId || inId || inName || inTags)) return false;
+        // Normalize both name and query for accent-insensitive search
+        const normName = normalize(item.name.toLowerCase());
+        const normQ = normalize(q);
+        const queryWords = normQ.split(/\s+/).filter(Boolean);
+
+        // Fuzzy ranking: count how many query words match name or tags
+        let matchCount = 0;
+        queryWords.forEach((word) => {
+          if (normName.includes(word)) matchCount++;
+        });
+        item.tags.forEach((tag: string) => {
+          const normTag = normalize(tag.toLowerCase());
+          queryWords.forEach((word) => {
+            if (normTag.includes(word)) matchCount++;
+          });
+        });
+        // Only include if matches ID or at least one word in name/tags
+        if (!(inFormattedId || inId || matchCount > 0)) return false;
+        // Attach matchCount for later sorting
+        (item as InventoryItem & { _matchCount?: number })._matchCount = matchCount;
       }
       if (selectedCategories.length > 0 && !selectedCategories.includes(item.category))
         return false;
@@ -35,6 +55,14 @@ export function useInventoryTable(inventory: InventoryItem[]) {
       if (priceRange.max && price > Number(priceRange.max)) return false;
       return true;
     });
+    // Sort by matchCount descending if searching by name/tags
+    if (searchQuery.trim()) {
+      result = [...result].sort(
+        (a, b) =>
+          ((b as InventoryItem & { _matchCount?: number })._matchCount || 0) -
+          ((a as InventoryItem & { _matchCount?: number })._matchCount || 0)
+      );
+    }
     if (priceSort) {
       result = [...result].sort((a, b) => {
         const pa = getItemPrice(a);
