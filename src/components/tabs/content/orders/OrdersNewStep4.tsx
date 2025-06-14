@@ -79,12 +79,14 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 items-stretch">
         <OrderSummaryCustomerInfo customer={customer} date={date} />
         <OrderSummaryPaymentRequirement
-          total={orderItems
+          total={orderItems.reduce((sum, i) => sum + i.quantity * i.price, 0)}
+          subtotal={orderItems
             .filter((i) => !i.isExtension)
             .reduce((sum, i) => sum + i.quantity * i.price, 0)}
           depositInfo={depositInfo || undefined}
           isPaymentSubmitted={isPaymentSubmitted}
           setIsPaymentSubmitted={setIsPaymentSubmitted}
+          orderId={orderId}
         />
         <OrderSummaryDocumentDeposit
           orderItems={orderItems}

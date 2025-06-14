@@ -1,39 +1,97 @@
 import React, { useState, useEffect } from 'react';
+import { QRCodeCanvas as QRCode } from 'qrcode.react';
+import { useOrderPayment } from './useOrderPayment';
+import PaymentConfirmationModal from './PaymentConfirmationModal';
+import PaymentMethodModal from './PaymentMethodModal';
+import PrintReceiptModal from './PrintReceiptModal';
+import VietQRModal from './VietQRModal';
 
 /**
  * Payment summary card for step 4 summary.
  * @param total Order subtotal (excluding extension)
+ * @param subtotal Order total (including extension)
  * @param depositInfo Deposit info object (optional)
  * @param isPaymentSubmitted Payment submission status
  * @param setIsPaymentSubmitted Function to set payment submission status
+ * @param orderId Order ID
  */
-export const OrderSummaryPaymentRequirement: React.FC<{
+
+// Types
+interface DepositInfo {
+  type: 'vnd' | 'percent';
+  value: number;
+}
+
+interface OrderSummaryPaymentRequirementProps {
   total: number;
-  depositInfo?: { type: 'vnd' | 'percent'; value: number };
+  subtotal: number;
+  depositInfo?: DepositInfo;
   isPaymentSubmitted: boolean;
   setIsPaymentSubmitted: (v: boolean) => void;
-}> = ({ total, depositInfo, isPaymentSubmitted, setIsPaymentSubmitted }) => {
+  orderId: string;
+}
+
+export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequirementProps> = ({
+  total,
+  subtotal,
+  depositInfo,
+  isPaymentSubmitted,
+  setIsPaymentSubmitted,
+  orderId,
+}) => {
+  // State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrSVG, setQrSVG] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'qr' | null>(null);
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [inputAmount, setInputAmount] = useState<string>('');
   const [paymentComplete, setPaymentComplete] = useState(false);
   const [changeAmount, setChangeAmount] = useState<number>(0);
+  const [qrConfirmed, setQrConfirmed] = useState(false);
 
-  let depositValue = 0;
-  let depositDisplay = '0 đ';
-  if (depositInfo) {
-    if (depositInfo.type === 'vnd') {
-      depositValue = depositInfo.value;
-      depositDisplay = `${depositValue.toLocaleString('vi-VN')} đ`;
-    } else {
-      depositValue = Math.round(total * (depositInfo.value / 100));
-      depositDisplay = `${depositValue.toLocaleString('vi-VN')} đ (${depositInfo.value}% của đơn hàng)`;
-    }
-  }
+  // Derived values
+  const depositValue = depositInfo
+    ? depositInfo.type === 'vnd'
+      ? depositInfo.value
+      : Math.round(subtotal * (depositInfo.value / 100))
+    : 0;
   const totalPay = total + depositValue;
+
+  // Effects
+  useEffect(() => {
+    if (showQRModal) {
+      setQrSVG(null);
+      setQrError(null);
+      setQrLoading(true);
+      fetch('https://api.vietqr.io/v2/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountNo: '1129999',
+          accountName: 'NGUYEN HUU TAN',
+          acqId: '970403', // Sacombank BIN
+          amount: totalPay,
+          addInfo: `CK #${orderId}`,
+          format: 'svg',
+        }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.data && data.data.qrDataURL) {
+            setQrSVG(data.data.qrDataURL);
+          } else {
+            setQrError('Không thể tạo mã QR.');
+          }
+        })
+        .catch(() => setQrError('Không thể tạo mã QR.'))
+        .finally(() => setQrLoading(false));
+    }
+  }, [showQRModal, totalPay, orderId]);
 
   useEffect(() => {
     if (paidAmount >= totalPay) {
@@ -45,7 +103,8 @@ export const OrderSummaryPaymentRequirement: React.FC<{
     }
   }, [paidAmount, totalPay]);
 
-  const handlePaymentOption = (option: 'full' | 'partial' | 'later') => {
+  // Handlers
+  function handlePaymentOption(option: 'full' | 'partial' | 'later') {
     if (option === 'full') {
       setShowPaymentMethodModal(true);
     } else {
@@ -53,84 +112,97 @@ export const OrderSummaryPaymentRequirement: React.FC<{
       console.log('Payment option selected:', option);
       setShowPaymentModal(false);
     }
-  };
+  }
 
-  const handlePaymentMethod = (method: 'cash' | 'qr') => {
+  function handlePaymentMethod(method: 'cash' | 'qr') {
     setSelectedPaymentMethod(method);
     if (method === 'qr') {
-      // TODO: Implement QR payment logic
-      console.log('QR payment selected');
+      setQrSVG(null);
+      setQrError(null);
+      setQrLoading(true);
+      setShowQRModal(true);
       setShowPaymentMethodModal(false);
       setShowPaymentModal(false);
     }
-  };
+  }
 
-  const handleAmountInput = (value: string) => {
-    // Only allow numbers
+  function handleAmountInput(value: string) {
     if (/^\d*$/.test(value)) {
       setInputAmount(value);
     }
-  };
+  }
 
-  const handleAddPayment = () => {
+  function handleAddPayment() {
     const amount = parseInt(inputAmount) || 0;
     if (amount > 0 && !paymentComplete) {
-      setPaidAmount((prev) => prev + amount);
+      setPaidAmount(prev => prev + amount);
       setInputAmount('');
     }
-  };
+  }
 
-  const handleQuickAmount = (amount: number) => {
+  function handleQuickAmount(amount: number) {
     if (!paymentComplete) {
-      setPaidAmount((prev) => prev + amount);
+      setPaidAmount(prev => prev + amount);
     }
-  };
+  }
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  function handleKeyPress(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddPayment();
     }
-  };
+  }
 
-  const handleConfirmPayment = () => {
-    // TODO: Implement payment confirmation logic
+  function handleConfirmPayment() {
     setShowPrintModal(true);
     setShowPaymentMethodModal(false);
     setShowPaymentModal(false);
     setIsPaymentSubmitted(true);
-    // Reset states
     setPaidAmount(0);
     setInputAmount('');
     setPaymentComplete(false);
     setChangeAmount(0);
     setSelectedPaymentMethod(null);
-  };
+  }
 
-  const handleCloseModal = () => {
+  function handleCloseModal() {
     if (paymentComplete) {
       setShowPrintModal(true);
       setIsPaymentSubmitted(true);
     }
     setShowPaymentMethodModal(false);
     setShowPaymentModal(false);
-    // Reset states
     setPaidAmount(0);
     setInputAmount('');
     setPaymentComplete(false);
     setChangeAmount(0);
     setSelectedPaymentMethod(null);
-  };
+  }
 
-  const handlePrint = () => {
-    // Simulate print (you can replace with real print logic)
+  function handlePrint() {
     window.print();
     setShowPrintModal(false);
-  };
+  }
 
-  const handleClosePrintModal = () => {
+  function handleClosePrintModal() {
     setShowPrintModal(false);
-  };
+  }
+
+  function handleConfirmQRPayment() {
+    setQrConfirmed(true);
+    setShowQRModal(false);
+    setSelectedPaymentMethod('qr');
+    setIsPaymentSubmitted(true);
+    setShowPrintModal(true);
+  }
+
+  function handleCancelQRPayment() {
+    setShowQRModal(false);
+    setQrConfirmed(false);
+  }
+
+  // Use the useOrderPayment hook for all payment state/handlers
+  const payment = useOrderPayment(totalPay, orderId);
 
   return (
     <>
@@ -142,9 +214,29 @@ export const OrderSummaryPaymentRequirement: React.FC<{
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-white font-medium">Tiền cọc</span>
-          <span className="text-white font-bold">{depositDisplay}</span>
+          <span className="text-white font-bold flex flex-col items-end">
+            {depositInfo
+              ? depositInfo.type === 'vnd'
+                ? depositInfo.value.toLocaleString('vi-VN') + ' đ'
+                : <>
+                    {Math.round(subtotal * (depositInfo.value / 100)).toLocaleString('vi-VN')} đ
+                    <span className="text-xs text-blue-200 mt-0.5">({depositInfo.value}% của đơn hàng)</span>
+                  </>
+              : '0 đ'}
+          </span>
         </div>
-        {isPaymentSubmitted && (
+        {isPaymentSubmitted && selectedPaymentMethod === 'qr' ? (
+          <>
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span className="text-white font-medium">Thanh Toán Toàn Bộ - CK QR</span>
+              <span className="text-white font-bold">- {totalPay.toLocaleString('vi-VN')} đ</span>
+            </div>
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span className="text-white font-medium">Trạng Thái Thanh Toán</span>
+              <span className="text-green-400 font-bold">Hoàn Tất{depositValue > 0 ? ' - Có Đặt Cọc' : ''}</span>
+            </div>
+          </>
+        ) : isPaymentSubmitted ? (
           <>
             <div className="flex items-center justify-between text-sm mt-1">
               <span className="text-white font-medium">Thanh Toán Toàn Bộ - Tiền Mặt</span>
@@ -152,23 +244,19 @@ export const OrderSummaryPaymentRequirement: React.FC<{
             </div>
             <div className="flex items-center justify-between text-sm mt-1">
               <span className="text-white font-medium">Trạng Thái Thanh Toán</span>
-              <span className="text-green-400 font-bold">
-                Hoàn Tất{depositValue > 0 ? ' - Có Đặt Cọc' : ''}
-              </span>
+              <span className="text-green-400 font-bold">Hoàn Tất{depositValue > 0 ? ' - Có Đặt Cọc' : ''}</span>
             </div>
           </>
-        )}
+        ) : null}
         <div className="flex items-center justify-between text-base mt-2 border-t border-gray-700 pt-2">
           <span className="text-white font-semibold">Số Tiền Cần Trả</span>
-          <span className="text-green-400 font-bold text-lg">
-            {isPaymentSubmitted ? '0 đ' : totalPay.toLocaleString('vi-VN') + ' đ'}
-          </span>
+          <span className="text-green-400 font-bold text-lg">{isPaymentSubmitted ? '0 đ' : totalPay.toLocaleString('vi-VN') + ' đ'}</span>
         </div>
         {!isPaymentSubmitted && (
           <button
             className="mt-3 w-full py-2 rounded bg-pink-600 hover:bg-pink-700 text-white font-bold text-base shadow transition-colors"
             type="button"
-            onClick={() => setShowPaymentModal(true)}
+            onClick={() => payment.setShowPaymentModal(true)}
           >
             Thanh toán & Gửi đơn
           </button>
@@ -176,240 +264,55 @@ export const OrderSummaryPaymentRequirement: React.FC<{
       </div>
 
       {/* Payment Confirmation Modal */}
-      {showPaymentModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={handleCloseModal}
-        >
-          <div
-            className="bg-gray-900 rounded-xl p-8 w-full max-w-md shadow-2xl border border-gray-700 relative flex flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="absolute top-2 right-2 text-gray-400 hover:text-white text-2xl"
-              onClick={handleCloseModal}
-              aria-label="Đóng"
-            >
-              ×
-            </button>
-            <div className="text-xl font-bold text-pink-400 mb-6">Xác Nhận Thanh Toán</div>
-            <div className="text-base text-gray-300 mb-6 text-center">
-              Vui lòng chọn phương thức thanh toán cho đơn hàng này
-            </div>
-            <div className="w-full flex flex-col gap-3">
-              <button
-                className="w-full py-3 px-4 rounded-lg bg-pink-600 hover:bg-pink-700 text-white font-bold text-lg shadow-lg transition-colors"
-                onClick={() => handlePaymentOption('full')}
-              >
-                Thanh Toán Toàn Bộ Ngay
-              </button>
-              <button
-                className="w-full py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium text-base transition-colors"
-                onClick={() => handlePaymentOption('partial')}
-              >
-                Thanh Toán Một Phần
-              </button>
-              <button
-                className="w-full py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium text-base transition-colors"
-                onClick={() => handlePaymentOption('later')}
-              >
-                Thanh Toán Sau
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PaymentConfirmationModal
+        show={payment.showPaymentModal}
+        onClose={payment.handleCloseModal}
+        onPaymentOption={payment.handlePaymentOption}
+      />
 
       {/* Payment Method Selection Modal */}
-      {showPaymentMethodModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
-          onClick={handleCloseModal}
-        >
-          <div
-            className="bg-gray-900 rounded-xl p-8 w-full max-w-4xl shadow-2xl border border-gray-700 relative flex flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="absolute top-2 right-2 text-gray-400 hover:text-white text-2xl"
-              onClick={handleCloseModal}
-              aria-label="Đóng"
-            >
-              ×
-            </button>
-
-            {!selectedPaymentMethod ? (
-              <>
-                <div className="text-xl font-bold text-pink-400 mb-6">
-                  Chọn Phương Thức Thanh Toán
-                </div>
-                <div className="text-base text-gray-300 mb-6 text-center">
-                  Số tiền cần thanh toán:{' '}
-                  <span className="text-green-400 font-bold">
-                    {totalPay.toLocaleString('vi-VN')} đ
-                  </span>
-                </div>
-                <div className="w-full flex flex-col gap-3">
-                  <button
-                    className="w-full py-3 px-4 rounded-lg bg-pink-600 hover:bg-pink-700 text-white font-bold text-lg shadow-lg transition-colors"
-                    onClick={() => handlePaymentMethod('cash')}
-                  >
-                    Thanh Toán Bằng Tiền Mặt
-                  </button>
-                  <button
-                    className="w-full py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium text-base transition-colors"
-                    onClick={() => handlePaymentMethod('qr')}
-                  >
-                    Chuyển Khoản QR
-                  </button>
-                </div>
-              </>
-            ) : selectedPaymentMethod === 'cash' ? (
-              <div className="w-full flex gap-8">
-                {/* Left side - Payment Summary */}
-                <div className="flex-1 bg-gray-800 rounded-lg p-6">
-                  <div className="text-lg font-bold text-pink-400 mb-4">Thông Tin Thanh Toán</div>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-300">Số tiền cần thanh toán:</span>
-                      <span className="text-green-400 font-bold">
-                        {totalPay.toLocaleString('vi-VN')} đ
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-300">Đã thanh toán:</span>
-                      <span className="text-blue-400 font-bold">
-                        {paidAmount.toLocaleString('vi-VN')} đ
-                      </span>
-                    </div>
-                    <div className="border-t border-gray-700 pt-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-300">Số tiền còn lại:</span>
-                        <span
-                          className={`font-bold ${totalPay - paidAmount > 0 ? 'text-red-400' : 'text-green-400'}`}
-                        >
-                          {Math.max(0, totalPay - paidAmount).toLocaleString('vi-VN')} đ
-                        </span>
-                      </div>
-                    </div>
-                    {paymentComplete && (
-                      <div className="mt-4 p-3 rounded bg-gray-700">
-                        <div className="text-center text-gray-300">
-                          {changeAmount === 0 ? (
-                            <span>Thanh toán hoàn tất. Không cần trả lại tiền thừa.</span>
-                          ) : (
-                            <span>
-                              Thanh toán hoàn tất. Vui lòng trả lại khách hàng{' '}
-                              <span className="text-yellow-400 font-bold">
-                                {changeAmount.toLocaleString('vi-VN')} đ
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right side - Payment Input */}
-                <div className="flex-1 bg-gray-800 rounded-lg p-6">
-                  <div className="text-lg font-bold text-pink-400 mb-4">Nhập Số Tiền Khách Trả</div>
-                  <div className="space-y-4">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={inputAmount}
-                        onChange={(e) => handleAmountInput(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        placeholder="Nhập số tiền"
-                        disabled={paymentComplete}
-                        className={`flex-1 px-4 py-2 rounded bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:outline-none focus:border-pink-500 ${
-                          paymentComplete ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      />
-                      <button
-                        onClick={handleAddPayment}
-                        disabled={paymentComplete}
-                        className={`px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors ${
-                          paymentComplete ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        Thêm
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleQuickAmount(100000)}
-                        disabled={paymentComplete}
-                        className={`flex-1 px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white font-medium transition-colors ${
-                          paymentComplete ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        100.000đ
-                      </button>
-                      <button
-                        onClick={() => handleQuickAmount(200000)}
-                        disabled={paymentComplete}
-                        className={`flex-1 px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white font-medium transition-colors ${
-                          paymentComplete ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        200.000đ
-                      </button>
-                      <button
-                        onClick={() => handleQuickAmount(500000)}
-                        disabled={paymentComplete}
-                        className={`flex-1 px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white font-medium transition-colors ${
-                          paymentComplete ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        500.000đ
-                      </button>
-                    </div>
-                    <button
-                      onClick={handleConfirmPayment}
-                      disabled={!paymentComplete}
-                      className={`w-full py-3 rounded-lg text-white font-bold text-lg transition-colors ${
-                        paymentComplete
-                          ? 'bg-green-600 hover:bg-green-700'
-                          : 'bg-gray-600 cursor-not-allowed'
-                      }`}
-                    >
-                      Xác Nhận Thanh Toán
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
+      <PaymentMethodModal
+        show={payment.showPaymentMethodModal}
+        onClose={payment.handleCloseModal}
+        selectedPaymentMethod={payment.selectedPaymentMethod}
+        onSelectMethod={payment.handlePaymentMethod}
+        totalPay={payment.totalPay}
+        paidAmount={payment.paidAmount}
+        paymentComplete={payment.paymentComplete}
+        inputAmount={payment.inputAmount}
+        onInputAmount={payment.handleAmountInput}
+        onKeyPress={payment.handleKeyPress}
+        onAddPayment={payment.handleAddPayment}
+        onQuickAmount={payment.handleQuickAmount}
+        onConfirmPayment={payment.handleConfirmPayment}
+      />
 
       {/* Print Receipt Modal */}
-      {showPrintModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]">
-          <div className="bg-gray-900 rounded-xl p-8 w-full max-w-md shadow-2xl border border-gray-700 relative flex flex-col items-center">
-            <div className="text-xl font-bold text-pink-400 mb-6">In Biên Lai Đơn Hàng</div>
-            <div className="text-base text-gray-300 mb-6 text-center">
-              Bạn có muốn in biên lai cho đơn hàng này không?
-            </div>
-            <div className="w-full flex flex-col gap-3">
-              <button
-                className="w-full py-3 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white font-bold text-lg shadow-lg transition-colors"
-                onClick={handlePrint}
-              >
-                In Biên Lai
-              </button>
-              <button
-                className="w-full py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium text-base transition-colors"
-                onClick={handleClosePrintModal}
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PrintReceiptModal
+        show={payment.showPrintModal}
+        onPrint={payment.handlePrint}
+        onClose={payment.handleClosePrintModal}
+      />
+
+      {/* VietQR Modal */}
+      <VietQRModal
+        show={payment.showQRModal}
+        qrLoading={payment.qrLoading}
+        qrError={payment.qrError}
+        qrSVG={payment.qrSVG}
+        totalPay={payment.totalPay}
+        orderId={orderId}
+        onConfirm={payment.handleConfirmQRPayment}
+        onCancel={payment.handleCancelQRPayment}
+      />
+    </>
+  );
+}; ent.qrSVG}
+        totalPay={payment.totalPay}
+        orderId={orderId}
+        onConfirm={payment.handleConfirmQRPayment}
+        onCancel={payment.handleCancelQRPayment}
+      />
     </>
   );
 };
