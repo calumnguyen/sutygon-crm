@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatPhoneNumber } from '@/lib/utils/phone';
 import { Calendar } from 'lucide-react';
 import AddCustomerModal from '../customers/AddCustomerModal';
@@ -7,7 +7,9 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { vi } from 'date-fns/locale';
 import { parse, format } from 'date-fns';
 import OrdersNewStep3 from './OrdersNewStep3';
+import OrdersNewStep4 from './OrdersNewStep4';
 import { useOrderNewFlow } from './hooks';
+import { OrderItem } from './types';
 
 const steps = ['Khách Hàng', 'Chọn Ngày Thuê', 'Sản Phẩm', 'Thanh Toán'];
 
@@ -35,6 +37,13 @@ function getExpectedReturnDate(dateStr: string): { date: string; day: string } |
   returnDate.setDate(returnDate.getDate() + 3);
   const formatted = format(returnDate, 'dd/MM/yyyy');
   return { date: formatted, day: DAY_LABELS[returnDate.getDay()] };
+}
+
+interface Note {
+  id: string;
+  itemId: string | null;
+  text: string;
+  done: boolean;
 }
 
 const OrdersNewContent: React.FC<{ tabId: string }> = () => {
@@ -70,6 +79,10 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
     formatDateString,
   } = useOrderNewFlow();
 
+  // LIFTED STATE: Persist order items and notes across steps
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -85,12 +98,24 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
           </React.Fragment>
         ))}
       </div>
-      {currentStep >= 2 && validateDate(date) && searched && customer ? (
+      {currentStep === 3 ? (
+        <OrdersNewStep4
+          customer={customer}
+          date={date}
+          orderItems={orderItems}
+          notes={notes}
+          setCurrentStep={setCurrentStep}
+        />
+      ) : currentStep >= 2 && validateDate(date) && searched && customer ? (
         <OrdersNewStep3
           customer={customer}
           date={date}
           setDate={setDate}
           setCurrentStep={setCurrentStep}
+          orderItems={orderItems}
+          setOrderItems={setOrderItems}
+          notes={notes}
+          setNotes={setNotes}
         />
       ) : (
         <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden min-h-[200px] flex items-center gap-8 transition-all duration-500 justify-center">

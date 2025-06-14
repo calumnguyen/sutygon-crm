@@ -1,21 +1,32 @@
-import { Customer } from './types';
+import { Customer, OrderItem } from './types';
 import { formatPhoneNumber, getDayLabel, getExpectedReturnDate } from './utils';
 import React, { useState } from 'react';
 import OrdersStep3InfoSection from './OrdersStep3InfoSection';
 import OrdersStep3ItemsSection from './OrdersStep3ItemsSection';
-import { OrderItem } from './types';
 import OrdersStep3AlterationSection from './OrdersStep3AlterationSection';
+import { addDays, parse, format } from 'date-fns';
 
 interface OrdersNewStep3Props {
   customer: Customer;
   date: string;
   setDate: (date: string) => void;
   setCurrentStep: (step: number) => void;
+  orderItems: OrderItem[];
+  setOrderItems: React.Dispatch<React.SetStateAction<OrderItem[]>>;
+  notes: Note[];
+  setNotes: React.Dispatch<React.SetStateAction<Note[]>>;
 }
 
 interface ItemSize {
   size: string;
   price: number;
+}
+
+interface Note {
+  id: string;
+  itemId: string | null;
+  text: string;
+  done: boolean;
 }
 
 // Simulated item DB
@@ -31,10 +42,18 @@ const MOCK_ITEMS = [
   },
 ];
 
-const OrdersNewStep3 = ({ customer, date, setDate, setCurrentStep }: OrdersNewStep3Props) => {
+const OrdersNewStep3 = ({
+  customer,
+  date,
+  setDate,
+  setCurrentStep,
+  orderItems,
+  setOrderItems,
+  notes,
+  setNotes,
+}: OrdersNewStep3Props) => {
   const [showReturnDateModal, setShowReturnDateModal] = useState(false);
   const [itemIdInput, setItemIdInput] = useState('');
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState('');
   const [showSizeModal, setShowSizeModal] = useState(false);
@@ -42,6 +61,12 @@ const OrdersNewStep3 = ({ customer, date, setDate, setCurrentStep }: OrdersNewSt
   const [pendingItem, setPendingItem] = useState<(typeof MOCK_ITEMS)[number] | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<OrderItem | null>(null);
+  const [extraDays, setExtraDays] = useState<number>(0);
+  const [feeType, setFeeType] = useState<'vnd' | 'percent'>('vnd');
+  const [extraFee, setExtraFee] = useState<string | number>(''); // for VND
+  const [percent, setPercent] = useState<string | number>(''); // for %
+  const [erdError, setErdError] = useState<string>('');
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   // Simulate fetching item from DB (replace with real API call)
   async function fetchItemById(id: string) {
@@ -165,21 +190,145 @@ const OrdersNewStep3 = ({ customer, date, setDate, setCurrentStep }: OrdersNewSt
     setItemToDelete(null);
   };
 
+  // Helper: subtotal of regular items
+  const subtotal = orderItems
+    .filter((i) => !i.isExtension)
+    .reduce((sum, item) => sum + item.quantity * item.price, 0);
+  // Helper: extension price (live)
+  const extensionPrice =
+    feeType === 'vnd'
+      ? Number(extraFee) || 0
+      : Math.round(subtotal * ((Number(percent) || 0) / 100));
+
+  // When modal opens, prefill fields if extension item exists
+  React.useEffect(() => {
+    if (showReturnDateModal) {
+      const ext = orderItems.find((i) => i.isExtension);
+      if (ext) {
+        setExtraDays(ext.extraDays || 0);
+        setFeeType(ext.feeType || 'vnd');
+        setExtraFee(ext.feeType === 'vnd' ? String(ext.price) : '');
+        setPercent(ext.feeType === 'percent' ? String(ext.percent || '') : '');
+      } else {
+        setExtraDays(0);
+        setFeeType('vnd');
+        setExtraFee('');
+        setPercent('');
+      }
+    }
+  }, [showReturnDateModal, orderItems]);
+
+  // Update extension item price live if feeType is percent
+  React.useEffect(() => {
+    const ext = orderItems.find((i) => i.isExtension);
+    if (ext && ext.feeType === 'percent') {
+      setOrderItems((prev) =>
+        prev.map((i) =>
+          i.isExtension
+            ? { ...i, price: Math.round(subtotal * ((Number(ext.percent) || 0) / 100)) }
+            : i
+        )
+      );
+    }
+  }, [subtotal, percent]);
+
+  // Helper: get current ERD (with extension if present)
+  function getCurrentERD() {
+    let baseDate: Date;
+    try {
+      baseDate = parse(date, 'dd/MM/yyyy', new Date());
+    } catch {
+      return { date: '', day: '' };
+    }
+    const extension = orderItems.find((i) => i.isExtension);
+    const days = 3 + (extension && extension.extraDays ? extension.extraDays : 0);
+    const erdDate = addDays(baseDate, days);
+    const erdDateStr = format(erdDate, 'dd/MM/yyyy');
+    return {
+      date: erdDateStr,
+      day: getDayLabel(erdDateStr),
+    };
+  }
+
+  // Add or update extension item
+  function handleAddExtension() {
+    setErdError('');
+    if (!extraDays || extraDays < 1) {
+      setErdError('Vui lòng nhập số ngày gia hạn lớn hơn 0');
+      return;
+    }
+    if (feeType === 'vnd' && (!extraFee || Number(extraFee) < 0)) {
+      setErdError('Vui lòng nhập phụ phí gia hạn');
+      return;
+    }
+    if (feeType === 'percent' && (!percent || Number(percent) < 0)) {
+      setErdError('Vui lòng nhập phần trăm phụ phí');
+      return;
+    }
+    setOrderItems((prev) => {
+      // Remove any existing extension item
+      const filtered = prev.filter((i) => !i.isExtension);
+      return [
+        ...filtered,
+        {
+          id: 'EXTENSION',
+          name: `Gia hạn thời gian thuê - ${extraDays} ngày`,
+          size: '',
+          quantity: 1,
+          price:
+            feeType === 'vnd'
+              ? Number(extraFee)
+              : Math.round(subtotal * ((Number(percent) || 0) / 100)),
+          isExtension: true,
+          extraDays,
+          feeType,
+          percent: feeType === 'percent' ? Number(percent) : undefined,
+        },
+      ];
+    });
+    setShowReturnDateModal(false);
+  }
+
+  const handleProceedToCheckout = () => {
+    setCurrentStep(3);
+  };
+
   return (
-    <div className="flex min-h-[200px] items-start gap-6 transition-all duration-500 justify-start w-full">
+    <div className="flex min-h-[200px] items-start gap-6 transition-all duration-500 justify-start w-full bg-transparent">
       {/* Step 3+ layout: left/right split */}
       {/* Left section: Customer info, rent date, return date, and summary boxes */}
-      <OrdersStep3InfoSection
-        customer={customer}
-        date={date}
-        setDate={setDate}
-        setCurrentStep={setCurrentStep}
-        onShowReturnDateModal={() => setShowReturnDateModal(true)}
-      />
+      <div className="w-[320px] max-w-[420px] sticky top-6 z-10 h-fit">
+        <OrdersStep3InfoSection
+          customer={customer}
+          date={date}
+          setDate={setDate}
+          setCurrentStep={setCurrentStep}
+          onShowReturnDateModal={() => setShowReturnDateModal(true)}
+          orderItems={orderItems}
+          erdDate={getCurrentERD().date}
+          erdDay={getCurrentERD().day}
+          onProceedToCheckout={handleProceedToCheckout}
+        />
+      </div>
       {/* Right section: Add items to order */}
-      <OrdersStep3ItemsSection orderItems={orderItems} setOrderItems={setOrderItems} />
+      <div className="flex-1 min-w-0">
+        <OrdersStep3ItemsSection
+          orderItems={orderItems}
+          setOrderItems={setOrderItems}
+          onItemClick={(item) => setSelectedItemId(item.id)}
+          selectedItemId={selectedItemId}
+        />
+      </div>
       {/* Rightmost section: Alteration */}
-      <OrdersStep3AlterationSection />
+      <div className="w-[260px] max-w-[320px] sticky top-6 z-10 h-fit">
+        <OrdersStep3AlterationSection
+          orderItems={orderItems}
+          selectedItemId={selectedItemId}
+          setSelectedItemId={setSelectedItemId}
+          notes={notes}
+          setNotes={setNotes}
+        />
+      </div>
       {/* Update Return Date Modal */}
       {showReturnDateModal && (
         <div
@@ -197,10 +346,75 @@ const OrdersNewStep3 = ({ customer, date, setDate, setCurrentStep }: OrdersNewSt
             >
               ×
             </button>
-            <div className="text-xl font-bold text-green-400 mb-4">Cập nhật ngày trả dự kiến</div>
-            {/* Modal content for updating return date goes here */}
-            <div className="text-white text-base">
-              (Chức năng cập nhật ngày trả sẽ được bổ sung ở đây)
+            <div className="text-xl font-bold text-green-400 mb-2">Cập nhật ngày trả dự kiến</div>
+            <div className="text-sm text-yellow-300 mb-4 text-center">
+              Ngày trả dự kiến sẽ được tự động đặt sau 3 ngày kể từ ngày thuê. Bạn có thể gia hạn
+              ngày thuê với phụ phí.
+            </div>
+            <div className="w-full flex flex-col gap-3 items-center mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-base text-gray-300">Ngày trả dự kiến hiện tại:</span>
+                <span className="font-bold text-white text-lg">{getCurrentERD().date}</span>
+              </div>
+              <div className="flex flex-col gap-2 w-full mt-2">
+                <label className="text-sm text-gray-300">Số ngày muốn gia hạn</label>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full px-4 py-2 rounded bg-gray-800 border border-gray-600 text-white"
+                  value={extraDays || ''}
+                  onChange={(e) => setExtraDays(Number(e.target.value))}
+                  placeholder="Nhập số ngày gia hạn"
+                />
+              </div>
+              <div className="flex flex-col gap-2 w-full mt-2">
+                <label className="text-sm text-gray-300 mb-1">Phụ phí gia hạn</label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-1">
+                    <input
+                      type="radio"
+                      checked={feeType === 'vnd'}
+                      onChange={() => setFeeType('vnd')}
+                    />
+                    <span className="text-sm">VND</span>
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <input
+                      type="radio"
+                      checked={feeType === 'percent'}
+                      onChange={() => setFeeType('percent')}
+                    />
+                    <span className="text-sm">%</span>
+                  </label>
+                </div>
+                {feeType === 'vnd' ? (
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-full px-4 py-2 rounded bg-gray-800 border border-gray-600 text-white mt-2"
+                    value={extraFee}
+                    onChange={(e) => setExtraFee(e.target.value)}
+                    placeholder="Nhập phụ phí gia hạn (VND)"
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    className="w-full px-4 py-2 rounded bg-gray-800 border border-gray-600 text-white mt-2"
+                    value={percent}
+                    onChange={(e) => setPercent(e.target.value)}
+                    placeholder="Nhập phần trăm phụ phí (%)"
+                  />
+                )}
+              </div>
+              {erdError && <div className="text-red-400 text-sm mt-2">{erdError}</div>}
+              <button
+                className="mt-4 px-6 py-2 rounded bg-green-600 hover:bg-green-700 text-white font-semibold text-lg"
+                onClick={handleAddExtension}
+              >
+                Xác nhận gia hạn
+              </button>
             </div>
           </div>
         </div>

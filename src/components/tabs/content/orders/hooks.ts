@@ -234,7 +234,7 @@ export function useOrderStep3ItemsLogic(
   const ITEMS_PER_PAGE = 8;
 
   const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const isItemId = (input: string) => /^[A-Za-z]+-?\d+(-?[A-Za-z])?$/.test(input.trim());
+  const isItemId = (input: string) => /^[A-Za-z]+-?\d{6}/.test(input.trim());
 
   const searchProducts = (query: string) => {
     if (!query.trim()) {
@@ -288,13 +288,12 @@ export function useOrderStep3ItemsLogic(
   }
 
   function parseInputId(input: string) {
-    const match = input
-      .trim()
-      .toUpperCase()
-      .match(/^([A-Z]+-?\d+)(-?([A-Z]))?$/);
-    if (!match) return { id: input.trim(), size: undefined };
-    const id = match[1].replace(/-/g, '');
-    const size = match[3];
+    const trimmed = input.trim();
+    const match = trimmed.match(/^([A-Za-z]+-?\d{6})(.*)$/i);
+    if (!match) return { id: trimmed, size: undefined };
+    const id = match[1].replace(/-/g, '').toUpperCase();
+    let size = match[2] ? match[2].replace(/^[-\s]*/, '') : undefined;
+    if (size === '') size = undefined;
     return { id, size };
   }
 
@@ -322,6 +321,7 @@ export function useOrderStep3ItemsLogic(
     setAddError('');
     if (!itemIdInput.trim()) return;
     if (!isItemId(itemIdInput)) {
+      setAddError('Không tìm thấy sản phẩm nào phù hợp với tên này');
       return;
     }
     setAdding(true);
@@ -346,8 +346,10 @@ export function useOrderStep3ItemsLogic(
         return;
       }
     }
+    // Find the inventory size by normalized comparison
+    const normalize = (str: string) => str.replace(/[-_ ]/g, '').toLowerCase();
     const selectedSize = item.sizes.find(
-      (s: ItemSize) => s.size.toUpperCase() === inputSize.toUpperCase()
+      (s: ItemSize) => normalize(s.size) === normalize(inputSize)
     );
     if (!selectedSize) {
       setPendingItem(item);
@@ -362,23 +364,41 @@ export function useOrderStep3ItemsLogic(
 
   function addItemToOrder(
     item: { id: string; name: string; sizes: ItemSize[] },
-    size: string,
+    sizeTitle: string,
     price: number
   ) {
     setOrderItems((prev: OrderItem[]) => {
-      const key = `${item.id}-${size}`;
+      const key = `${item.id}-${sizeTitle}`;
       const idx = prev.findIndex((i) => i.id === key);
+      // Find inventory and onHand
+      const inv = inventory.find(
+        (invItem) => (invItem.formattedId || invItem.id) === item.id || invItem.id === item.id
+      );
+      const invSize = inv?.sizes.find((s) => s.title === sizeTitle);
+      const onHand = invSize ? Number(invSize.onHand) : 0;
       if (idx !== -1) {
-        return prev.map((i, iIdx) => (iIdx === idx ? { ...i, quantity: i.quantity + 1 } : i));
+        const updated = prev.map((i, iIdx) => {
+          if (iIdx === idx) {
+            const newQty = i.quantity + 1;
+            return {
+              ...i,
+              quantity: newQty,
+              warning: newQty > onHand ? 'Cảnh báo: vượt quá số lượng tồn kho' : undefined,
+            };
+          }
+          return i;
+        });
+        return updated;
       }
       return [
         ...prev,
         {
           id: key,
           name: item.name,
-          size,
+          size: sizeTitle,
           quantity: 1,
           price,
+          warning: 1 > onHand ? 'Cảnh báo: vượt quá số lượng tồn kho' : undefined,
         },
       ];
     });
@@ -393,11 +413,34 @@ export function useOrderStep3ItemsLogic(
   }
 
   const handleQuantityChange = (id: string, delta: number) => {
-    setOrderItems((prev: OrderItem[]) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
-      )
-    );
+    setOrderItems((prev: OrderItem[]) => {
+      const item = prev.find((i) => i.id === id);
+      if (!item) return prev;
+      // Find inventory and onHand
+      const invId = id.replace(/-.+$/, '');
+      const inv = inventory.find(
+        (invItem) => (invItem.formattedId || invItem.id) === invId || invItem.id === invId
+      );
+      const invSize = inv?.sizes.find((s) => s.title === item.size);
+      const onHand = invSize ? Number(invSize.onHand) : 0;
+      if (item.quantity === 1 && delta === -1) {
+        setItemToDelete(item);
+        setShowDeleteModal(true);
+        return prev;
+      }
+      return prev.map((i) =>
+        i.id === id
+          ? {
+              ...i,
+              quantity: Math.max(1, i.quantity + delta),
+              warning:
+                Math.max(1, i.quantity + delta) > onHand
+                  ? 'Cảnh báo: vượt quá số lượng tồn kho'
+                  : undefined,
+            }
+          : i
+      );
+    });
   };
 
   const handleConfirmDelete = () => {

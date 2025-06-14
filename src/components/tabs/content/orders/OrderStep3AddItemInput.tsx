@@ -8,6 +8,7 @@ interface OrderStep3AddItemInputProps {
   onAdd: () => void;
   error: string;
   loading: boolean;
+  renderCustomButton?: React.ReactNode;
 }
 
 const OrderStep3AddItemInput: React.FC<OrderStep3AddItemInputProps> = ({
@@ -17,6 +18,7 @@ const OrderStep3AddItemInput: React.FC<OrderStep3AddItemInputProps> = ({
   onAdd,
   error,
   loading,
+  renderCustomButton,
 }) => (
   <div className="bg-gray-900 rounded-lg p-4 shadow-lg border border-gray-700 flex flex-col items-center w-full">
     <div className="text-xl font-bold text-blue-400 mb-2">Thêm sản phẩm vào đơn hàng</div>
@@ -40,6 +42,7 @@ const OrderStep3AddItemInput: React.FC<OrderStep3AddItemInputProps> = ({
         />
       </div>
       {error && <div className="text-red-400 text-sm mt-1">{error}</div>}
+      {renderCustomButton}
     </form>
   </div>
 );

@@ -11,6 +11,12 @@ export interface OrderItem {
   size: string;
   quantity: number;
   price: number;
+  isExtension?: boolean;
+  extraDays?: number;
+  feeType?: 'vnd' | 'percent';
+  percent?: number;
+  isCustom?: boolean;
+  warning?: string;
 }
 
 export interface ItemSize {

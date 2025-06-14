@@ -1,5 +1,5 @@
 import React from 'react';
-import { Customer } from './types';
+import { Customer, OrderItem } from './types';
 import { formatPhoneNumber, getDayLabel, getExpectedReturnDate } from './utils';
 
 interface OrdersStep3InfoSectionProps {
@@ -8,6 +8,10 @@ interface OrdersStep3InfoSectionProps {
   setDate: (date: string) => void;
   setCurrentStep: (step: number) => void;
   onShowReturnDateModal: () => void;
+  orderItems: OrderItem[];
+  erdDate: string;
+  erdDay: string;
+  onProceedToCheckout?: () => void;
 }
 
 const OrdersStep3InfoSection: React.FC<OrdersStep3InfoSectionProps> = ({
@@ -16,9 +20,18 @@ const OrdersStep3InfoSection: React.FC<OrdersStep3InfoSectionProps> = ({
   setDate,
   setCurrentStep,
   onShowReturnDateModal,
+  orderItems,
+  erdDate,
+  erdDay,
+  onProceedToCheckout,
 }) => {
+  const totalQuantity = orderItems
+    .filter((item) => !item.isExtension)
+    .reduce((sum, item) => sum + item.quantity, 0);
+  const totalPrice = orderItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+
   return (
-    <div className="flex flex-col w-1/3 min-w-[320px] max-w-[420px] bg-gray-800 rounded-lg shadow-lg overflow-hidden p-4 gap-4">
+    <div className="flex flex-col w-1/3 min-w-[320px] max-w-[420px] bg-gray-800 rounded-lg shadow-lg p-4 gap-4">
       {/* Customer Box */}
       <div
         className="bg-gray-900 rounded-lg p-4 shadow-lg border border-gray-700 flex flex-col items-center cursor-pointer hover:bg-gray-800 transition-colors animate-fade-in-move"
@@ -60,14 +73,10 @@ const OrdersStep3InfoSection: React.FC<OrdersStep3InfoSectionProps> = ({
           onClick={onShowReturnDateModal}
         >
           <div className="text-xs font-bold text-green-400 mb-1">Ngày trả dự kiến</div>
-          {getExpectedReturnDate(date) && (
+          {erdDate && (
             <div className="flex items-center gap-1">
-              <span className="text-sm font-bold text-white">
-                {getExpectedReturnDate(date)!.date}
-              </span>
-              <span className="text-xs text-green-300 font-semibold">
-                {getExpectedReturnDate(date)!.day}
-              </span>
+              <span className="text-sm font-bold text-white">{erdDate}</span>
+              <span className="text-xs text-green-300 font-semibold">{erdDay}</span>
             </div>
           )}
         </div>
@@ -79,7 +88,7 @@ const OrdersStep3InfoSection: React.FC<OrdersStep3InfoSectionProps> = ({
           <div className="p-[2px] rounded-xl bg-gradient-to-tr from-pink-500 via-yellow-400 to-pink-500 shadow-neon">
             <div className="bg-gray-900 rounded-xl px-4 py-6 flex flex-col items-center min-w-[90px] min-h-[70px]">
               <div className="text-xs font-bold text-pink-400 mb-1">Tổng Sản Phẩm</div>
-              <div className="text-xl font-extrabold text-white mb-0.5">0</div>
+              <div className="text-xl font-extrabold text-white mb-0.5">{totalQuantity}</div>
               <div className="text-xs text-gray-400">sản phẩm</div>
             </div>
           </div>
@@ -89,12 +98,23 @@ const OrdersStep3InfoSection: React.FC<OrdersStep3InfoSectionProps> = ({
           <div className="p-[2px] rounded-xl bg-gradient-to-tr from-blue-500 via-green-400 to-blue-500 shadow-neon">
             <div className="bg-gray-900 rounded-xl px-4 py-6 flex flex-col items-center min-w-[90px] min-h-[70px]">
               <div className="text-xs font-bold text-blue-400 mb-1">Tổng Hoá Đơn</div>
-              <div className="text-xl font-extrabold text-white mb-0.5">0</div>
+              <div className="text-xl font-extrabold text-white mb-0.5">
+                {totalPrice.toLocaleString('vi-VN')}
+              </div>
               <div className="text-xs text-gray-400">Việt Nam Đồng</div>
             </div>
           </div>
         </div>
       </div>
+      {orderItems.some((item) => !item.isExtension) && onProceedToCheckout && (
+        <button
+          className="mt-4 w-full py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white text-lg font-bold shadow-lg transition-colors"
+          type="button"
+          onClick={onProceedToCheckout}
+        >
+          Tiến hành thanh toán
+        </button>
+      )}
     </div>
   );
 };
