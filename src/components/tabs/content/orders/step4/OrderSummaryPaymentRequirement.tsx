@@ -80,8 +80,8 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
           format: 'svg',
         }),
       })
-        .then(res => res.json())
-        .then(data => {
+        .then((res) => res.json())
+        .then((data) => {
           if (data.data && data.data.qrDataURL) {
             setQrSVG(data.data.qrDataURL);
           } else {
@@ -135,14 +135,14 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
   function handleAddPayment() {
     const amount = parseInt(inputAmount) || 0;
     if (amount > 0 && !paymentComplete) {
-      setPaidAmount(prev => prev + amount);
+      setPaidAmount((prev) => prev + amount);
       setInputAmount('');
     }
   }
 
   function handleQuickAmount(amount: number) {
     if (!paymentComplete) {
-      setPaidAmount(prev => prev + amount);
+      setPaidAmount((prev) => prev + amount);
     }
   }
 
@@ -215,14 +215,20 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
         <div className="flex items-center justify-between text-sm">
           <span className="text-white font-medium">Tiền cọc</span>
           <span className="text-white font-bold flex flex-col items-end">
-            {depositInfo
-              ? depositInfo.type === 'vnd'
-                ? depositInfo.value.toLocaleString('vi-VN') + ' đ'
-                : <>
-                    {Math.round(subtotal * (depositInfo.value / 100)).toLocaleString('vi-VN')} đ
-                    <span className="text-xs text-blue-200 mt-0.5">({depositInfo.value}% của đơn hàng)</span>
-                  </>
-              : '0 đ'}
+            {depositInfo ? (
+              depositInfo.type === 'vnd' ? (
+                depositInfo.value.toLocaleString('vi-VN') + ' đ'
+              ) : (
+                <>
+                  {Math.round(subtotal * (depositInfo.value / 100)).toLocaleString('vi-VN')} đ
+                  <span className="text-xs text-blue-200 mt-0.5">
+                    ({depositInfo.value}% của đơn hàng)
+                  </span>
+                </>
+              )
+            ) : (
+              '0 đ'
+            )}
           </span>
         </div>
         {isPaymentSubmitted && selectedPaymentMethod === 'qr' ? (
@@ -233,7 +239,9 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
             </div>
             <div className="flex items-center justify-between text-sm mt-1">
               <span className="text-white font-medium">Trạng Thái Thanh Toán</span>
-              <span className="text-green-400 font-bold">Hoàn Tất{depositValue > 0 ? ' - Có Đặt Cọc' : ''}</span>
+              <span className="text-green-400 font-bold">
+                Hoàn Tất{depositValue > 0 ? ' - Có Đặt Cọc' : ''}
+              </span>
             </div>
           </>
         ) : isPaymentSubmitted ? (
@@ -244,13 +252,17 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
             </div>
             <div className="flex items-center justify-between text-sm mt-1">
               <span className="text-white font-medium">Trạng Thái Thanh Toán</span>
-              <span className="text-green-400 font-bold">Hoàn Tất{depositValue > 0 ? ' - Có Đặt Cọc' : ''}</span>
+              <span className="text-green-400 font-bold">
+                Hoàn Tất{depositValue > 0 ? ' - Có Đặt Cọc' : ''}
+              </span>
             </div>
           </>
         ) : null}
         <div className="flex items-center justify-between text-base mt-2 border-t border-gray-700 pt-2">
           <span className="text-white font-semibold">Số Tiền Cần Trả</span>
-          <span className="text-green-400 font-bold text-lg">{isPaymentSubmitted ? '0 đ' : totalPay.toLocaleString('vi-VN') + ' đ'}</span>
+          <span className="text-green-400 font-bold text-lg">
+            {isPaymentSubmitted ? '0 đ' : totalPay.toLocaleString('vi-VN') + ' đ'}
+          </span>
         </div>
         {!isPaymentSubmitted && (
           <button
@@ -300,14 +312,6 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
         qrLoading={payment.qrLoading}
         qrError={payment.qrError}
         qrSVG={payment.qrSVG}
-        totalPay={payment.totalPay}
-        orderId={orderId}
-        onConfirm={payment.handleConfirmQRPayment}
-        onCancel={payment.handleCancelQRPayment}
-      />
-    </>
-  );
-}; ent.qrSVG}
         totalPay={payment.totalPay}
         orderId={orderId}
         onConfirm={payment.handleConfirmQRPayment}
