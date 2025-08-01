@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "document_status" varchar(50);

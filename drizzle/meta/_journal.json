@@ -8,6 +8,97 @@
       "when": 1749507802630,
       "tag": "0000_parallel_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1753731969232,
+      "tag": "0001_windy_norman_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1753736879630,
+      "tag": "0002_easy_riptide",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1753737839073,
+      "tag": "0003_dashing_professor_monster",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1753739914089,
+      "tag": "0004_exotic_next_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1753741016072,
+      "tag": "0005_melted_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1753932806643,
+      "tag": "0006_certain_red_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1753938335658,
+      "tag": "0007_dashing_tigra",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1753938881374,
+      "tag": "0008_remarkable_captain_universe",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1753946844195,
+      "tag": "0009_icy_lady_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1753948653084,
+      "tag": "0010_tearful_absorbing_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1753955758550,
+      "tag": "0011_blushing_purple_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1753956917826,
+      "tag": "0012_easy_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1753976396629,
+      "tag": "0013_glorious_excalibur",
+      "breakpoints": true
     }
   ]
 }

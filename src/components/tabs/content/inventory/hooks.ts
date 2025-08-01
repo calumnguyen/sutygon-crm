@@ -1,18 +1,122 @@
-import { useState, useMemo } from 'react';
-import type { InventoryItem, AddItemFormState } from '@/types/inventory';
-import { getItemPrice } from './InventoryUtils';
+import React, { useState, useMemo, useCallback } from 'react';
+import { InventoryItem, AddItemFormState } from '@/types/inventory';
 
+// Optimized search hook with debouncing and server-side search
+export function useInventorySearch() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    debounce(async (query: string, page: number = 1) => {
+      if (!query.trim()) {
+        setSearchResults([]);
+        setHasMore(false);
+        setTotal(0);
+        return;
+      }
+
+      setIsSearching(true);
+      setSearchError('');
+
+      try {
+        const response = await fetch(
+          `/api/inventory/search?q=${encodeURIComponent(query)}&page=${page}&limit=20`
+        );
+        
+        if (!response.ok) {
+          throw new Error('Search failed');
+        }
+
+        const data = await response.json();
+        
+        if (page === 1) {
+          setSearchResults(data.items);
+        } else {
+          setSearchResults(prev => [...prev, ...data.items]);
+        }
+        
+        setHasMore(data.hasMore);
+        setTotal(data.total);
+        setCurrentPage(data.page);
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchError('Có lỗi khi tìm kiếm sản phẩm');
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300),
+    []
+  );
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+    debouncedSearch(query, 1);
+  }, [debouncedSearch]);
+
+  const loadMore = useCallback(() => {
+    if (hasMore && !isSearching) {
+      debouncedSearch(searchQuery, currentPage + 1);
+    }
+  }, [hasMore, isSearching, searchQuery, currentPage, debouncedSearch]);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setHasMore(false);
+    setTotal(0);
+    setCurrentPage(1);
+    setSearchError('');
+  }, []);
+
+  return {
+    searchQuery,
+    searchResults,
+    isSearching,
+    searchError,
+    hasMore,
+    total,
+    handleSearch,
+    loadMore,
+    clearSearch,
+  };
+}
+
+// Debounce utility function
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
+// Legacy hook for backward compatibility (will be deprecated)
 export function useInventoryTable(inventory: InventoryItem[]) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [priceSort, setPriceSort] = useState<'asc' | 'desc' | ''>('');
-  const [priceRange, setPriceRange] = useState<{ min: string; max: string }>({ min: '', max: '' });
+  const [priceSort, setPriceSort] = useState<'asc' | 'desc' | null>(null);
+  const [priceRange, setPriceRange] = useState({ min: '', max: '' });
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [lastModifiedSort, setLastModifiedSort] = useState<'asc' | 'desc' | ''>('');
-  const [nameSort, setNameSort] = useState<'asc' | 'desc' | ''>('');
-  const [idSort, setIdSort] = useState<'asc' | 'desc' | ''>('');
+  const [lastModifiedSort, setLastModifiedSort] = useState<'asc' | 'desc' | null>(null);
+  const [nameSort, setNameSort] = useState<'asc' | 'desc' | null>(null);
+  const [idSort, setIdSort] = useState<'asc' | 'desc' | null>(null);
 
-  const priceRangeInvalid = Boolean(
-    priceRange.min && priceRange.max && Number(priceRange.max) < Number(priceRange.min)
+  const priceRangeInvalid = useMemo(
+    () =>
+      priceRange.min &&
+      priceRange.max &&
+      Number(priceRange.max) < Number(priceRange.min),
+    [priceRange.min, priceRange.max]
   );
 
   const filteredInventory = useMemo(() => {
@@ -39,7 +143,7 @@ export function useInventoryTable(inventory: InventoryItem[]) {
         });
         item.tags.forEach((tag: string) => {
           const normTag = normalize(tag.toLowerCase());
-          queryWords.forEach((word) => {
+          queryWords.forEach((word: string) => {
             if (normTag.includes(word)) matchCount++;
           });
         });
@@ -120,6 +224,12 @@ export function useInventoryTable(inventory: InventoryItem[]) {
     priceRangeInvalid,
     filteredInventory,
   };
+}
+
+// Helper function to get item price
+function getItemPrice(item: InventoryItem): number {
+  if (!item.sizes || item.sizes.length === 0) return 0;
+  return Math.min(...item.sizes.map((size) => size.price));
 }
 
 const initialForm: AddItemFormState = {

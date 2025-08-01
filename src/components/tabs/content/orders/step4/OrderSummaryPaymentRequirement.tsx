@@ -5,6 +5,8 @@ import PaymentConfirmationModal from './PaymentConfirmationModal';
 import PaymentMethodModal from './PaymentMethodModal';
 import PrintReceiptModal from './PrintReceiptModal';
 import VietQRModal from './VietQRModal';
+import { DocumentRetentionModal } from './DocumentRetentionModal';
+import { PayLaterConfirmationModal } from './PayLaterConfirmationModal';
 
 /**
  * Payment summary card for step 4 summary.
@@ -26,48 +28,67 @@ interface OrderSummaryPaymentRequirementProps {
   total: number;
   subtotal: number;
   depositInfo?: DepositInfo;
+  documentInfo?: {
+    documentType: string;
+    documentOther?: string;
+    documentName: string;
+    documentId: string;
+  } | null;
   isPaymentSubmitted: boolean;
   setIsPaymentSubmitted: (v: boolean) => void;
   orderId: string;
+  customer: any;
+  date: string;
+  orderItems: any[];
+  notes: any[];
+  onPaymentSuccess?: () => void;
 }
 
 export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequirementProps> = ({
   total,
   subtotal,
   depositInfo,
+  documentInfo,
   isPaymentSubmitted,
   setIsPaymentSubmitted,
   orderId,
+  customer,
+  date,
+  orderItems,
+  notes,
+  onPaymentSuccess,
 }) => {
-  // State
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
-  const [showPrintModal, setShowPrintModal] = useState(false);
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [qrSVG, setQrSVG] = useState<string | null>(null);
-  const [qrLoading, setQrLoading] = useState(false);
-  const [qrError, setQrError] = useState<string | null>(null);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'qr' | null>(null);
-  const [paidAmount, setPaidAmount] = useState<number>(0);
-  const [inputAmount, setInputAmount] = useState<string>('');
-  const [paymentComplete, setPaymentComplete] = useState(false);
-  const [changeAmount, setChangeAmount] = useState<number>(0);
-  const [qrConfirmed, setQrConfirmed] = useState(false);
+  const [vatPercentage, setVatPercentage] = useState(8);
 
-  // Derived values
+  // Fetch VAT percentage on mount
+  useEffect(() => {
+    fetch('/api/store-settings/vat-percentage')
+      .then((res) => res.json())
+      .then((data) => {
+        setVatPercentage(data.vatPercentage || 8);
+      })
+      .catch(() => {
+        setVatPercentage(8); // Default fallback
+      });
+  }, []);
+  // Derived values - calculate totalPay first
   const depositValue = depositInfo
     ? depositInfo.type === 'vnd'
       ? depositInfo.value
       : Math.round(subtotal * (depositInfo.value / 100))
     : 0;
-  const totalPay = total + depositValue;
+  const vatAmount = Math.round(total * (vatPercentage / 100)); // 8% VAT
+  const totalPay = total + vatAmount + depositValue;
+
+  // Use the useOrderPayment hook for all payment state/handlers
+  const payment = useOrderPayment(totalPay, orderId, documentInfo, depositInfo, onPaymentSuccess, setIsPaymentSubmitted, customer?.name);
 
   // Effects
   useEffect(() => {
-    if (showQRModal) {
-      setQrSVG(null);
-      setQrError(null);
-      setQrLoading(true);
+    if (payment.showQRModal) {
+      payment.setQrSVG(null);
+      payment.setQrError(null);
+      payment.setQrLoading(true);
       fetch('https://api.vietqr.io/v2/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,66 +104,66 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
         .then((res) => res.json())
         .then((data) => {
           if (data.data && data.data.qrDataURL) {
-            setQrSVG(data.data.qrDataURL);
+            payment.setQrSVG(data.data.qrDataURL);
           } else {
-            setQrError('Không thể tạo mã QR.');
+            payment.setQrError('Không thể tạo mã QR.');
           }
         })
-        .catch(() => setQrError('Không thể tạo mã QR.'))
-        .finally(() => setQrLoading(false));
+        .catch(() => payment.setQrError('Không thể tạo mã QR.'))
+        .finally(() => payment.setQrLoading(false));
     }
-  }, [showQRModal, totalPay, orderId]);
+  }, [payment.showQRModal, totalPay, orderId]);
 
   useEffect(() => {
-    if (paidAmount >= totalPay) {
-      setPaymentComplete(true);
-      setChangeAmount(paidAmount - totalPay);
+    if (payment.paidAmount >= totalPay) {
+      payment.setPaymentComplete(true);
+      payment.setChangeAmount(payment.paidAmount - totalPay);
     } else {
-      setPaymentComplete(false);
-      setChangeAmount(0);
+      payment.setPaymentComplete(false);
+      payment.setChangeAmount(0);
     }
-  }, [paidAmount, totalPay]);
+  }, [payment.paidAmount, totalPay]);
 
   // Handlers
   function handlePaymentOption(option: 'full' | 'partial' | 'later') {
     if (option === 'full') {
-      setShowPaymentMethodModal(true);
+      payment.setShowPaymentMethodModal(true);
     } else {
       // TODO: Implement payment logic for partial or later payment
       console.log('Payment option selected:', option);
-      setShowPaymentModal(false);
+      payment.setShowPaymentModal(false);
     }
   }
 
   function handlePaymentMethod(method: 'cash' | 'qr') {
-    setSelectedPaymentMethod(method);
+    payment.setSelectedPaymentMethod(method);
     if (method === 'qr') {
-      setQrSVG(null);
-      setQrError(null);
-      setQrLoading(true);
-      setShowQRModal(true);
-      setShowPaymentMethodModal(false);
-      setShowPaymentModal(false);
+      payment.setQrSVG(null);
+      payment.setQrError(null);
+      payment.setQrLoading(true);
+      payment.setShowQRModal(true);
+      payment.setShowPaymentMethodModal(false);
+      payment.setShowPaymentModal(false);
     }
   }
 
   function handleAmountInput(value: string) {
     if (/^\d*$/.test(value)) {
-      setInputAmount(value);
+      payment.setInputAmount(value);
     }
   }
 
   function handleAddPayment() {
-    const amount = parseInt(inputAmount) || 0;
-    if (amount > 0 && !paymentComplete) {
-      setPaidAmount((prev) => prev + amount);
-      setInputAmount('');
+    const amount = parseInt(payment.inputAmount) || 0;
+    if (amount > 0 && !payment.paymentComplete) {
+      payment.setPaidAmount((prev) => prev + amount);
+      payment.setInputAmount('');
     }
   }
 
   function handleQuickAmount(amount: number) {
-    if (!paymentComplete) {
-      setPaidAmount((prev) => prev + amount);
+    if (!payment.paymentComplete) {
+      payment.setPaidAmount((prev) => prev + amount);
     }
   }
 
@@ -153,56 +174,28 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
     }
   }
 
-  function handleConfirmPayment() {
-    setShowPrintModal(true);
-    setShowPaymentMethodModal(false);
-    setShowPaymentModal(false);
-    setIsPaymentSubmitted(true);
-    setPaidAmount(0);
-    setInputAmount('');
-    setPaymentComplete(false);
-    setChangeAmount(0);
-    setSelectedPaymentMethod(null);
-  }
-
   function handleCloseModal() {
-    if (paymentComplete) {
-      setShowPrintModal(true);
+    if (payment.paymentComplete) {
+      payment.setShowPrintModal(true);
       setIsPaymentSubmitted(true);
     }
-    setShowPaymentMethodModal(false);
-    setShowPaymentModal(false);
-    setPaidAmount(0);
-    setInputAmount('');
-    setPaymentComplete(false);
-    setChangeAmount(0);
-    setSelectedPaymentMethod(null);
+    payment.setShowPaymentMethodModal(false);
+    payment.setShowPaymentModal(false);
+    payment.setPaidAmount(0);
+    payment.setInputAmount('');
+    payment.setPaymentComplete(false);
+    payment.setChangeAmount(0);
+    payment.setSelectedPaymentMethod(null);
   }
 
   function handlePrint() {
     window.print();
-    setShowPrintModal(false);
+    payment.setShowPrintModal(false);
   }
 
   function handleClosePrintModal() {
-    setShowPrintModal(false);
+    payment.setShowPrintModal(false);
   }
-
-  function handleConfirmQRPayment() {
-    setQrConfirmed(true);
-    setShowQRModal(false);
-    setSelectedPaymentMethod('qr');
-    setIsPaymentSubmitted(true);
-    setShowPrintModal(true);
-  }
-
-  function handleCancelQRPayment() {
-    setShowQRModal(false);
-    setQrConfirmed(false);
-  }
-
-  // Use the useOrderPayment hook for all payment state/handlers
-  const payment = useOrderPayment(totalPay, orderId);
 
   return (
     <>
@@ -211,6 +204,10 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
         <div className="flex items-center justify-between text-sm">
           <span className="text-white font-medium">Tổng tiền đơn hàng</span>
           <span className="text-white font-bold">{total.toLocaleString('vi-VN')} đ</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+                            <span className="text-white font-medium">VAT ({vatPercentage}%)</span>
+                            <span className="text-white font-bold">{vatAmount.toLocaleString('vi-VN')} đ</span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-white font-medium">Tiền cọc</span>
@@ -231,7 +228,7 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
             )}
           </span>
         </div>
-        {isPaymentSubmitted && selectedPaymentMethod === 'qr' ? (
+        {isPaymentSubmitted && payment.selectedPaymentMethod === 'qr' ? (
           <>
             <div className="flex items-center justify-between text-sm mt-1">
               <span className="text-white font-medium">Thanh Toán Toàn Bộ - CK QR</span>
@@ -258,6 +255,9 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
             </div>
           </>
         ) : null}
+        
+
+        
         <div className="flex items-center justify-between text-base mt-2 border-t border-gray-700 pt-2">
           <span className="text-white font-semibold">Số Tiền Cần Trả</span>
           <span className="text-green-400 font-bold text-lg">
@@ -267,19 +267,20 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
         {!isPaymentSubmitted && (
           <button
             className="mt-3 w-full py-2 rounded bg-pink-600 hover:bg-pink-700 text-white font-bold text-base shadow transition-colors"
-            type="button"
             onClick={() => payment.setShowPaymentModal(true)}
           >
-            Thanh toán & Gửi đơn
+            Thanh Toán
           </button>
         )}
+        
       </div>
 
       {/* Payment Confirmation Modal */}
       <PaymentConfirmationModal
         show={payment.showPaymentModal}
-        onClose={payment.handleCloseModal}
+        onClose={payment.resetAllPaymentState}
         onPaymentOption={payment.handlePaymentOption}
+        hasDeposit={depositInfo ? depositInfo.value > 0 : false}
       />
 
       {/* Payment Method Selection Modal */}
@@ -297,7 +298,13 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
         onAddPayment={payment.handleAddPayment}
         onQuickAmount={payment.handleQuickAmount}
         onConfirmPayment={payment.handleConfirmPayment}
+        isPartialPayment={payment.isPartialPayment}
+        partialAmount={payment.partialAmount}
+        onPartialAmountChange={payment.setPartialAmount}
       />
+
+      {/* Partial Payment Modal */}
+      {/* Removed PartialPaymentModal */}
 
       {/* Print Receipt Modal */}
       <PrintReceiptModal
@@ -312,10 +319,29 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
         qrLoading={payment.qrLoading}
         qrError={payment.qrError}
         qrSVG={payment.qrSVG}
-        totalPay={payment.totalPay}
+        totalPay={payment.isPartialPayment && payment.partialAmount 
+          ? parseInt(payment.partialAmount) || 0 
+          : payment.totalPay}
         orderId={orderId}
         onConfirm={payment.handleConfirmQRPayment}
         onCancel={payment.handleCancelQRPayment}
+      />
+
+      {/* Document Retention Modal */}
+      {documentInfo && (
+        <DocumentRetentionModal
+          show={payment.showDocumentRetentionModal}
+          documentType={documentInfo.documentType}
+          documentName={documentInfo.documentName}
+          onConfirm={payment.handleConfirmDocumentRetention}
+        />
+      )}
+
+      {/* Pay Later Confirmation Modal */}
+      <PayLaterConfirmationModal
+        show={payment.showPayLaterModal}
+        onConfirm={payment.handlePayLaterConfirm}
+        onCancel={payment.handlePayLaterCancel}
       />
     </>
   );

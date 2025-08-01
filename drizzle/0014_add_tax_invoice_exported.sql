@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "tax_invoice_exported" boolean DEFAULT false NOT NULL; 

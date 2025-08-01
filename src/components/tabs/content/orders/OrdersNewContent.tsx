@@ -10,6 +10,8 @@ import OrdersNewStep3 from './OrdersNewStep3';
 import OrdersNewStep4 from './OrdersNewStep4';
 import { useOrderNewFlow } from './hooks';
 import { OrderItem } from './types';
+import { useTabContext } from '@/context/TabContext';
+import { TabId, createTabId } from '@/types/tabTypes';
 
 const steps = ['Khách Hàng', 'Chọn Ngày Thuê', 'Sản Phẩm', 'Thanh Toán'];
 
@@ -46,7 +48,7 @@ interface Note {
   done: boolean;
 }
 
-const OrdersNewContent: React.FC<{ tabId: string }> = () => {
+const OrdersNewContent: React.FC<{ tabId: string }> = ({ tabId }) => {
   const {
     currentStep,
     setCurrentStep,
@@ -82,9 +84,58 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
   // LIFTED STATE: Persist order items and notes across steps
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+
+  // Tab navigation
+  const { removeTab, firstLevelTabs, activateTab, addFirstLevelTab } = useTabContext();
+
+  // Handle payment success - show banner and navigate back to Orders view
+  const handlePaymentSuccess = () => {
+    setShowSuccessBanner(true);
+    
+    // After 3 seconds, navigate back to Orders view
+    setTimeout(() => {
+      // Find the main Orders tab (not the new order tab)
+      let ordersTab = firstLevelTabs.find(tab => 
+        tab.selectedOption?.id === 'orders' && !tab.id.startsWith('orders-new-')
+      );
+      
+      if (!ordersTab) {
+        // Create a new Orders tab if none exists
+        const newOrdersTabId = createTabId('orders-main');
+        addFirstLevelTab({
+          id: newOrdersTabId,
+          label: 'Đơn Hàng',
+          type: 'first',
+          options: [],
+          isClosable: true,
+          isDefault: false,
+          selectedOption: { id: createTabId('orders'), label: 'Đơn Hàng' },
+        });
+        ordersTab = { id: newOrdersTabId } as any;
+      }
+      
+      if (ordersTab) {
+        // Activate the Orders tab
+        activateTab(ordersTab.id);
+      }
+      
+      // Remove the current new order tab
+      removeTab(createTabId(tabId));
+    }, 3000);
+  };
 
   return (
     <div className="p-6">
+      {showSuccessBanner && (
+        <div className="mb-6 px-6 py-4 rounded-lg bg-green-600 text-white text-lg font-semibold shadow-lg flex items-center justify-center border border-green-400">
+          <div className="text-center">
+            <div className="text-xl font-bold mb-1">🎉 Thanh toán thành công!</div>
+            <div className="text-green-100">Đơn hàng đã được xử lý. Đang chuyển về trang Đơn Hàng...</div>
+          </div>
+        </div>
+      )}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-white">Thêm Đơn Mới</h1>
       </div>
@@ -105,6 +156,8 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
           orderItems={orderItems}
           notes={notes}
           setCurrentStep={setCurrentStep}
+          createdOrderId={createdOrderId}
+          onPaymentSuccess={handlePaymentSuccess}
         />
       ) : currentStep >= 2 && validateDate(date) && searched && customer ? (
         <OrdersNewStep3
@@ -116,6 +169,7 @@ const OrdersNewContent: React.FC<{ tabId: string }> = () => {
           setOrderItems={setOrderItems}
           notes={notes}
           setNotes={setNotes}
+          setCreatedOrderId={setCreatedOrderId}
         />
       ) : (
         <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden min-h-[200px] flex items-center gap-8 transition-all duration-500 justify-center">

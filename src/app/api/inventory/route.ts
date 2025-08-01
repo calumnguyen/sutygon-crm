@@ -8,6 +8,14 @@ import {
   categoryCounters,
 } from '@/lib/db/schema';
 import { eq, inArray, sql } from 'drizzle-orm';
+import { 
+  encryptInventoryData, 
+  decryptInventoryData, 
+  encryptInventorySizeData, 
+  decryptInventorySizeData,
+  encryptTagData,
+  decryptTagData
+} from '@/lib/utils/inventoryEncryption';
 
 // Define a minimal InventoryItem type for this context
 interface InventoryItemForId {
@@ -60,23 +68,36 @@ export async function GET() {
   const tagIds = invTags.map((t) => t.tagId);
   const allTags = tagIds.length ? await db.select().from(tags).where(inArray(tags.id, tagIds)) : [];
 
-  // Build nested structure
+  // Build nested structure with decryption
   const result = items.map((item) => {
+    // Decrypt inventory item data
+    const decryptedItem = decryptInventoryData(item);
+    
     const itemSizes = sizes
       .filter((s) => s.itemId === item.id)
-      .map((s) => ({
-        title: s.title,
-        quantity: s.quantity,
-        onHand: s.onHand,
-        price: s.price,
-      }));
+      .map((s) => {
+        // Decrypt size data with type safety
+        const decryptedSize = decryptInventorySizeData(s);
+        return {
+          title: decryptedSize.title,
+          quantity: decryptedSize.quantity,
+          onHand: decryptedSize.onHand,
+          price: decryptedSize.price,
+        };
+      });
     const itemTagIds = invTags.filter((t) => t.itemId === item.id).map((t) => t.tagId);
-    const itemTags = allTags.filter((t) => itemTagIds.includes(t.id)).map((t) => t.name);
+    const itemTags = allTags
+      .filter((t) => itemTagIds.includes(t.id))
+      .map((t) => {
+        // Decrypt tag data
+        const decryptedTag = decryptTagData(t);
+        return decryptedTag.name;
+      });
     return {
       id: item.id,
-      formattedId: getFormattedId(item.category, item.categoryCounter),
-      name: item.name,
-      category: item.category,
+      formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
+      name: decryptedItem.name,
+      category: decryptedItem.category,
       imageUrl: item.imageUrl,
       tags: itemTags,
       sizes: itemSizes,
@@ -92,50 +113,80 @@ export async function POST(req: NextRequest) {
   // Expect: { name, category, imageUrl, tags: string[], sizes: [{title, quantity, onHand, price}] }
   const { name, category, imageUrl, tags: tagNames, sizes } = body;
 
+  // Encrypt the category for counter lookup
+  const encryptedCategory = encryptInventoryData({ name: '', category }).category;
+
   // Try to increment the counter for the category
   let categoryCounter: number;
-  const [counter] = await db
+  
+  // First try to find existing counter with encrypted category
+  let [counter] = await db
+    .select()
+    .from(categoryCounters)
+    .where(eq(categoryCounters.category, encryptedCategory));
+
+  if (counter) {
+    // Update existing counter
+    const [updatedCounter] = await db
     .update(categoryCounters)
     .set({ counter: sql`${categoryCounters.counter} + 1` })
-    .where(eq(categoryCounters.category, category))
+      .where(eq(categoryCounters.category, encryptedCategory))
     .returning({ counter: categoryCounters.counter });
-
-  if (counter && counter.counter) {
-    categoryCounter = counter.counter;
+    categoryCounter = updatedCounter.counter;
   } else {
     // If counter doesn't exist, create it and use 1
-    await db.insert(categoryCounters).values({ category, counter: 1 });
+    await db.insert(categoryCounters).values({ category: encryptedCategory, counter: 1 });
     categoryCounter = 1;
   }
 
-  // Insert item with the per-category counter (categoryCounter) and let id auto-increment
+  // Encrypt inventory data before storing
+  const encryptedInventoryData = encryptInventoryData({
+    name,
+    category,
+    categoryCounter,
+    imageUrl,
+  });
+
+  // Insert item with encrypted data
   const [item] = await db
     .insert(inventoryItems)
     .values({
-      name,
-      category,
+      name: encryptedInventoryData.name,
+      category: encryptedInventoryData.category,
       categoryCounter: categoryCounter,
       imageUrl,
     })
     .returning();
 
-  // Insert sizes
+  // Insert sizes with encrypted data
   if (sizes && sizes.length) {
-    await db.insert(inventorySizes).values(
-      sizes.map((s: { title: string; quantity: number; onHand: number; price: number }) => ({
+    const encryptedSizes = sizes.map((s: { title: string; quantity: number; onHand: number; price: number }) => {
+      const encryptedSize = encryptInventorySizeData({
         ...s,
         itemId: item.id,
-      }))
-    );
+      });
+      return {
+        title: encryptedSize.title,
+        quantity: encryptedSize.quantity,
+        onHand: encryptedSize.onHand,
+        price: encryptedSize.price,
+        itemId: item.id,
+      };
+    });
+    
+    await db.insert(inventorySizes).values(encryptedSizes);
   }
 
-  // Insert tags (create if not exist)
+  // Insert tags (create if not exist) with encrypted names
   const tagIds: number[] = [];
   if (tagNames && tagNames.length) {
     for (const tagName of tagNames) {
-      let [tag] = await db.select().from(tags).where(eq(tags.name, tagName));
+      // Encrypt tag name for lookup
+      const encryptedTagName = encryptTagData({ name: tagName }).name;
+      
+      let [tag] = await db.select().from(tags).where(eq(tags.name, encryptedTagName));
       if (!tag) {
-        [tag] = await db.insert(tags).values({ name: tagName }).returning();
+        [tag] = await db.insert(tags).values({ name: encryptedTagName }).returning();
       }
       tagIds.push(tag.id);
     }

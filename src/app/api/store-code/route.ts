@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { storeSettings } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { hashValue } from '@/lib/utils/hash';
 
 export async function GET() {
   const store = await db.query.storeSettings.findFirst({});
@@ -20,9 +21,13 @@ export async function PATCH(req: NextRequest) {
   if (!store) {
     return NextResponse.json({ error: 'Store settings not found' }, { status: 404 });
   }
+  
+  // Hash the new store code before storing
+  const hashedNewCode = hashValue(newCode);
+  
   await db
     .update(storeSettings)
-    .set({ storeCode: newCode, updatedAt: new Date() })
+    .set({ storeCode: hashedNewCode, updatedAt: new Date() })
     .where(eq(storeSettings.id, store.id));
   return NextResponse.json({ success: true });
 }

@@ -3,6 +3,7 @@ import { parse, format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { OrderItem, ItemSize } from './types';
 import { InventoryItem } from '@/types/inventory';
+import { getOrdersWithCustomers, Order } from '@/lib/actions/orders';
 
 interface Customer {
   id: number;
@@ -35,6 +36,7 @@ export function useOrderNewFlow() {
       try {
         const res = await fetch('/api/customers');
         const customers: Customer[] = await res.json();
+        // Use decrypted phone numbers for validation since they're already decrypted
         setExistingPhones(customers.map((c: Customer) => c.phone));
       } catch (err) {
         setExistingPhones([]);
@@ -192,10 +194,11 @@ export function useInventoryFetch() {
       setInventoryLoading(true);
       setInventoryError(null);
       try {
-        const res = await fetch('/api/inventory');
+        // Use the optimized search API to get all items (empty query)
+        const res = await fetch('/api/inventory/search?q=&page=1&limit=100');
         if (!res.ok) throw new Error('Lỗi khi tải dữ liệu kho');
         const data = await res.json();
-        setInventory(data);
+        setInventory(data.items);
       } catch {
         setInventoryError('Không thể tải dữ liệu kho');
         setInventory([]);
@@ -236,32 +239,78 @@ export function useOrderStep3ItemsLogic(
   const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const isItemId = (input: string) => /^[A-Za-z]+-?\d{6}/.test(input.trim());
 
-  const searchProducts = (query: string) => {
+  const normalizeVietnamese = (str: string) => {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+      .replace(/[đ]/g, 'd') // Replace đ with d
+      .replace(/[Đ]/g, 'D'); // Replace Đ with D
+  };
+
+  const searchProducts = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
       setShowSearchResults(false);
       return;
     }
-    const normalizedQuery = normalize(query.toLowerCase());
-    const queryWords = normalizedQuery.split(/\s+/).filter(Boolean);
-    const resultsWithScore = inventory.map((item) => {
-      const normName = normalize(item.name.toLowerCase());
-      let matchCount = 0;
-      queryWords.forEach((word) => {
-        if (normName.includes(word)) matchCount++;
+
+    // Use client-side search for better performance
+    const searchQuery = query.toLowerCase().trim();
+    const normalizedQuery = normalizeVietnamese(searchQuery);
+    const queryWords = normalizedQuery.split(/\s+/).filter((word: string) => word.length > 0);
+
+    const results = inventory.filter(item => {
+      // Check for ID match first (fastest)
+      if (isItemId(searchQuery)) {
+        const itemId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
+        const searchId = searchQuery.replace(/-/g, '').toUpperCase();
+        return itemId.startsWith(searchId);
+      }
+
+      // Normalize item data for comparison
+      const normalizedName = normalizeVietnamese(item.name);
+      const normalizedCategory = normalizeVietnamese(item.category);
+      
+      // Check if all query words are in name or category
+      const nameMatch = queryWords.every((word: string) => normalizedName.includes(word));
+      const categoryMatch = queryWords.every((word: string) => normalizedCategory.includes(word));
+      
+      // Also check exact matches for better results
+      const exactNameMatch = item.name.toLowerCase().includes(searchQuery);
+      const exactCategoryMatch = item.category.toLowerCase().includes(searchQuery);
+
+      // Check tags
+      const tagMatch = item.tags.some(tag => {
+        const normalizedTag = normalizeVietnamese(tag);
+        return queryWords.every((word: string) => normalizedTag.includes(word));
       });
-      item.tags.forEach((tag: string) => {
-        const normTag = normalize(tag.toLowerCase());
-        queryWords.forEach((word) => {
-          if (normTag.includes(word)) matchCount++;
-        });
-      });
-      return { ...item, matchCount };
+
+      return nameMatch || categoryMatch || exactNameMatch || exactCategoryMatch || tagMatch;
     });
-    const filtered = resultsWithScore.filter((item) => item.matchCount > 0);
-    filtered.sort((a, b) => b.matchCount - a.matchCount);
-    setSearchResults(filtered);
-    if (filtered.length === 0) {
+
+    // Sort results by relevance
+    const resultsWithScore = results.map(item => {
+      let score = 0;
+      const itemId = (item.formattedId || '').toLowerCase();
+      const itemName = item.name.toLowerCase();
+      const itemCategory = item.category.toLowerCase();
+
+      // Exact matches get higher scores
+      if (itemId.includes(searchQuery)) score += 10;
+      if (itemName.includes(searchQuery)) score += 8;
+      if (itemCategory.includes(searchQuery)) score += 6;
+
+      // Partial matches
+      if (itemName.includes(searchQuery)) score += 4;
+      if (itemCategory.includes(searchQuery)) score += 2;
+
+      return { ...item, matchCount: score };
+    }).sort((a, b) => b.matchCount - a.matchCount);
+
+    setSearchResults(resultsWithScore);
+    
+    if (resultsWithScore.length === 0) {
       setAddError('Không tìm thấy sản phẩm nào phù hợp với tên này');
       setShowSearchResults(false);
     } else {
@@ -271,19 +320,24 @@ export function useOrderStep3ItemsLogic(
 
   async function fetchItemById(id: string) {
     const normId = id.replace(/-/g, '').toUpperCase();
-    for (const item of inventory) {
-      const baseId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
-      if (normId.startsWith(baseId)) {
-        return {
-          id: item.formattedId || item.id,
-          name: item.name,
-          sizes: item.sizes.map((s) => ({
-            size: s.title,
-            price: s.price,
-          })),
-        };
-      }
+    
+    // Use client-side search for better performance
+    const exactMatch = inventory.find(item => {
+      const itemId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
+      return itemId.startsWith(normId);
+    });
+
+    if (exactMatch) {
+      return {
+        id: exactMatch.formattedId || exactMatch.id,
+        name: exactMatch.name,
+        sizes: exactMatch.sizes.map((s: any) => ({
+          size: s.title,
+          price: s.price,
+        })),
+      };
     }
+    
     return null;
   }
 
@@ -303,7 +357,7 @@ export function useOrderStep3ItemsLogic(
     setAddError('');
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       const value = itemIdInput.trim();
@@ -312,7 +366,7 @@ export function useOrderStep3ItemsLogic(
         handleAddItem();
       } else {
         setCurrentPage(1);
-        searchProducts(value);
+        await searchProducts(value);
       }
     }
   };
@@ -521,5 +575,71 @@ export function useOrderStep3ItemsLogic(
     startIndex,
     endIndex,
     currentItems,
+  };
+}
+
+export function useOrdersTable() {
+  const [orders, setOrders] = useState<(Order & { customerName: string; calculatedReturnDate: Date; noteNotComplete: number; noteTotal: number })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const ITEMS_PER_PAGE = 10;
+
+  const fetchOrders = async (pageNum: number = 1, append: boolean = false) => {
+    try {
+      if (pageNum === 1) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+      setError(null);
+      
+      const offset = (pageNum - 1) * ITEMS_PER_PAGE;
+      const ordersData = await getOrdersWithCustomers({
+        limit: ITEMS_PER_PAGE,
+        offset,
+        orderBy: 'createdAt',
+        orderDirection: 'desc'
+      });
+      
+      if (append) {
+        setOrders(prev => [...prev, ...ordersData]);
+      } else {
+        setOrders(ordersData);
+      }
+      
+      // Check if we have more data
+      setHasMore(ordersData.length === ITEMS_PER_PAGE);
+      setPage(pageNum);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch orders');
+      console.error('Error fetching orders:', err);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!loadingMore && hasMore) {
+      await fetchOrders(page + 1, true);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders(1, false);
+  }, []);
+
+  return {
+    orders,
+    loading,
+    loadingMore,
+    error,
+    hasMore,
+    loadMore,
+    refetch: () => fetchOrders(1, false)
   };
 }

@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Pencil, Trash2 } from 'lucide-react';
 import UserModal from './UserModal';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 import { createUser, getUsers, deleteUser, updateUser } from '@/lib/actions/users';
@@ -22,8 +22,6 @@ export default function UsersContent() {
     open: false,
     userId: null,
   });
-  const [revealedKeys, setRevealedKeys] = useState<Record<number, boolean>>({});
-  const [pendingRevealId, setPendingRevealId] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState<{
     type: 'add' | 'edit' | 'delete' | null;
     userId: number | null;
@@ -52,8 +50,8 @@ export default function UsersContent() {
   }, []);
 
   useEffect(() => {
-    setRevealedKeys({});
-    setPendingRevealId(null);
+    // setRevealedKeys({}); // Removed
+    // setPendingRevealId(null); // Removed
   }, []);
 
   const handleAddUser = async (userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -94,7 +92,7 @@ export default function UsersContent() {
   };
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleIdentitySuccess = (user: { id: number }) => {
+  const handleIdentitySuccess = async (user: { id: number }) => {
     if (pendingAction.type === 'add') {
       setModalMode('add');
       setIsModalOpen(true);
@@ -107,12 +105,10 @@ export default function UsersContent() {
       }
     } else if (pendingAction.type === 'delete' && pendingAction.userId !== null) {
       handleDeleteUserConfirmed(pendingAction.userId);
-    } else if (pendingRevealId !== null) {
-      setRevealedKeys((prev) => ({ ...prev, [pendingRevealId]: true }));
     }
     setIdentityModal({ open: false, userId: null });
     setPendingAction({ type: null, userId: null });
-    setPendingRevealId(null);
+    // setPendingRevealId(null); // Removed
   };
 
   const handleDeleteUserConfirmed = (userId: number) => {
@@ -132,9 +128,18 @@ export default function UsersContent() {
     }
   };
 
-  const canDeleteUser = () => {
+  const canDeleteUser = (userId: number) => {
     if (!currentUser) return false;
     if (currentUser.role !== 'admin') return false;
+    
+    // Check if this is the last admin
+    const adminUsers = users.filter(user => user.role === 'admin' && user.status === 'active');
+    const userToDelete = users.find(user => user.id === userId);
+    
+    if (adminUsers.length === 1 && userToDelete?.role === 'admin') {
+      return false; // Cannot delete the last admin
+    }
+    
     return true;
   };
 
@@ -143,19 +148,33 @@ export default function UsersContent() {
     return true; // Allow all users to edit
   };
 
-  const handleRequestReveal = (userId: number) => {
-    setPendingRevealId(userId);
-    setIdentityModal({ open: true, userId });
+  const canDeactivateUser = (userId: number) => {
+    if (!currentUser) return false;
+    
+    // Check if this is the last admin
+    const adminUsers = users.filter(user => user.role === 'admin' && user.status === 'active');
+    const userToDeactivate = users.find(user => user.id === userId);
+    
+    if (adminUsers.length === 1 && userToDeactivate?.role === 'admin') {
+      return false; // Cannot deactivate the last admin
+    }
+    
+    return true;
   };
 
-  const handleCloseIdentityModal = () => {
-    setIdentityModal({ open: false, userId: null });
-    setPendingRevealId(null);
-  };
+  // handleRequestReveal = (userId: number) => { // Removed
+  //   setPendingRevealId(userId);
+  //   setIdentityModal({ open: true, userId });
+  // };
 
-  const handleHideKey = (userId: number) => {
-    setRevealedKeys((prev) => ({ ...prev, [userId]: false }));
-  };
+  // handleCloseIdentityModal = () => { // Removed
+  //   setIdentityModal({ open: false, userId: null });
+  //   setPendingRevealId(null);
+  // };
+
+  // handleHideKey = (userId: number) => { // Removed
+  //   setRevealedKeys((prev) => ({ ...prev, [userId]: false }));
+  // };
 
   return (
     <div className="p-6">
@@ -168,6 +187,27 @@ export default function UsersContent() {
         >
           {TRANSLATIONS.users.addUser}
         </Button>
+      </div>
+
+      {/* Security Disclaimer Banner */}
+      <div className="bg-blue-900 border border-blue-700 rounded-lg p-4 mb-6">
+        <div className="flex items-start">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-blue-300" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-blue-200">
+              Thông Báo Bảo Mật
+            </h3>
+            <div className="mt-2 text-sm text-blue-300">
+              <p>
+                Vì lý do bảo mật, mã nhân viên không thể hiển thị. Nếu quên mã, vui lòng liên hệ quản lý để reset.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
@@ -189,35 +229,6 @@ export default function UsersContent() {
               <tr key={_user.id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{_user.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  <span>
-                    {revealedKeys[_user.id] ? (
-                      <>
-                        {_user.employeeKey}
-                        <button
-                          className="ml-2 text-gray-400 hover:text-blue-400 focus:outline-none"
-                          onClick={() => handleHideKey(_user.id)}
-                          type="button"
-                          aria-label="Ẩn mã"
-                        >
-                          <EyeOff className="inline w-4 h-4" />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        {'•'.repeat(_user.employeeKey.length)}
-                        <button
-                          className="ml-2 text-gray-400 hover:text-blue-400 focus:outline-none"
-                          onClick={() => handleRequestReveal(_user.id)}
-                          type="button"
-                          aria-label="Hiện mã"
-                        >
-                          <Eye className="inline w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                   {TRANSLATIONS.users.roles[_user.role]}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
@@ -235,9 +246,9 @@ export default function UsersContent() {
                         {TRANSLATIONS.users.table.edit}
                       </Button>
                     )}
-                    {canDeleteUser() && (
+                    {canDeleteUser(_user.id) && (
                       <Button
-                        variant="danger"
+                        variant="secondary"
                         size="sm"
                         leftIcon={<Trash2 className="w-4 h-4" />}
                         onClick={() => handleDeleteUser(_user.id.toString())}
@@ -263,6 +274,7 @@ export default function UsersContent() {
         mode={modalMode}
         currentUser={currentUser}
         userToEdit={userToEdit}
+        allUsers={users}
       />
 
       <ConfirmationModal
@@ -277,7 +289,7 @@ export default function UsersContent() {
 
       <IdentityConfirmModal
         open={identityModal.open}
-        onClose={handleCloseIdentityModal}
+        onClose={() => setIdentityModal({ open: false, userId: null })}
         onSuccess={handleIdentitySuccess}
         requiredRole="admin"
       />

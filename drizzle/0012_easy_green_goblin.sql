@@ -1,0 +1,1 @@
+ALTER TABLE "store_settings" ADD COLUMN "vat_percentage" numeric(5, 2) DEFAULT '8.00' NOT NULL;

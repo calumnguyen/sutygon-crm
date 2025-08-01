@@ -8,20 +8,50 @@ export default function LoginPage() {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, []);
 
   useEffect(() => {
     if (localStorage.getItem('storeCode')) {
       router.replace('/');
     }
   }, [router]);
+
+  const handleKeyPress = (key: string) => {
+    if (key === 'backspace') {
+      setInput((prev) => prev.slice(0, -1));
+      setError('');
+    } else if (/\d/.test(key) && input.length < 8) {
+      const newValue = input + key;
+      setInput(newValue);
+      setError('');
+      if (newValue.length === 8) {
+        handleSubmit(newValue);
+      }
+    }
+  };
+
+  const handleSubmit = async (code: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/store-code/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: code }),
+      });
+      
+      if (res.ok) {
+        localStorage.setItem('storeCode', code);
+        router.push('/');
+      } else {
+        setError('Mã không đúng.');
+        setInput('');
+      }
+    } catch {
+      setError('Có lỗi xảy ra.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace') {
@@ -32,23 +62,7 @@ export default function LoginPage() {
       setInput(newValue);
       setError('');
       if (newValue.length === 8) {
-        setLoading(true);
-        fetch('/api/store-code/check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: newValue }),
-        })
-          .then((res) => {
-            if (res.ok) {
-              localStorage.setItem('storeCode', newValue);
-              router.push('/');
-            } else {
-              setError('Mã không đúng.');
-              setInput('');
-            }
-          })
-          .catch(() => setError('Có lỗi xảy ra.'))
-          .finally(() => setLoading(false));
+        handleSubmit(newValue);
       }
     }
     e.preventDefault();
@@ -69,10 +83,11 @@ export default function LoginPage() {
         <div className="mb-4 text-base text-center text-gray-300">
           Nhập Mã Cửa Hàng để Đăng Nhập
         </div>
+        
+        {/* Hidden input for keyboard support */}
         <div className="relative flex flex-col items-center w-full">
           <AnimatedDots value={input} length={8} />
           <input
-            ref={inputRef}
             type="tel"
             inputMode="numeric"
             pattern="\d{8}"
@@ -88,6 +103,44 @@ export default function LoginPage() {
             aria-label="Mã Cửa Hàng (8 số)"
           />
         </div>
+
+        {/* Mobile-friendly numeric keypad */}
+        <div className="w-full mt-6">
+          <div className="grid grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+              <button
+                key={num}
+                onClick={() => handleKeyPress(num.toString())}
+                disabled={input.length >= 8 || loading}
+                className="w-full h-12 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl font-semibold rounded-lg transition-colors duration-200 border border-gray-600"
+              >
+                {num}
+              </button>
+            ))}
+            <button
+              onClick={() => handleKeyPress('backspace')}
+              disabled={input.length === 0 || loading}
+              className="w-full h-12 bg-red-800 hover:bg-red-700 active:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-lg font-semibold rounded-lg transition-colors duration-200 border border-red-600"
+            >
+              ←
+            </button>
+            <button
+              onClick={() => handleKeyPress('0')}
+              disabled={input.length >= 8 || loading}
+              className="w-full h-12 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl font-semibold rounded-lg transition-colors duration-200 border border-gray-600"
+            >
+              0
+            </button>
+            <button
+              onClick={() => input.length === 8 && handleSubmit(input)}
+              disabled={input.length !== 8 || loading}
+              className="w-full h-12 bg-blue-600 hover:bg-blue-500 active:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-lg font-semibold rounded-lg transition-colors duration-200 border border-blue-500"
+            >
+              ✓
+            </button>
+          </div>
+        </div>
+
         {error && (
           <div className="text-red-400 text-sm mt-4 text-center animate-pulse">{error}</div>
         )}

@@ -27,6 +27,9 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.development
+.env.production
+.env.test
 
 # vercel
 .vercel
@@ -43,3 +46,43 @@ next-env.d.ts
 
 *storybook.log
 storybook-static
+
+# Security and sensitive files
+*.key
+*.p12
+*.pfx
+*.crt
+*.pem
+*.p8
+secrets.json
+config.json
+database.json
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+*.temp
+*.log
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Certificate files
+*.cert
+*.cer
+*.der
+
+# Private keys
+private.key
+private.pem

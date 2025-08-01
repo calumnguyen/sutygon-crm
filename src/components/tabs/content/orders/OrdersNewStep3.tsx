@@ -15,6 +15,7 @@ interface OrdersNewStep3Props {
   setOrderItems: React.Dispatch<React.SetStateAction<OrderItem[]>>;
   notes: Note[];
   setNotes: React.Dispatch<React.SetStateAction<Note[]>>;
+  setCreatedOrderId: React.Dispatch<React.SetStateAction<number | null>>;
 }
 
 interface ItemSize {
@@ -51,6 +52,7 @@ const OrdersNewStep3 = ({
   setOrderItems,
   notes,
   setNotes,
+  setCreatedOrderId,
 }: OrdersNewStep3Props) => {
   const [showReturnDateModal, setShowReturnDateModal] = useState(false);
   const [itemIdInput, setItemIdInput] = useState('');
@@ -241,8 +243,9 @@ const OrdersNewStep3 = ({
       return { date: '', day: '' };
     }
     const extension = orderItems.find((i) => i.isExtension);
-    const days = 3 + (extension && extension.extraDays ? extension.extraDays : 0);
-    const erdDate = addDays(baseDate, days);
+    const totalRentalDays = 3 + (extension && extension.extraDays ? extension.extraDays : 0);
+    // For rental period calculation: rent on day 1, return on day 3 = 3 days rental (add 2 days)
+    const erdDate = addDays(baseDate, totalRentalDays - 1);
     const erdDateStr = format(erdDate, 'dd/MM/yyyy');
     return {
       date: erdDateStr,
@@ -289,8 +292,84 @@ const OrdersNewStep3 = ({
     setShowReturnDateModal(false);
   }
 
-  const handleProceedToCheckout = () => {
-    setCurrentStep(3);
+  const handleProceedToCheckout = async () => {
+    try {
+      console.log('Creating order in database before proceeding to payment...');
+      
+      // Calculate total and deposit
+      const total = orderItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+      const depositValue = 0; // Default to 0 for now, can be updated in step 4
+      
+      // Calculate expected return date (base: 3 days + any extension days)
+      const orderDate = new Date(date.split('/').reverse().join('-'));
+      const extensionItem = orderItems.find((item) => item.isExtension);
+      const extraDays = extensionItem?.extraDays || 0;
+      const totalRentalDays = 3 + extraDays; // Total rental period (3 base days + extensions)
+      
+      // For rental period calculation:
+      // - Rent on day 1, return on day 3 = 3 days rental (add 2 days to start date)
+      // - So we add (totalRentalDays - 1) to the order date
+      const expectedReturnDate = new Date(orderDate);
+      expectedReturnDate.setDate(orderDate.getDate() + (totalRentalDays - 1));
+      
+      console.log(`Order date: ${orderDate.toLocaleDateString('vi-VN')}`);
+      console.log(`Extension days: ${extraDays}`);
+      console.log(`Total rental days: ${totalRentalDays}`);
+      console.log(`Expected return date: ${expectedReturnDate.toLocaleDateString('vi-VN')}`);
+      console.log(`Calculation: ${orderDate.toLocaleDateString('vi-VN')} + ${totalRentalDays - 1} days = ${expectedReturnDate.toLocaleDateString('vi-VN')}`);
+      
+      const orderData = {
+        customerId: customer.id,
+        orderDate: orderDate,
+        expectedReturnDate: expectedReturnDate,
+        totalAmount: total,
+        depositAmount: depositValue,
+        items: orderItems.map(item => ({
+          inventoryItemId: null, // TODO: Map to real inventory items
+          name: item.name,
+          size: item.size,
+          quantity: item.quantity,
+          price: item.price,
+          isExtension: item.isExtension || false,
+          extraDays: null,
+          feeType: null,
+          percent: null,
+          isCustom: true,
+        })),
+        notes: notes.map(note => ({
+          itemId: null, // TODO: Map to real item IDs
+          text: note.text,
+          done: note.done,
+        })),
+      };
+
+      console.log('Order data:', JSON.stringify(orderData, null, 2));
+
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create order');
+      }
+
+      const createdOrder = await response.json();
+      console.log('Created order:', createdOrder);
+      
+      // Store the real order ID for use in step 4
+      // We'll need to pass this to step 4 somehow
+      // For now, we'll use a global variable or context
+      setCreatedOrderId(createdOrder.id);
+      
+      // Proceed to step 4
+      setCurrentStep(3);
+    } catch (error) {
+      console.error('Error creating order:', error);
+      // TODO: Show error message to user
+      alert('Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại.');
+    }
   };
 
   return (

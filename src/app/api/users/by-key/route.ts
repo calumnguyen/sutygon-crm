@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { hashValue } from '@/lib/utils/hash';
+import { decryptUserData } from '@/lib/utils/userEncryption';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -10,21 +12,26 @@ export async function GET(req: NextRequest) {
   if (!employeeKey) {
     return NextResponse.json({ user: null });
   }
+
+  // Hash the input employee key
+  const hashedEmployeeKey = hashValue(employeeKey);
+  
   const user = await db.query.users.findFirst({
-    where: eq(users.employeeKey, employeeKey),
+    where: eq(users.employeeKey, hashedEmployeeKey),
   });
   console.log('User found:', user);
   if (!user) {
     return NextResponse.json({ user: null });
   }
-  // Only return safe fields
+  // Decrypt user data and return the original employee key
+  const decryptedUser = decryptUserData(user);
   return NextResponse.json({
     user: {
       id: user.id,
-      name: user.name,
-      employeeKey: user.employeeKey,
-      role: user.role,
-      status: user.status,
+      name: decryptedUser.name,
+      employeeKey: employeeKey, // Return original key, not hashed
+      role: decryptedUser.role.toLowerCase(),
+      status: decryptedUser.status.toLowerCase(),
     },
   });
 }

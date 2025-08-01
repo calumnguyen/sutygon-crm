@@ -5,12 +5,14 @@ interface PaymentConfirmationModalProps {
   show: boolean;
   onClose: () => void;
   onPaymentOption: (option: 'full' | 'partial' | 'later') => void;
+  hasDeposit?: boolean; // Whether there's a money deposit
 }
 
 const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
   show,
   onClose,
   onPaymentOption,
+  hasDeposit = false,
 }) => {
   if (!show) return null;
   return (
@@ -40,12 +42,15 @@ const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> = ({
           >
             Thanh Toán Toàn Bộ Ngay
           </button>
-          <button
-            className="w-full py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium text-base transition-colors"
-            onClick={() => onPaymentOption('partial')}
-          >
-            Thanh Toán Một Phần
-          </button>
+          {/* Only show partial payment option when there's NO deposit */}
+          {!hasDeposit && (
+            <button
+              className="w-full py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium text-base transition-colors"
+              onClick={() => onPaymentOption('partial')}
+            >
+              Thanh Toán Một Phần (Tạm Ứng)
+            </button>
+          )}
           <button
             className="w-full py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium text-base transition-colors"
             onClick={() => onPaymentOption('later')}

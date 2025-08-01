@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { hashValue } from '@/lib/utils/hash';
 
 export async function POST(req: NextRequest) {
   const { key } = await req.json();
@@ -12,7 +13,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Store settings not found' }, { status: 404 });
   }
 
-  if (store.storeCode === key) {
+  // Hash the input key and compare with stored hash
+  const hashedKey = hashValue(key);
+  if (store.storeCode === hashedKey) {
     return NextResponse.json({ success: true });
   } else {
     return NextResponse.json({ error: 'Incorrect store code' }, { status: 401 });

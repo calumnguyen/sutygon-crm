@@ -10,8 +10,14 @@ import { OrderItem } from '../types';
 export const OrderSummaryDocumentDeposit: React.FC<{
   orderItems?: OrderItem[];
   setDepositInfo?: (info: { type: 'vnd' | 'percent'; value: number } | null) => void;
+  setDocumentInfo?: (info: {
+    documentType: string;
+    documentOther?: string;
+    documentName: string;
+    documentId: string;
+  } | null) => void;
   isPaymentSubmitted?: boolean;
-}> = ({ orderItems = [], setDepositInfo, isPaymentSubmitted }) => {
+}> = ({ orderItems = [], setDepositInfo, setDocumentInfo, isPaymentSubmitted }) => {
   const [showModal, setShowModal] = useState<'doc' | 'deposit' | null>(null);
   const [docType, setDocType] = useState('');
   const [docOther, setDocOther] = useState('');
@@ -34,6 +40,26 @@ export const OrderSummaryDocumentDeposit: React.FC<{
   useEffect(() => {
     if (setDepositInfo) setDepositInfo(depositInfo);
   }, [depositInfo, setDepositInfo]);
+  
+  useEffect(() => {
+    if (setDocumentInfo) {
+      console.log('=== OrderSummaryDocumentDeposit Debug ===');
+      console.log('info:', info);
+      if (info) {
+        const documentInfoToSet = {
+          documentType: info.docType,
+          documentOther: info.docOther,
+          documentName: info.docName,
+          documentId: info.docId,
+        };
+        console.log('Setting documentInfo:', documentInfoToSet);
+        setDocumentInfo(documentInfoToSet);
+      } else {
+        console.log('Setting documentInfo to null');
+        setDocumentInfo(null);
+      }
+    }
+  }, [info, setDocumentInfo]);
   const docTypeOptions = [
     'Căn Cước',
     'Giấy Phép Lái Xe',

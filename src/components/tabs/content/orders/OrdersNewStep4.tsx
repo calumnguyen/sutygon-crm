@@ -26,6 +26,8 @@ interface OrdersNewStep4Props {
   orderItems: OrderItem[];
   notes: Note[];
   setCurrentStep: (step: number) => void;
+  createdOrderId: number | null;
+  onPaymentSuccess?: () => void;
 }
 
 /**
@@ -38,24 +40,22 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
   orderItems,
   notes,
   setCurrentStep,
+  createdOrderId,
+  onPaymentSuccess,
 }) => {
   const [depositInfo, setDepositInfo] = useState<null | { type: 'vnd' | 'percent'; value: number }>(
     null
   );
+  const [documentInfo, setDocumentInfo] = useState<null | {
+    documentType: string;
+    documentOther?: string;
+    documentName: string;
+    documentId: string;
+  }>(null);
   const [isPaymentSubmitted, setIsPaymentSubmitted] = useState(false);
-  const [orderId] = useState(() => {
-    // You could persist this in localStorage or get from backend
-    const last = window.localStorage.getItem('sutygon-last-order-id');
-    if (last) {
-      const n = parseInt(last.split('-')[0], 10) + 1;
-      const id = n.toString().padStart(4, '0') + '-A';
-      window.localStorage.setItem('sutygon-last-order-id', id);
-      return id;
-    } else {
-      window.localStorage.setItem('sutygon-last-order-id', '0000-A');
-      return '0000-A';
-    }
-  });
+  
+  // Use the real order ID from the database
+  const orderId = createdOrderId ? createdOrderId.toString() : '0000-A';
   return (
     <div className="p-6 text-white">
       {isPaymentSubmitted && (
@@ -84,13 +84,20 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
             .filter((i) => !i.isExtension)
             .reduce((sum, i) => sum + i.quantity * i.price, 0)}
           depositInfo={depositInfo || undefined}
+          documentInfo={documentInfo}
           isPaymentSubmitted={isPaymentSubmitted}
           setIsPaymentSubmitted={setIsPaymentSubmitted}
           orderId={orderId}
+          customer={customer}
+          date={date}
+          orderItems={orderItems}
+          notes={notes}
+          onPaymentSuccess={onPaymentSuccess}
         />
         <OrderSummaryDocumentDeposit
           orderItems={orderItems}
           setDepositInfo={setDepositInfo}
+          setDocumentInfo={setDocumentInfo}
           isPaymentSubmitted={isPaymentSubmitted}
         />
       </div>

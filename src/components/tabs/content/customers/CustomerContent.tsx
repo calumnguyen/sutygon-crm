@@ -50,6 +50,7 @@ export default function CustomerContent() {
     name: string;
     phone: string;
     company?: string;
+    address?: string;
     notes?: string;
   }) => {
     try {
@@ -60,8 +61,8 @@ export default function CustomerContent() {
           name: customerData.name,
           phone: customerData.phone,
           company: customerData.company ?? null,
+          address: customerData.address ?? null,
           notes: customerData.notes ?? null,
-          address: null,
           activeOrdersCount: 0,
           lateOrdersCount: 0,
         }),

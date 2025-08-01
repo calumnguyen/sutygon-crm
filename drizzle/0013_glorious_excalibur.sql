@@ -1,0 +1,2 @@
+CREATE INDEX "inventory_items_name_search_idx" ON "inventory_items" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "inventory_items_name_category_idx" ON "inventory_items" USING btree ("name","category");

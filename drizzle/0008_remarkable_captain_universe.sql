@@ -1,0 +1,1 @@
+ALTER TABLE "store_settings" ALTER COLUMN "store_code" SET DATA TYPE varchar(255);

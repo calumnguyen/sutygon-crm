@@ -80,6 +80,20 @@ const IdentityConfirmModal: React.FC<IdentityConfirmModalProps> = ({
     }
   };
 
+  const handleKeyPress = (key: string) => {
+    if (key === 'backspace') {
+      setInput((prev) => prev.slice(0, -1));
+      setError('');
+    } else if (/\d/.test(key) && input.length < 6) {
+      const newValue = input + key;
+      setInput(newValue);
+      setError('');
+      if (newValue.length === 6) {
+        setTimeout(() => handleConfirm(newValue), 200);
+      }
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace') {
       setInput((prev) => prev.slice(0, -1));
@@ -102,13 +116,10 @@ const IdentityConfirmModal: React.FC<IdentityConfirmModalProps> = ({
       <div className="bg-gray-900 rounded-xl p-8 w-full max-w-sm shadow-2xl border border-gray-700 relative">
         <h2 className="text-2xl font-bold text-white mb-4 text-center">Xác Nhận Danh Tính</h2>
         <p className="text-gray-300 mb-4 text-center">Nhập Mã Nhân Viên để xác nhận</p>
-        <form
-          onSubmit={() => {
-            handleConfirm();
-          }}
-        >
+        
+        {/* Hidden input for keyboard support */}
+        <div className="relative flex flex-col items-center w-full mb-4">
           <AnimatedDots value={input} length={6} />
-          {/* Hidden input for accessibility and focus */}
           <input
             ref={inputRef}
             type="tel"
@@ -125,13 +136,52 @@ const IdentityConfirmModal: React.FC<IdentityConfirmModalProps> = ({
             tabIndex={0}
             aria-label="Mã Nhân Viên (6 số)"
           />
-          {error && <div className="text-red-400 text-sm text-center mb-2">{error}</div>}
-          <div className="flex justify-end space-x-3 pt-2">
-            <Button variant="secondary" type="button" onClick={onClose} disabled={isLoading}>
-              Hủy
-            </Button>
+        </div>
+
+        {/* Mobile-friendly numeric keypad */}
+        <div className="w-full mb-4">
+          <div className="grid grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+              <button
+                key={num}
+                onClick={() => handleKeyPress(num.toString())}
+                disabled={input.length >= 6 || isLoading}
+                className="w-full h-12 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl font-semibold rounded-lg transition-colors duration-200 border border-gray-600"
+              >
+                {num}
+              </button>
+            ))}
+            <button
+              onClick={() => handleKeyPress('backspace')}
+              disabled={input.length === 0 || isLoading}
+              className="w-full h-12 bg-red-800 hover:bg-red-700 active:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-lg font-semibold rounded-lg transition-colors duration-200 border border-red-600"
+            >
+              ←
+            </button>
+            <button
+              onClick={() => handleKeyPress('0')}
+              disabled={input.length >= 6 || isLoading}
+              className="w-full h-12 bg-gray-800 hover:bg-gray-700 active:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl font-semibold rounded-lg transition-colors duration-200 border border-gray-600"
+            >
+              0
+            </button>
+            <button
+              onClick={() => input.length === 6 && handleConfirm(input)}
+              disabled={input.length !== 6 || isLoading}
+              className="w-full h-12 bg-blue-600 hover:bg-blue-500 active:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-lg font-semibold rounded-lg transition-colors duration-200 border border-blue-500"
+            >
+              ✓
+            </button>
           </div>
-        </form>
+        </div>
+
+        {error && <div className="text-red-400 text-sm text-center mb-4">{error}</div>}
+        
+        <div className="flex justify-end space-x-3">
+          <Button variant="secondary" type="button" onClick={onClose} disabled={isLoading}>
+            Hủy
+          </Button>
+        </div>
       </div>
     </div>
   );

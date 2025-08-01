@@ -15,5 +15,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const data = await req.json();
   const [customer] = await createCustomer(data);
-  return NextResponse.json(customer, { status: 201 });
+  
+  // Decrypt the customer data before returning to frontend
+  const { decryptCustomerData } = await import('@/lib/utils/customerEncryption');
+  const decryptedCustomer = decryptCustomerData(customer);
+  
+  return NextResponse.json(decryptedCustomer, { status: 201 });
 }

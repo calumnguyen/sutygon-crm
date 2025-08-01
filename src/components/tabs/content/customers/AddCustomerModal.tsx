@@ -9,6 +9,7 @@ interface AddCustomerModalProps {
     name: string;
     phone: string;
     company?: string;
+    address?: string;
     notes?: string;
   }) => Promise<boolean>;
   existingPhones: string[];
@@ -26,6 +27,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
     name: '',
     phone: '',
     company: '',
+    address: '',
     notes: '',
   });
   const [error, setError] = useState('');
@@ -35,7 +37,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
     if (isOpen && prefillPhone) {
       setForm((f) => ({ ...f, phone: prefillPhone }));
     } else if (!isOpen) {
-      setForm({ name: '', phone: '', company: '', notes: '' });
+      setForm({ name: '', phone: '', company: '', address: '', notes: '' });
     }
   }, [isOpen, prefillPhone]);
 
@@ -75,11 +77,12 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
       name: form.name.trim(),
       phone: form.phone.replace(/\D/g, ''),
       company: form.company.trim(),
+      address: form.address.trim(),
       notes: form.notes.trim(),
     });
     setLoading(false);
     if (success) {
-      setForm({ name: '', phone: '', company: '', notes: '' });
+      setForm({ name: '', phone: '', company: '', address: '', notes: '' });
       onClose();
     }
   };
@@ -137,6 +140,20 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
               value={form.company}
               onChange={handleChange}
               placeholder="Nhập tên công ty (nếu có)"
+              className="mt-1 block w-full rounded-lg bg-gray-800 border border-gray-600 text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition px-4 py-2"
+            />
+          </div>
+          <div>
+            <label htmlFor="address" className="block text-sm font-medium text-gray-300 mb-1">
+              Địa chỉ <span className="text-xs text-gray-400">(Không bắt buộc)</span>
+            </label>
+            <input
+              id="address"
+              name="address"
+              type="text"
+              value={form.address}
+              onChange={handleChange}
+              placeholder="Nhập địa chỉ (nếu có)"
               className="mt-1 block w-full rounded-lg bg-gray-800 border border-gray-600 text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition px-4 py-2"
             />
           </div>
