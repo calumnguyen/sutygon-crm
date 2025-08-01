@@ -55,29 +55,29 @@ export default function UserModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     // Only validate employee key if it's being updated (showEmployeeKeyInput is true)
     if (showEmployeeKeyInput && !/^\d{6}$/.test(formData.employeeKey)) {
       setError('Mã nhân viên phải gồm 6 chữ số.');
       return;
     }
-    
+
     // Only check uniqueness if employee key is being updated
     if (showEmployeeKeyInput && formData.employeeKey) {
-    const res = await fetch(`/api/users/by-key?employeeKey=${formData.employeeKey}`);
-    const data = await res.json();
-    if (data.user && (mode === 'add' || (mode === 'edit' && data.user.id !== userToEdit?.id))) {
-      setError('Mã nhân viên này đã được sử dụng.');
-      return;
+      const res = await fetch(`/api/users/by-key?employeeKey=${formData.employeeKey}`);
+      const data = await res.json();
+      if (data.user && (mode === 'add' || (mode === 'edit' && data.user.id !== userToEdit?.id))) {
+        setError('Mã nhân viên này đã được sử dụng.');
+        return;
+      }
     }
-    }
-    
+
     // If not updating employee key in edit mode, use the original key
     const submitData = {
       ...formData,
-      employeeKey: showEmployeeKeyInput ? formData.employeeKey : (userToEdit?.employeeKey || ''),
+      employeeKey: showEmployeeKeyInput ? formData.employeeKey : userToEdit?.employeeKey || '',
     };
-    
+
     await onSubmit(submitData);
     setFormData({
       name: '',
@@ -94,10 +94,13 @@ export default function UserModal({
     mode === 'edit' && currentUser && userToEdit && currentUser.id === userToEdit.id;
   const isAdmin = currentUser?.role === 'admin';
   const isRoleEditable = mode === 'add' || (isAdmin && !isEditingSelf);
-  
+
   // Check if this is the last admin being deactivated
-  const isLastAdmin = mode === 'edit' && userToEdit && userToEdit.role === 'admin' && 
-    allUsers.filter(user => user.role === 'admin' && user.status === 'active').length === 1;
+  const isLastAdmin =
+    mode === 'edit' &&
+    userToEdit &&
+    userToEdit.role === 'admin' &&
+    allUsers.filter((user) => user.role === 'admin' && user.status === 'active').length === 1;
 
   const inputBaseClasses =
     'mt-1 block w-full rounded-lg border text-gray-200 placeholder-gray-500 focus:outline-none transition px-4 py-2';
@@ -151,7 +154,9 @@ export default function UserModal({
             <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1">
               {TRANSLATIONS.users.table.status}
               {isLastAdmin && (
-                <span className="ml-2 text-xs text-orange-400">(Không thể deactivate admin cuối cùng)</span>
+                <span className="ml-2 text-xs text-orange-400">
+                  (Không thể deactivate admin cuối cùng)
+                </span>
               )}
             </label>
             <select
@@ -171,8 +176,8 @@ export default function UserModal({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label htmlFor="employeeKey" className="block text-sm font-medium text-gray-300">
-              Mã Nhân Viên (6 số)
-            </label>
+                Mã Nhân Viên (6 số)
+              </label>
               {mode === 'edit' && (
                 <button
                   type="button"
@@ -192,7 +197,7 @@ export default function UserModal({
                   const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                   setFormData((prev) => ({ ...prev, employeeKey: val }));
                 }}
-                placeholder={mode === 'edit' ? "Nhập mã nhân viên mới" : "Nhập mã nhân viên"}
+                placeholder={mode === 'edit' ? 'Nhập mã nhân viên mới' : 'Nhập mã nhân viên'}
                 className={`${inputBaseClasses} ${inputEnabledClasses}`}
                 required={mode === 'add'}
                 maxLength={6}
@@ -202,8 +207,8 @@ export default function UserModal({
               />
             ) : mode === 'edit' ? (
               <div className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-400">
-                •••••• (Nhấn "Sửa Mã" để thay đổi)
-            </div>
+                •••••• (Nhấn &quot;Sửa Mã&quot; để thay đổi)
+              </div>
             ) : null}
           </div>
           <div className="mt-8 flex justify-end space-x-3">

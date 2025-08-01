@@ -2,23 +2,23 @@ import React, { RefObject } from 'react';
 import Button from '@/components/common/dropdowns/Button';
 
 interface InventoryFilterDropdownProps {
-  priceSort: string;
-  setPriceSort: (v: 'asc' | 'desc' | '') => void;
+  priceSort: string | null;
+  setPriceSort: (v: 'asc' | 'desc' | null) => void;
   priceRange: { min: string; max: string };
   setPriceRange: (v: { min: string; max: string }) => void;
-  priceRangeInvalid: boolean;
+  priceRangeInvalid: boolean | string;
   CATEGORY_OPTIONS: string[];
   selectedCategories: string[];
   setSelectedCategories: (v: string[]) => void;
   categoryDropdownOpen: boolean;
   setCategoryDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   categoryDropdownRef: RefObject<HTMLDivElement>;
-  lastModifiedSort: string;
-  setLastModifiedSort: (v: 'asc' | 'desc' | '') => void;
-  nameSort: string;
-  setNameSort: (v: 'asc' | 'desc' | '') => void;
-  idSort: string;
-  setIdSort: (v: 'asc' | 'desc' | '') => void;
+  lastModifiedSort: string | null;
+  setLastModifiedSort: (v: 'asc' | 'desc' | null) => void;
+  nameSort: string | null;
+  setNameSort: (v: 'asc' | 'desc' | null) => void;
+  idSort: string | null;
+  setIdSort: (v: 'asc' | 'desc' | null) => void;
 }
 
 const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
@@ -46,12 +46,12 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
       <button
         className="text-xs text-blue-400 hover:underline"
         onClick={() => {
-          setPriceSort('');
+          setPriceSort(null);
           setPriceRange({ min: '', max: '' });
           setSelectedCategories([]);
-          setLastModifiedSort('');
-          setNameSort('');
-          setIdSort('');
+          setLastModifiedSort(null);
+          setNameSort(null);
+          setIdSort(null);
         }}
       >
         Xoá tất cả
@@ -78,7 +78,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
         <Button
           variant={!priceSort ? 'primary' : 'secondary'}
           size="sm"
-          onClick={() => setPriceSort('')}
+          onClick={() => setPriceSort(null)}
         >
           Không
         </Button>
@@ -191,7 +191,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
         <Button
           variant={!lastModifiedSort ? 'primary' : 'secondary'}
           size="sm"
-          onClick={() => setLastModifiedSort('')}
+          onClick={() => setLastModifiedSort(null)}
         >
           Không
         </Button>
@@ -218,7 +218,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
         <Button
           variant={!nameSort ? 'primary' : 'secondary'}
           size="sm"
-          onClick={() => setNameSort('')}
+          onClick={() => setNameSort(null)}
         >
           Không
         </Button>
@@ -242,7 +242,11 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
         >
           Z → A
         </Button>
-        <Button variant={!idSort ? 'primary' : 'secondary'} size="sm" onClick={() => setIdSort('')}>
+        <Button
+          variant={!idSort ? 'primary' : 'secondary'}
+          size="sm"
+          onClick={() => setIdSort(null)}
+        >
           Không
         </Button>
       </div>

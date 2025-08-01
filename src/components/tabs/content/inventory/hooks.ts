@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { InventoryItem, AddItemFormState } from '@/types/inventory';
 
 // Optimized search hook with debouncing and server-side search
@@ -13,8 +13,10 @@ export function useInventorySearch() {
 
   // Debounced search function
   const debouncedSearch = useCallback(
-    debounce(async (query: string, page: number = 1) => {
-      if (!query.trim()) {
+    debounce(async (query: unknown, page: unknown = 1) => {
+      const searchQuery = query as string;
+      const searchPage = page as number;
+      if (!searchQuery.trim()) {
         setSearchResults([]);
         setHasMore(false);
         setTotal(0);
@@ -26,21 +28,21 @@ export function useInventorySearch() {
 
       try {
         const response = await fetch(
-          `/api/inventory/search?q=${encodeURIComponent(query)}&page=${page}&limit=20`
+          `/api/inventory/search?q=${encodeURIComponent(searchQuery)}&page=${searchPage}&limit=20`
         );
-        
+
         if (!response.ok) {
           throw new Error('Search failed');
         }
 
         const data = await response.json();
-        
+
         if (page === 1) {
           setSearchResults(data.items);
         } else {
-          setSearchResults(prev => [...prev, ...data.items]);
+          setSearchResults((prev) => [...prev, ...data.items]);
         }
-        
+
         setHasMore(data.hasMore);
         setTotal(data.total);
         setCurrentPage(data.page);
@@ -55,11 +57,14 @@ export function useInventorySearch() {
     []
   );
 
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    setCurrentPage(1);
-    debouncedSearch(query, 1);
-  }, [debouncedSearch]);
+  const handleSearch = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+      setCurrentPage(1);
+      debouncedSearch(query, 1);
+    },
+    [debouncedSearch]
+  );
 
   const loadMore = useCallback(() => {
     if (hasMore && !isSearching) {
@@ -90,12 +95,12 @@ export function useInventorySearch() {
 }
 
 // Debounce utility function
-function debounce<T extends (...args: any[]) => any>(
-  func: T,
+function debounce(
+  func: (...args: unknown[]) => unknown,
   wait: number
-): (...args: Parameters<T>) => void {
+): (...args: unknown[]) => void {
   let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
+  return (...args: unknown[]) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
   };
@@ -112,10 +117,7 @@ export function useInventoryTable(inventory: InventoryItem[]) {
   const [idSort, setIdSort] = useState<'asc' | 'desc' | null>(null);
 
   const priceRangeInvalid = useMemo(
-    () =>
-      priceRange.min &&
-      priceRange.max &&
-      Number(priceRange.max) < Number(priceRange.min),
+    () => priceRange.min && priceRange.max && Number(priceRange.max) < Number(priceRange.min),
     [priceRange.min, priceRange.max]
   );
 

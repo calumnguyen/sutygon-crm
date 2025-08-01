@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AnimatedDots from '@/components/common/AnimatedDots';
 import Logo from '@/components/common/Logo';
@@ -38,7 +38,7 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: code }),
       });
-      
+
       if (res.ok) {
         localStorage.setItem('storeCode', code);
         router.push('/');
@@ -83,7 +83,7 @@ export default function LoginPage() {
         <div className="mb-4 text-base text-center text-gray-300">
           Nhập Mã Cửa Hàng để Đăng Nhập
         </div>
-        
+
         {/* Hidden input for keyboard support */}
         <div className="relative flex flex-col items-center w-full">
           <AnimatedDots value={input} length={8} />

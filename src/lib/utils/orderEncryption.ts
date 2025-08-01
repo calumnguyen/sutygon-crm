@@ -43,6 +43,7 @@ export interface EncryptedOrderData {
   documentOther?: string | null; // This will be encrypted
   documentName?: string | null; // This will be encrypted
   documentId?: string | null; // This will be encrypted
+  documentStatus?: string | null; // This is not encrypted
   // Deposit info
   depositType?: string | null;
   depositValue?: string | number | null;
@@ -132,19 +133,29 @@ export function decryptOrderData(order: EncryptedOrderData): OrderData {
 
   return {
     ...order,
-    documentType: (order as any)?.documentType && (order as any).documentType.includes(':') 
-      ? decryptField((order as any).documentType) 
-      : (order as any)?.documentType || null,
-    documentOther: (order as any)?.documentOther && (order as any).documentOther.includes(':') 
-      ? decryptField((order as any).documentOther) 
-      : (order as any)?.documentOther || null,
-    documentName: (order as any)?.documentName && (order as any).documentName.includes(':') 
-      ? decryptField((order as any).documentName) 
-      : (order as any)?.documentName || null,
-    documentId: (order as any)?.documentId && (order as any).documentId.includes(':') 
-      ? decryptField((order as any).documentId) 
-      : (order as any)?.documentId || null,
-    documentStatus: (order as any)?.documentStatus || null, // documentStatus is not encrypted
+    documentType:
+      order?.documentType &&
+      typeof order.documentType === 'string' &&
+      order.documentType.includes(':')
+        ? decryptField(order.documentType)
+        : order?.documentType || null,
+    documentOther:
+      order?.documentOther &&
+      typeof order.documentOther === 'string' &&
+      order.documentOther.includes(':')
+        ? decryptField(order.documentOther)
+        : order?.documentOther || null,
+    documentName:
+      order?.documentName &&
+      typeof order.documentName === 'string' &&
+      order.documentName.includes(':')
+        ? decryptField(order.documentName)
+        : order?.documentName || null,
+    documentId:
+      order?.documentId && typeof order.documentId === 'string' && order.documentId.includes(':')
+        ? decryptField(order.documentId)
+        : order?.documentId || null,
+    documentStatus: order?.documentStatus || null, // documentStatus is not encrypted
   };
 }
 
@@ -199,4 +210,4 @@ export function decryptField(value: string): string {
     console.error('Decryption failed:', error);
     return value; // Return original value if decryption fails
   }
-} 
+}

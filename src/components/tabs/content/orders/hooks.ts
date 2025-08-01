@@ -260,7 +260,7 @@ export function useOrderStep3ItemsLogic(
     const normalizedQuery = normalizeVietnamese(searchQuery);
     const queryWords = normalizedQuery.split(/\s+/).filter((word: string) => word.length > 0);
 
-    const results = inventory.filter(item => {
+    const results = inventory.filter((item) => {
       // Check for ID match first (fastest)
       if (isItemId(searchQuery)) {
         const itemId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
@@ -271,17 +271,17 @@ export function useOrderStep3ItemsLogic(
       // Normalize item data for comparison
       const normalizedName = normalizeVietnamese(item.name);
       const normalizedCategory = normalizeVietnamese(item.category);
-      
+
       // Check if all query words are in name or category
       const nameMatch = queryWords.every((word: string) => normalizedName.includes(word));
       const categoryMatch = queryWords.every((word: string) => normalizedCategory.includes(word));
-      
+
       // Also check exact matches for better results
       const exactNameMatch = item.name.toLowerCase().includes(searchQuery);
       const exactCategoryMatch = item.category.toLowerCase().includes(searchQuery);
 
       // Check tags
-      const tagMatch = item.tags.some(tag => {
+      const tagMatch = item.tags.some((tag) => {
         const normalizedTag = normalizeVietnamese(tag);
         return queryWords.every((word: string) => normalizedTag.includes(word));
       });
@@ -290,26 +290,28 @@ export function useOrderStep3ItemsLogic(
     });
 
     // Sort results by relevance
-    const resultsWithScore = results.map(item => {
-      let score = 0;
-      const itemId = (item.formattedId || '').toLowerCase();
-      const itemName = item.name.toLowerCase();
-      const itemCategory = item.category.toLowerCase();
+    const resultsWithScore = results
+      .map((item) => {
+        let score = 0;
+        const itemId = (item.formattedId || '').toLowerCase();
+        const itemName = item.name.toLowerCase();
+        const itemCategory = item.category.toLowerCase();
 
-      // Exact matches get higher scores
-      if (itemId.includes(searchQuery)) score += 10;
-      if (itemName.includes(searchQuery)) score += 8;
-      if (itemCategory.includes(searchQuery)) score += 6;
+        // Exact matches get higher scores
+        if (itemId.includes(searchQuery)) score += 10;
+        if (itemName.includes(searchQuery)) score += 8;
+        if (itemCategory.includes(searchQuery)) score += 6;
 
-      // Partial matches
-      if (itemName.includes(searchQuery)) score += 4;
-      if (itemCategory.includes(searchQuery)) score += 2;
+        // Partial matches
+        if (itemName.includes(searchQuery)) score += 4;
+        if (itemCategory.includes(searchQuery)) score += 2;
 
-      return { ...item, matchCount: score };
-    }).sort((a, b) => b.matchCount - a.matchCount);
+        return { ...item, matchCount: score };
+      })
+      .sort((a, b) => b.matchCount - a.matchCount);
 
     setSearchResults(resultsWithScore);
-    
+
     if (resultsWithScore.length === 0) {
       setAddError('Không tìm thấy sản phẩm nào phù hợp với tên này');
       setShowSearchResults(false);
@@ -320,9 +322,9 @@ export function useOrderStep3ItemsLogic(
 
   async function fetchItemById(id: string) {
     const normId = id.replace(/-/g, '').toUpperCase();
-    
+
     // Use client-side search for better performance
-    const exactMatch = inventory.find(item => {
+    const exactMatch = inventory.find((item) => {
       const itemId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
       return itemId.startsWith(normId);
     });
@@ -331,13 +333,13 @@ export function useOrderStep3ItemsLogic(
       return {
         id: exactMatch.formattedId || exactMatch.id,
         name: exactMatch.name,
-        sizes: exactMatch.sizes.map((s: any) => ({
+        sizes: exactMatch.sizes.map((s: { title: string; price: number }) => ({
           size: s.title,
           price: s.price,
         })),
       };
     }
-    
+
     return null;
   }
 
@@ -579,7 +581,14 @@ export function useOrderStep3ItemsLogic(
 }
 
 export function useOrdersTable() {
-  const [orders, setOrders] = useState<(Order & { customerName: string; calculatedReturnDate: Date; noteNotComplete: number; noteTotal: number })[]>([]);
+  const [orders, setOrders] = useState<
+    (Order & {
+      customerName: string;
+      calculatedReturnDate: Date;
+      noteNotComplete: number;
+      noteTotal: number;
+    })[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
@@ -596,21 +605,21 @@ export function useOrdersTable() {
         setLoadingMore(true);
       }
       setError(null);
-      
+
       const offset = (pageNum - 1) * ITEMS_PER_PAGE;
       const ordersData = await getOrdersWithCustomers({
         limit: ITEMS_PER_PAGE,
         offset,
         orderBy: 'createdAt',
-        orderDirection: 'desc'
+        orderDirection: 'desc',
       });
-      
+
       if (append) {
-        setOrders(prev => [...prev, ...ordersData]);
+        setOrders((prev) => [...prev, ...ordersData]);
       } else {
         setOrders(ordersData);
       }
-      
+
       // Check if we have more data
       setHasMore(ordersData.length === ITEMS_PER_PAGE);
       setPage(pageNum);
@@ -640,6 +649,6 @@ export function useOrdersTable() {
     error,
     hasMore,
     loadMore,
-    refetch: () => fetchOrders(1, false)
+    refetch: () => fetchOrders(1, false),
   };
 }

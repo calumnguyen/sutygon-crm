@@ -5,12 +5,10 @@ import { eq } from 'drizzle-orm';
 
 // For now, we'll store the tax invoice status in the documentType field
 // This is a temporary solution until we can add the proper column
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
-    const orderId = parseInt(params.id);
+    const orderId = parseInt(id);
     if (isNaN(orderId)) {
       return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 });
     }
@@ -24,13 +22,15 @@ export async function PATCH(
 
     // For now, we'll store this in the documentType field as a special value
     // This is a temporary solution
-    const taxInvoiceStatus = taxInvoiceExported ? 'TAX_INVOICE_EXPORTED:true' : 'TAX_INVOICE_EXPORTED:false';
-    
+    const taxInvoiceStatus = taxInvoiceExported
+      ? 'TAX_INVOICE_EXPORTED:true'
+      : 'TAX_INVOICE_EXPORTED:false';
+
     const [updatedOrder] = await db
       .update(orders)
-      .set({ 
+      .set({
         documentType: taxInvoiceStatus,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
       .where(eq(orders.id, orderId))
       .returning();
@@ -39,9 +39,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      taxInvoiceExported 
+    return NextResponse.json({
+      success: true,
+      taxInvoiceExported,
     });
   } catch (error) {
     console.error('Error updating tax invoice export status:', error);
@@ -53,20 +53,15 @@ export async function PATCH(
 }
 
 // GET endpoint to check current status
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
-    const orderId = parseInt(params.id);
+    const orderId = parseInt(id);
     if (isNaN(orderId)) {
       return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 });
     }
 
-    const [order] = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, orderId));
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
 
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
@@ -75,15 +70,12 @@ export async function GET(
     // Check if tax invoice is exported by looking at documentType
     const taxInvoiceExported = order.documentType === 'TAX_INVOICE_EXPORTED:true';
 
-    return NextResponse.json({ 
-      success: true, 
-      taxInvoiceExported 
+    return NextResponse.json({
+      success: true,
+      taxInvoiceExported,
     });
   } catch (error) {
     console.error('Error getting tax invoice export status:', error);
-    return NextResponse.json(
-      { error: 'Failed to get tax invoice export status' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to get tax invoice export status' }, { status: 500 });
   }
-} 
+}

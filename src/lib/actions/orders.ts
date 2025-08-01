@@ -3,14 +3,14 @@
 import { db } from '@/lib/db';
 import { orders, orderItems, orderNotes, customers } from '@/lib/db/schema';
 import { eq, desc, asc, and, or, gte, lte, count, inArray, sql } from 'drizzle-orm';
-import { 
-  encryptOrderData, 
-  decryptOrderData, 
-  encryptOrderItemData, 
+import {
+  encryptOrderData,
+  decryptOrderData,
+  encryptOrderItemData,
   decryptOrderItemData,
   encryptOrderNoteData,
   decryptOrderNoteData,
-  decryptField
+  decryptField,
 } from '@/lib/utils/orderEncryption';
 import { encrypt, decrypt } from '@/lib/utils/encryption';
 import { monitorDatabaseQuery } from '@/lib/utils/performance';
@@ -79,51 +79,54 @@ export async function getOrders(options?: {
   orderBy?: 'orderDate' | 'createdAt' | 'expectedReturnDate';
   orderDirection?: 'asc' | 'desc';
 }): Promise<Order[]> {
-  const { 
-    limit = 50, 
+  const {
+    limit = 50,
     offset = 0,
     customerId,
     status,
     paymentStatus,
     dateFrom,
     dateTo,
-    orderBy = 'createdAt', 
-    orderDirection = 'desc' 
+    orderBy = 'createdAt',
+    orderDirection = 'desc',
   } = options || {};
 
   // Build where conditions
   const conditions = [];
-  
+
   if (customerId) {
     conditions.push(eq(orders.customerId, customerId));
   }
-  
+
   if (status && status.length > 0) {
     conditions.push(inArray(orders.status, status));
   }
-  
+
   if (paymentStatus && paymentStatus.length > 0) {
     conditions.push(inArray(orders.paymentStatus, paymentStatus));
   }
-  
+
   if (dateFrom) {
     conditions.push(gte(orders.orderDate, dateFrom));
   }
-  
+
   if (dateTo) {
     conditions.push(lte(orders.orderDate, dateTo));
   }
 
   // Use index-optimized query
-  const orderColumn = orderBy === 'orderDate' ? orders.orderDate : 
-                     orderBy === 'expectedReturnDate' ? orders.expectedReturnDate : 
-                     orders.createdAt;
-  
+  const orderColumn =
+    orderBy === 'orderDate'
+      ? orders.orderDate
+      : orderBy === 'expectedReturnDate'
+        ? orders.expectedReturnDate
+        : orders.createdAt;
+
   const orderFunc = orderDirection === 'asc' ? asc : desc;
-  
+
   // Build the complete query in one go
   const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
-  
+
   const dbOrders = await db
     .select()
     .from(orders)
@@ -131,9 +134,9 @@ export async function getOrders(options?: {
     .orderBy(orderFunc(orderColumn))
     .limit(limit)
     .offset(offset);
-  
+
   // Decrypt sensitive data for display
-  return dbOrders.map(order => {
+  return dbOrders.map((order) => {
     const decrypted = decryptOrderData(order);
     return {
       id: order.id,
@@ -152,6 +155,7 @@ export async function getOrders(options?: {
       documentId: decrypted.documentId,
       depositType: order.depositType,
       depositValue: order.depositValue ? Number(order.depositValue) : null,
+      taxInvoiceExported: order.taxInvoiceExported,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
     };
@@ -166,47 +170,47 @@ export async function getOrdersCount(options?: {
   dateTo?: Date;
 }): Promise<number> {
   const { customerId, status, paymentStatus, dateFrom, dateTo } = options || {};
-  
+
   const conditions = [];
-  
+
   if (customerId) {
     conditions.push(eq(orders.customerId, customerId));
   }
-  
+
   if (status && status.length > 0) {
     conditions.push(inArray(orders.status, status));
   }
-  
+
   if (paymentStatus && paymentStatus.length > 0) {
     conditions.push(inArray(orders.paymentStatus, paymentStatus));
   }
-  
+
   if (dateFrom) {
     conditions.push(gte(orders.orderDate, dateFrom));
   }
-  
+
   if (dateTo) {
     conditions.push(lte(orders.orderDate, dateTo));
   }
 
   const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const result = await db
-    .select({ count: count() })
-    .from(orders)
-    .where(whereCondition);
-    
+  const result = await db.select({ count: count() }).from(orders).where(whereCondition);
+
   return result[0].count;
 }
 
-export async function getOrdersByCustomer(customerId: number, options?: {
-  limit?: number;
-  offset?: number;
-  status?: string[];
-}): Promise<Order[]> {
+export async function getOrdersByCustomer(
+  customerId: number,
+  options?: {
+    limit?: number;
+    offset?: number;
+    status?: string[];
+  }
+): Promise<Order[]> {
   return getOrders({
     customerId,
-    ...options
+    ...options,
   });
 }
 
@@ -215,34 +219,34 @@ export async function getTodaysOrders(): Promise<Order[]> {
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  
+
   return getOrders({
     dateFrom: today,
     dateTo: tomorrow,
     limit: 100,
     orderBy: 'createdAt',
-    orderDirection: 'desc'
+    orderDirection: 'desc',
   });
 }
 
 export async function getOverdueOrders(): Promise<Order[]> {
   const today = new Date();
   today.setHours(23, 59, 59, 999);
-  
+
   return getOrders({
     dateTo: today,
     status: ['Processing'],
     limit: 100,
     orderBy: 'expectedReturnDate',
-    orderDirection: 'asc'
+    orderDirection: 'asc',
   });
 }
 
 export async function getOrderById(orderId: number): Promise<Order | null> {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
-  
+
   if (!order) return null;
-  
+
   const decrypted = decryptOrderData(order);
   return {
     id: order.id,
@@ -261,6 +265,7 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
     documentId: decrypted.documentId,
     depositType: order.depositType,
     depositValue: order.depositValue ? Number(order.depositValue) : null,
+    taxInvoiceExported: order.taxInvoiceExported,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
   };
@@ -268,9 +273,9 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
 
 export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
   const dbItems = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-  
+
   // Decrypt sensitive data for display
-  return dbItems.map(item => {
+  return dbItems.map((item) => {
     const decrypted = decryptOrderItemData(item);
     return {
       id: item.id,
@@ -293,9 +298,9 @@ export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
 
 export async function getOrderNotes(orderId: number): Promise<OrderNote[]> {
   const dbNotes = await db.select().from(orderNotes).where(eq(orderNotes.orderId, orderId));
-  
+
   // Decrypt sensitive data for display
-  return dbNotes.map(note => {
+  return dbNotes.map((note) => {
     const decrypted = decryptOrderNoteData(note);
     return {
       id: note.id,
@@ -314,25 +319,30 @@ let noteExistenceCache: { hasNotes: boolean; lastChecked: number } | null = null
 const CACHE_DURATION = 30000; // 30 seconds
 
 // Get note counts for multiple orders efficiently
-export async function getOrderNoteCounts(orderIds: number[]): Promise<Map<number, { notComplete: number; total: number }>> {
+export async function getOrderNoteCounts(
+  orderIds: number[]
+): Promise<Map<number, { notComplete: number; total: number }>> {
   if (orderIds.length === 0) {
     return new Map();
   }
 
   // Quick cache check for note existence
   const now = Date.now();
-  if (!noteExistenceCache || (now - noteExistenceCache.lastChecked) > CACHE_DURATION) {
-    const hasNotesResult = await db.select({ exists: sql`1` }).from(orderNotes).limit(1);
+  if (!noteExistenceCache || now - noteExistenceCache.lastChecked > CACHE_DURATION) {
+    const hasNotesResult = await db
+      .select({ exists: sql`1` })
+      .from(orderNotes)
+      .limit(1);
     noteExistenceCache = {
       hasNotes: hasNotesResult.length > 0,
-      lastChecked: now
+      lastChecked: now,
     };
   }
 
   // If no notes exist at all, return empty counts quickly
   if (!noteExistenceCache.hasNotes) {
     const emptyMap = new Map<number, { notComplete: number; total: number }>();
-    orderIds.forEach(orderId => {
+    orderIds.forEach((orderId) => {
       emptyMap.set(orderId, { notComplete: 0, total: 0 });
     });
     return emptyMap;
@@ -352,14 +362,14 @@ export async function getOrderNoteCounts(orderIds: number[]): Promise<Map<number
 
       // Group by order ID and count
       const countsMap = new Map<number, { notComplete: number; total: number }>();
-      
+
       // Initialize all order IDs with zero counts
-      orderIds.forEach(orderId => {
+      orderIds.forEach((orderId) => {
         countsMap.set(orderId, { notComplete: 0, total: 0 });
       });
 
       // Count notes for each order
-      allNotes.forEach(note => {
+      allNotes.forEach((note) => {
         const current = countsMap.get(note.orderId) || { notComplete: 0, total: 0 };
         current.total += 1;
         if (!note.done) {
@@ -374,44 +384,49 @@ export async function getOrderNoteCounts(orderIds: number[]): Promise<Map<number
   );
 }
 
-export async function createOrder(orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<Order> {
+export async function createOrder(
+  orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<Order> {
   try {
     // Get current VAT percentage from settings
     const { getVATPercentage } = await import('@/lib/utils/storeSettings');
     const vatPercentage = await getVATPercentage();
-    
+
     // Calculate VAT using configurable percentage
     const orderTotal = Number(orderData.totalAmount);
     const vatAmount = Math.round(orderTotal * (vatPercentage / 100));
-    
+
     // Encrypt sensitive order data
     const encryptedData = encryptOrderData({
       ...orderData,
-      vatAmount: vatAmount
+      vatAmount: vatAmount,
     });
-    
-    const [newOrder] = await db.insert(orders).values({
-      customerId: encryptedData.customerId,
-      orderDate: encryptedData.orderDate,
-      expectedReturnDate: encryptedData.expectedReturnDate,
-      status: 'Processing', // All orders start as Processing
-      totalAmount: String(encryptedData.totalAmount),
-      vatAmount: String(vatAmount),
-      depositAmount: String(encryptedData.depositAmount),
-      paidAmount: '0',
-      paymentMethod: null,
-      paymentStatus: 'Unpaid', // Default payment status
-      documentType: null,
-      documentOther: null,
-      documentName: null,
-      documentId: null,
-      depositType: null,
-      depositValue: null,
-      taxInvoiceExported: false, // Initialize new field
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }).returning();
-    
+
+    const [newOrder] = await db
+      .insert(orders)
+      .values({
+        customerId: encryptedData.customerId,
+        orderDate: encryptedData.orderDate,
+        expectedReturnDate: encryptedData.expectedReturnDate,
+        status: 'Processing', // All orders start as Processing
+        totalAmount: String(encryptedData.totalAmount),
+        vatAmount: String(vatAmount),
+        depositAmount: String(encryptedData.depositAmount),
+        paidAmount: '0',
+        paymentMethod: null,
+        paymentStatus: 'Unpaid', // Default payment status
+        documentType: null,
+        documentOther: null,
+        documentName: null,
+        documentId: null,
+        depositType: null,
+        depositValue: null,
+        taxInvoiceExported: false, // Initialize new field
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+
     // Return the new order with decrypted data
     const decryptedOrder = decryptOrderData(newOrder);
     return {
@@ -442,11 +457,13 @@ export async function createOrder(orderData: Omit<Order, 'id' | 'createdAt' | 'u
   }
 }
 
-export async function createOrderItem(itemData: Omit<OrderItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<OrderItem> {
+export async function createOrderItem(
+  itemData: Omit<OrderItem, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<OrderItem> {
   try {
     // Encrypt sensitive order item data
     const encryptedData = encryptOrderItemData(itemData);
-    
+
     const [newItem] = await db
       .insert(orderItems)
       .values({
@@ -465,7 +482,7 @@ export async function createOrderItem(itemData: Omit<OrderItem, 'id' | 'createdA
         updatedAt: new Date(),
       })
       .returning();
-    
+
     // Return the new item with decrypted data
     const decryptedItem = decryptOrderItemData(newItem);
     return {
@@ -490,11 +507,13 @@ export async function createOrderItem(itemData: Omit<OrderItem, 'id' | 'createdA
   }
 }
 
-export async function createOrderNote(noteData: Omit<OrderNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<OrderNote> {
+export async function createOrderNote(
+  noteData: Omit<OrderNote, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<OrderNote> {
   try {
     // Encrypt sensitive order note data
     const encryptedData = encryptOrderNoteData(noteData);
-    
+
     const [newNote] = await db
       .insert(orderNotes)
       .values({
@@ -506,7 +525,7 @@ export async function createOrderNote(noteData: Omit<OrderNote, 'id' | 'createdA
         updatedAt: new Date(),
       })
       .returning();
-    
+
     // Return the new note with decrypted data
     const decryptedNote = decryptOrderNoteData(newNote);
     return {
@@ -524,23 +543,32 @@ export async function createOrderNote(noteData: Omit<OrderNote, 'id' | 'createdA
   }
 }
 
-export async function updateOrder(orderId: number, orderData: Partial<Omit<Order, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Order> {
+export async function updateOrder(
+  orderId: number,
+  orderData: Partial<Omit<Order, 'id' | 'createdAt' | 'updatedAt'>>
+): Promise<Order> {
   try {
     // Encrypt sensitive order data
-    const encryptedData = encryptOrderData(orderData as any);
+    const encryptedData = encryptOrderData(
+      orderData as Omit<Order, 'id' | 'createdAt' | 'updatedAt'>
+    );
 
     // Prepare update data with proper type conversion
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
 
     if (encryptedData.customerId !== undefined) updateData.customerId = encryptedData.customerId;
     if (encryptedData.orderDate !== undefined) updateData.orderDate = encryptedData.orderDate;
-    if (encryptedData.expectedReturnDate !== undefined) updateData.expectedReturnDate = encryptedData.expectedReturnDate;
+    if (encryptedData.expectedReturnDate !== undefined)
+      updateData.expectedReturnDate = encryptedData.expectedReturnDate;
     if (encryptedData.status !== undefined) updateData.status = encryptedData.status;
-    if (encryptedData.totalAmount !== undefined) updateData.totalAmount = String(encryptedData.totalAmount);
-    if (encryptedData.depositAmount !== undefined) updateData.depositAmount = String(encryptedData.depositAmount);
-    if (encryptedData.taxInvoiceExported !== undefined) updateData.taxInvoiceExported = encryptedData.taxInvoiceExported; // Add taxInvoiceExported to update
+    if (encryptedData.totalAmount !== undefined)
+      updateData.totalAmount = String(encryptedData.totalAmount);
+    if (encryptedData.depositAmount !== undefined)
+      updateData.depositAmount = String(encryptedData.depositAmount);
+    if (encryptedData.taxInvoiceExported !== undefined)
+      updateData.taxInvoiceExported = encryptedData.taxInvoiceExported; // Add taxInvoiceExported to update
 
     const [updatedOrder] = await db
       .update(orders)
@@ -587,7 +615,7 @@ export async function deleteOrder(orderId: number): Promise<void> {
 }
 
 export async function completeOrderPayment(
-  orderId: number, 
+  orderId: number,
   paymentMethod: 'cash' | 'qr',
   paidAmount: number,
   documentInfo?: {
@@ -603,40 +631,43 @@ export async function completeOrderPayment(
 ): Promise<Order> {
   try {
     console.log('Starting payment completion for order ID:', orderId);
-    
+
     // First, check if the order exists
-    const existingOrder = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, orderId))
-      .limit(1);
-    
+    const existingOrder = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+
     console.log('Existing order found:', existingOrder.length > 0);
     if (existingOrder.length > 0) {
       console.log('Order details:', JSON.stringify(existingOrder[0], null, 2));
     }
 
     // Encrypt document info if provided
-    const encryptedDocumentInfo = documentInfo ? {
-      documentType: documentInfo.documentType ? encrypt(documentInfo.documentType) : null,
-      documentOther: documentInfo.documentOther ? encrypt(documentInfo.documentOther) : null,
-      documentName: documentInfo.documentName ? encrypt(documentInfo.documentName) : null,
-      documentId: documentInfo.documentId ? encrypt(documentInfo.documentId) : null,
-    } : {};
+    const encryptedDocumentInfo = documentInfo
+      ? {
+          documentType: documentInfo.documentType ? encrypt(documentInfo.documentType) : null,
+          documentOther: documentInfo.documentOther ? encrypt(documentInfo.documentOther) : null,
+          documentName: documentInfo.documentName ? encrypt(documentInfo.documentName) : null,
+          documentId: documentInfo.documentId ? encrypt(documentInfo.documentId) : null,
+        }
+      : {};
 
     // Process deposit info if provided (both as plain values)
-    const processedDepositInfo = depositInfo ? {
-      depositType: depositInfo.depositType || null,
-      depositValue: depositInfo.depositValue !== undefined && depositInfo.depositValue !== null ? depositInfo.depositValue : null,
-    } : {};
+    const processedDepositInfo = depositInfo
+      ? {
+          depositType: depositInfo.depositType || null,
+          depositValue:
+            depositInfo.depositValue !== undefined && depositInfo.depositValue !== null
+              ? depositInfo.depositValue
+              : null,
+        }
+      : {};
 
     // Determine payment status based on payment amount and deposit
     let paymentStatus: string;
-    
+
     const orderTotal = Number(existingOrder[0].totalAmount);
     const depositAmount = depositInfo ? depositInfo.depositValue : 0;
     const totalRequired = orderTotal + depositAmount; // Total amount that needs to be paid
-    
+
     if (depositInfo) {
       // When there's a deposit, check against total required (order + deposit)
       if (paidAmount >= totalRequired) {
@@ -660,7 +691,7 @@ export async function completeOrderPayment(
     console.log('Determined payment status:', paymentStatus);
 
     // Prepare update data
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       paidAmount: paidAmount.toString(),
       paymentMethod,
       paymentStatus,
@@ -668,7 +699,7 @@ export async function completeOrderPayment(
       ...encryptedDocumentInfo,
       ...processedDepositInfo,
     };
-    
+
     // If there's deposit info, also update the order's depositAmount field
     if (depositInfo && depositInfo.depositValue > 0) {
       // Calculate the actual deposit amount based on type
@@ -713,7 +744,7 @@ export async function completeOrderPayment(
         documentId: null,
       };
     }
-    
+
     return {
       id: updatedOrder.id,
       customerId: updatedOrder.customerId,
@@ -739,7 +770,7 @@ export async function completeOrderPayment(
     console.error('Error completing order payment:', error);
     throw new Error('Failed to complete order payment');
   }
-} 
+}
 
 export async function markDocumentOnFile(orderId: number): Promise<void> {
   try {
@@ -754,7 +785,7 @@ export async function markDocumentOnFile(orderId: number): Promise<void> {
     console.error('Error marking document as on file:', error);
     throw new Error('Failed to mark document as on file');
   }
-} 
+}
 
 export async function markOrderPayLater(
   orderId: number,
@@ -771,23 +802,30 @@ export async function markOrderPayLater(
 ): Promise<Order> {
   try {
     console.log('Marking order as pay later for order ID:', orderId);
-    
+
     // Encrypt document info if provided
-    const encryptedDocumentInfo = documentInfo ? {
-      documentType: documentInfo.documentType ? encrypt(documentInfo.documentType) : null,
-      documentOther: documentInfo.documentOther ? encrypt(documentInfo.documentOther) : null,
-      documentName: documentInfo.documentName ? encrypt(documentInfo.documentName) : null,
-      documentId: documentInfo.documentId ? encrypt(documentInfo.documentId) : null,
-    } : {};
+    const encryptedDocumentInfo = documentInfo
+      ? {
+          documentType: documentInfo.documentType ? encrypt(documentInfo.documentType) : null,
+          documentOther: documentInfo.documentOther ? encrypt(documentInfo.documentOther) : null,
+          documentName: documentInfo.documentName ? encrypt(documentInfo.documentName) : null,
+          documentId: documentInfo.documentId ? encrypt(documentInfo.documentId) : null,
+        }
+      : {};
 
     // Process deposit info if provided
-    const processedDepositInfo = depositInfo ? {
-      depositType: depositInfo.depositType || null,
-      depositValue: depositInfo.depositValue !== undefined && depositInfo.depositValue !== null ? depositInfo.depositValue : null,
-    } : {};
+    const processedDepositInfo = depositInfo
+      ? {
+          depositType: depositInfo.depositType || null,
+          depositValue:
+            depositInfo.depositValue !== undefined && depositInfo.depositValue !== null
+              ? depositInfo.depositValue
+              : null,
+        }
+      : {};
 
     // Prepare update data
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       status: 'Processing', // Order status remains Processing
       paymentStatus: 'Unpaid', // Payment status remains Unpaid for pay later
       updatedAt: new Date(),
@@ -824,7 +862,7 @@ export async function markOrderPayLater(
         documentId: null,
       };
     }
-    
+
     return {
       id: updatedOrder.id,
       customerId: updatedOrder.customerId,
@@ -850,7 +888,7 @@ export async function markOrderPayLater(
     console.error('Error marking order as pay later:', error);
     throw new Error('Failed to mark order as pay later');
   }
-} 
+}
 
 // Get orders with customer information for table display
 export async function getOrdersWithCustomers(options?: {
@@ -863,11 +901,18 @@ export async function getOrdersWithCustomers(options?: {
   dateTo?: Date;
   orderBy?: 'orderDate' | 'createdAt' | 'expectedReturnDate';
   orderDirection?: 'asc' | 'desc';
-}): Promise<(Order & { customerName: string; calculatedReturnDate: Date; noteNotComplete: number; noteTotal: number })[]> {
+}): Promise<
+  (Order & {
+    customerName: string;
+    calculatedReturnDate: Date;
+    noteNotComplete: number;
+    noteTotal: number;
+  })[]
+> {
   return monitorDatabaseQuery(
     'getOrdersWithCustomers',
     async () => {
-      const { 
+      const {
         limit = 25, // Reduced from 50 to improve performance
         offset = 0,
         customerId,
@@ -875,42 +920,45 @@ export async function getOrdersWithCustomers(options?: {
         paymentStatus,
         dateFrom,
         dateTo,
-        orderBy = 'createdAt', 
-        orderDirection = 'desc' 
+        orderBy = 'createdAt',
+        orderDirection = 'desc',
       } = options || {};
 
       // Build where conditions
       const conditions = [];
-      
+
       if (customerId) {
         conditions.push(eq(orders.customerId, customerId));
       }
-      
+
       if (status && status.length > 0) {
         conditions.push(inArray(orders.status, status));
       }
-      
+
       if (paymentStatus && paymentStatus.length > 0) {
         conditions.push(inArray(orders.paymentStatus, paymentStatus));
       }
-      
+
       if (dateFrom) {
         conditions.push(gte(orders.orderDate, dateFrom));
       }
-      
+
       if (dateTo) {
         conditions.push(lte(orders.orderDate, dateTo));
       }
 
       // Use index-optimized query with JOIN
-      const orderColumn = orderBy === 'orderDate' ? orders.orderDate : 
-                         orderBy === 'expectedReturnDate' ? orders.expectedReturnDate : 
-                         orders.createdAt;
-      
+      const orderColumn =
+        orderBy === 'orderDate'
+          ? orders.orderDate
+          : orderBy === 'expectedReturnDate'
+            ? orders.expectedReturnDate
+            : orders.createdAt;
+
       const orderFunc = orderDirection === 'asc' ? asc : desc;
-      
+
       const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
-      
+
       // Simple, efficient query with JOIN
       const dbOrders = await db
         .select({
@@ -931,6 +979,7 @@ export async function getOrdersWithCustomers(options?: {
           documentId: orders.documentId,
           depositType: orders.depositType,
           depositValue: orders.depositValue,
+          taxInvoiceExported: orders.taxInvoiceExported,
           createdAt: orders.createdAt,
           updatedAt: orders.updatedAt,
           customerName: customers.name,
@@ -941,46 +990,52 @@ export async function getOrdersWithCustomers(options?: {
         .orderBy(orderFunc(orderColumn))
         .limit(limit)
         .offset(offset);
-      
+
       // For each order, get its items and note counts
       // Optimize: Get all order items and note counts for all orders in parallel
-      const orderIds = dbOrders.map(order => order.id);
-      
+      const orderIds = dbOrders.map((order) => order.id);
+
       // Fetch note counts efficiently
-      const noteCountsMap = orderIds.length > 0 
-        ? await getOrderNoteCounts(orderIds)
-        : new Map<number, { notComplete: number; total: number }>();
-      
+      const noteCountsMap =
+        orderIds.length > 0
+          ? await getOrderNoteCounts(orderIds)
+          : new Map<number, { notComplete: number; total: number }>();
+
       // Skip fetching items for now to improve performance
       const itemsByOrderId: Record<number, OrderItem[]> = {};
-      
+
       // Calculate return dates for each order with optimized processing
       const ordersWithCalculatedDates = dbOrders.map((order) => {
         // Only decrypt document fields if they exist and are encrypted
-        const documentType = order.documentType && order.documentType.includes(':') 
-          ? decryptField(order.documentType) 
-          : order.documentType;
-        const documentOther = order.documentOther && order.documentOther.includes(':') 
-          ? decryptField(order.documentOther) 
-          : order.documentOther;
-        const documentName = order.documentName && order.documentName.includes(':') 
-          ? decryptField(order.documentName) 
-          : order.documentName;
-        const documentId = order.documentId && order.documentId.includes(':') 
-          ? decryptField(order.documentId) 
-          : order.documentId;
-        
+        const documentType =
+          order.documentType && order.documentType.includes(':')
+            ? decryptField(order.documentType)
+            : order.documentType;
+        const documentOther =
+          order.documentOther && order.documentOther.includes(':')
+            ? decryptField(order.documentOther)
+            : order.documentOther;
+        const documentName =
+          order.documentName && order.documentName.includes(':')
+            ? decryptField(order.documentName)
+            : order.documentName;
+        const documentId =
+          order.documentId && order.documentId.includes(':')
+            ? decryptField(order.documentId)
+            : order.documentId;
+
         // Use stored expected return date for now
         const calculatedReturnDate = order.expectedReturnDate;
-        
+
         // Get note counts for this order
         const noteCounts = noteCountsMap.get(order.id) || { notComplete: 0, total: 0 };
-        
+
         // Decrypt customer name if needed
-        const decryptedCustomerName = order.customerName && order.customerName.includes(':') 
-          ? decryptField(order.customerName) 
-          : order.customerName || '';
-        
+        const decryptedCustomerName =
+          order.customerName && order.customerName.includes(':')
+            ? decryptField(order.customerName)
+            : order.customerName || '';
+
         return {
           id: order.id,
           customerId: order.customerId,
@@ -999,6 +1054,7 @@ export async function getOrdersWithCustomers(options?: {
           documentId: documentId,
           depositType: order.depositType,
           depositValue: order.depositValue ? Number(order.depositValue) : null,
+          taxInvoiceExported: order.taxInvoiceExported,
           createdAt: order.createdAt,
           updatedAt: order.updatedAt,
           customerName: decryptedCustomerName,
@@ -1007,32 +1063,34 @@ export async function getOrdersWithCustomers(options?: {
           noteTotal: noteCounts.total,
         };
       });
-      
+
       return ordersWithCalculatedDates;
     },
-    (result: (Order & { customerName: string; calculatedReturnDate: Date; noteNotComplete: number; noteTotal: number })[]) => result.length
+    (
+      result: (Order & {
+        customerName: string;
+        calculatedReturnDate: Date;
+        noteNotComplete: number;
+        noteTotal: number;
+      })[]
+    ) => result.length
   );
-} 
-
-
+}
 
 // Get order with correctly calculated return date
-export async function getOrderWithCalculatedReturnDate(orderId: number): Promise<(Order & { calculatedReturnDate: Date }) | null> {
-  return monitorDatabaseQuery(
-    'getOrderWithCalculatedReturnDate',
-    async () => {
-      const order = await getOrderById(orderId);
-      if (!order) return null;
-      
-      const items = await getOrderItems(orderId);
-      const calculatedReturnDate = calculateExpectedReturnDate(order.orderDate, items);
-      
-      return {
-        ...order,
-        calculatedReturnDate
-      };
-    }
-  );
-} 
+export async function getOrderWithCalculatedReturnDate(
+  orderId: number
+): Promise<(Order & { calculatedReturnDate: Date }) | null> {
+  return monitorDatabaseQuery('getOrderWithCalculatedReturnDate', async () => {
+    const order = await getOrderById(orderId);
+    if (!order) return null;
 
- 
+    const items = await getOrderItems(orderId);
+    const calculatedReturnDate = calculateExpectedReturnDate(order.orderDate, items);
+
+    return {
+      ...order,
+      calculatedReturnDate,
+    };
+  });
+}

@@ -8,20 +8,20 @@ import {
   categoryCounters,
 } from '@/lib/db/schema';
 import { eq, inArray, sql } from 'drizzle-orm';
-import { 
-  encryptInventoryData, 
-  decryptInventoryData, 
-  encryptInventorySizeData, 
+import {
+  encryptInventoryData,
+  decryptInventoryData,
+  encryptInventorySizeData,
   decryptInventorySizeData,
   encryptTagData,
-  decryptTagData
+  decryptTagData,
 } from '@/lib/utils/inventoryEncryption';
 
 // Define a minimal InventoryItem type for this context
-interface InventoryItemForId {
-  id: number;
-  category: string;
-}
+// interface InventoryItemForId {
+//   id: number;
+//   category: string;
+// }
 
 // Helper: get formatted ID (e.g., AD-000001)
 function getFormattedId(category: string, categoryCounter: number) {
@@ -72,7 +72,7 @@ export async function GET() {
   const result = items.map((item) => {
     // Decrypt inventory item data
     const decryptedItem = decryptInventoryData(item);
-    
+
     const itemSizes = sizes
       .filter((s) => s.itemId === item.id)
       .map((s) => {
@@ -118,9 +118,9 @@ export async function POST(req: NextRequest) {
 
   // Try to increment the counter for the category
   let categoryCounter: number;
-  
+
   // First try to find existing counter with encrypted category
-  let [counter] = await db
+  const [counter] = await db
     .select()
     .from(categoryCounters)
     .where(eq(categoryCounters.category, encryptedCategory));
@@ -128,10 +128,10 @@ export async function POST(req: NextRequest) {
   if (counter) {
     // Update existing counter
     const [updatedCounter] = await db
-    .update(categoryCounters)
-    .set({ counter: sql`${categoryCounters.counter} + 1` })
+      .update(categoryCounters)
+      .set({ counter: sql`${categoryCounters.counter} + 1` })
       .where(eq(categoryCounters.category, encryptedCategory))
-    .returning({ counter: categoryCounters.counter });
+      .returning({ counter: categoryCounters.counter });
     categoryCounter = updatedCounter.counter;
   } else {
     // If counter doesn't exist, create it and use 1
@@ -160,20 +160,22 @@ export async function POST(req: NextRequest) {
 
   // Insert sizes with encrypted data
   if (sizes && sizes.length) {
-    const encryptedSizes = sizes.map((s: { title: string; quantity: number; onHand: number; price: number }) => {
-      const encryptedSize = encryptInventorySizeData({
-        ...s,
-        itemId: item.id,
-      });
-      return {
-        title: encryptedSize.title,
-        quantity: encryptedSize.quantity,
-        onHand: encryptedSize.onHand,
-        price: encryptedSize.price,
-        itemId: item.id,
-      };
-    });
-    
+    const encryptedSizes = sizes.map(
+      (s: { title: string; quantity: number; onHand: number; price: number }) => {
+        const encryptedSize = encryptInventorySizeData({
+          ...s,
+          itemId: item.id,
+        });
+        return {
+          title: encryptedSize.title,
+          quantity: encryptedSize.quantity,
+          onHand: encryptedSize.onHand,
+          price: encryptedSize.price,
+          itemId: item.id,
+        };
+      }
+    );
+
     await db.insert(inventorySizes).values(encryptedSizes);
   }
 
@@ -183,7 +185,7 @@ export async function POST(req: NextRequest) {
     for (const tagName of tagNames) {
       // Encrypt tag name for lookup
       const encryptedTagName = encryptTagData({ name: tagName }).name;
-      
+
       let [tag] = await db.select().from(tags).where(eq(tags.name, encryptedTagName));
       if (!tag) {
         [tag] = await db.insert(tags).values({ name: encryptedTagName }).returning();

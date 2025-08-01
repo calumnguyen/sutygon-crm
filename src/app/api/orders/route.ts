@@ -5,16 +5,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     console.log('Order creation API received body:', JSON.stringify(body, null, 2));
-    
-    const {
-      customerId,
-      orderDate,
-      expectedReturnDate,
-      totalAmount,
-      depositAmount,
-      items,
-      notes
-    } = body;
+
+    const { customerId, orderDate, expectedReturnDate, totalAmount, depositAmount, items, notes } =
+      body;
 
     // Validate required fields
     console.log('Validating fields:');
@@ -23,21 +16,34 @@ export async function POST(req: NextRequest) {
     console.log('expectedReturnDate:', expectedReturnDate, 'type:', typeof expectedReturnDate);
     console.log('totalAmount:', totalAmount, 'type:', typeof totalAmount);
     console.log('depositAmount:', depositAmount, 'type:', typeof depositAmount);
-    
-    if (customerId === undefined || customerId === null || 
-        orderDate === undefined || orderDate === null || 
-        expectedReturnDate === undefined || expectedReturnDate === null || 
-        totalAmount === undefined || totalAmount === null || 
-        depositAmount === undefined || depositAmount === null) {
+
+    if (
+      customerId === undefined ||
+      customerId === null ||
+      orderDate === undefined ||
+      orderDate === null ||
+      expectedReturnDate === undefined ||
+      expectedReturnDate === null ||
+      totalAmount === undefined ||
+      totalAmount === null ||
+      depositAmount === undefined ||
+      depositAmount === null
+    ) {
       console.log('Validation failed:');
       if (customerId === undefined || customerId === null) console.log('- customerId is missing');
       if (orderDate === undefined || orderDate === null) console.log('- orderDate is missing');
-      if (expectedReturnDate === undefined || expectedReturnDate === null) console.log('- expectedReturnDate is missing');
-      if (totalAmount === undefined || totalAmount === null) console.log('- totalAmount is missing');
-      if (depositAmount === undefined || depositAmount === null) console.log('- depositAmount is missing');
-      
+      if (expectedReturnDate === undefined || expectedReturnDate === null)
+        console.log('- expectedReturnDate is missing');
+      if (totalAmount === undefined || totalAmount === null)
+        console.log('- totalAmount is missing');
+      if (depositAmount === undefined || depositAmount === null)
+        console.log('- depositAmount is missing');
+
       return NextResponse.json(
-        { error: 'Missing required fields: customerId, orderDate, expectedReturnDate, totalAmount, depositAmount' },
+        {
+          error:
+            'Missing required fields: customerId, orderDate, expectedReturnDate, totalAmount, depositAmount',
+        },
         { status: 400 }
       );
     }
@@ -59,10 +65,11 @@ export async function POST(req: NextRequest) {
       documentId: null,
       depositType: null,
       depositValue: null,
+      taxInvoiceExported: false,
     };
 
     console.log('Creating order with data:', JSON.stringify(orderData, null, 2));
-    
+
     const createdOrder = await createOrder(orderData);
     console.log('Created order:', createdOrder.id);
 
@@ -82,7 +89,7 @@ export async function POST(req: NextRequest) {
           percent: item.percent || null,
           isCustom: item.isCustom || false,
         };
-        
+
         console.log('Creating order item:', JSON.stringify(itemData, null, 2));
         await createOrderItem(itemData);
       }
@@ -97,7 +104,7 @@ export async function POST(req: NextRequest) {
           text: note.text,
           done: note.done || false,
         };
-        
+
         console.log('Creating order note:', JSON.stringify(noteData, null, 2));
         await createOrderNote(noteData);
       }
@@ -106,9 +113,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(createdOrder, { status: 201 });
   } catch (error) {
     console.error('Error creating order:', error);
-    return NextResponse.json(
-      { error: 'Failed to create order' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
   }
-} 
+}

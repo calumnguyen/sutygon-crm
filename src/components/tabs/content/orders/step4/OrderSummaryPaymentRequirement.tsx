@@ -37,10 +37,10 @@ interface OrderSummaryPaymentRequirementProps {
   isPaymentSubmitted: boolean;
   setIsPaymentSubmitted: (v: boolean) => void;
   orderId: string;
-  customer: any;
+  customer: { name: string } | null;
   date: string;
-  orderItems: any[];
-  notes: any[];
+  orderItems: unknown[];
+  notes: unknown[];
   onPaymentSuccess?: () => void;
 }
 
@@ -81,7 +81,15 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
   const totalPay = total + vatAmount + depositValue;
 
   // Use the useOrderPayment hook for all payment state/handlers
-  const payment = useOrderPayment(totalPay, orderId, documentInfo, depositInfo, onPaymentSuccess, setIsPaymentSubmitted, customer?.name);
+  const payment = useOrderPayment(
+    totalPay,
+    orderId,
+    documentInfo,
+    depositInfo,
+    onPaymentSuccess,
+    setIsPaymentSubmitted,
+    customer?.name
+  );
 
   // Effects
   useEffect(() => {
@@ -206,8 +214,8 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
           <span className="text-white font-bold">{total.toLocaleString('vi-VN')} đ</span>
         </div>
         <div className="flex items-center justify-between text-sm">
-                            <span className="text-white font-medium">VAT ({vatPercentage}%)</span>
-                            <span className="text-white font-bold">{vatAmount.toLocaleString('vi-VN')} đ</span>
+          <span className="text-white font-medium">VAT ({vatPercentage}%)</span>
+          <span className="text-white font-bold">{vatAmount.toLocaleString('vi-VN')} đ</span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-white font-medium">Tiền cọc</span>
@@ -255,9 +263,7 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
             </div>
           </>
         ) : null}
-        
 
-        
         <div className="flex items-center justify-between text-base mt-2 border-t border-gray-700 pt-2">
           <span className="text-white font-semibold">Số Tiền Cần Trả</span>
           <span className="text-green-400 font-bold text-lg">
@@ -272,7 +278,6 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
             Thanh Toán
           </button>
         )}
-        
       </div>
 
       {/* Payment Confirmation Modal */}
@@ -319,9 +324,11 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
         qrLoading={payment.qrLoading}
         qrError={payment.qrError}
         qrSVG={payment.qrSVG}
-        totalPay={payment.isPartialPayment && payment.partialAmount 
-          ? parseInt(payment.partialAmount) || 0 
-          : payment.totalPay}
+        totalPay={
+          payment.isPartialPayment && payment.partialAmount
+            ? parseInt(payment.partialAmount) || 0
+            : payment.totalPay
+        }
         orderId={orderId}
         onConfirm={payment.handleConfirmQRPayment}
         onCancel={payment.handleCancelQRPayment}

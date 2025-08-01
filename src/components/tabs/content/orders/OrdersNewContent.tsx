@@ -11,7 +11,7 @@ import OrdersNewStep4 from './OrdersNewStep4';
 import { useOrderNewFlow } from './hooks';
 import { OrderItem } from './types';
 import { useTabContext } from '@/context/TabContext';
-import { TabId, createTabId } from '@/types/tabTypes';
+import { TabId, createTabId, FirstLevelTab } from '@/types/tabTypes';
 
 const steps = ['Khách Hàng', 'Chọn Ngày Thuê', 'Sản Phẩm', 'Thanh Toán'];
 
@@ -93,14 +93,14 @@ const OrdersNewContent: React.FC<{ tabId: string }> = ({ tabId }) => {
   // Handle payment success - show banner and navigate back to Orders view
   const handlePaymentSuccess = () => {
     setShowSuccessBanner(true);
-    
+
     // After 3 seconds, navigate back to Orders view
     setTimeout(() => {
       // Find the main Orders tab (not the new order tab)
-      let ordersTab = firstLevelTabs.find(tab => 
-        tab.selectedOption?.id === 'orders' && !tab.id.startsWith('orders-new-')
+      let ordersTab = firstLevelTabs.find(
+        (tab) => tab.selectedOption?.id === 'orders' && !tab.id.startsWith('orders-new-')
       );
-      
+
       if (!ordersTab) {
         // Create a new Orders tab if none exists
         const newOrdersTabId = createTabId('orders-main');
@@ -113,14 +113,19 @@ const OrdersNewContent: React.FC<{ tabId: string }> = ({ tabId }) => {
           isDefault: false,
           selectedOption: { id: createTabId('orders'), label: 'Đơn Hàng' },
         });
-        ordersTab = { id: newOrdersTabId } as any;
+        ordersTab = {
+          id: newOrdersTabId,
+          type: 'first',
+          options: [],
+          label: 'Đơn Hàng',
+        } as FirstLevelTab;
       }
-      
+
       if (ordersTab) {
         // Activate the Orders tab
         activateTab(ordersTab.id);
       }
-      
+
       // Remove the current new order tab
       removeTab(createTabId(tabId));
     }, 3000);
@@ -132,7 +137,9 @@ const OrdersNewContent: React.FC<{ tabId: string }> = ({ tabId }) => {
         <div className="mb-6 px-6 py-4 rounded-lg bg-green-600 text-white text-lg font-semibold shadow-lg flex items-center justify-center border border-green-400">
           <div className="text-center">
             <div className="text-xl font-bold mb-1">🎉 Thanh toán thành công!</div>
-            <div className="text-green-100">Đơn hàng đã được xử lý. Đang chuyển về trang Đơn Hàng...</div>
+            <div className="text-green-100">
+              Đơn hàng đã được xử lý. Đang chuyển về trang Đơn Hàng...
+            </div>
           </div>
         </div>
       )}
