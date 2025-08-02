@@ -4,6 +4,7 @@ import { Plus, List, Grid, Search, SlidersHorizontal } from 'lucide-react';
 import Button from '@/components/common/dropdowns/Button';
 import { TRANSLATIONS } from '@/config/translations';
 import { AddItemFormState } from '@/types/inventory';
+import { InventoryItem } from '@/types/inventory';
 import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { useInventory } from './useInventory';
 import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
@@ -19,6 +20,7 @@ const InventoryContent: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const { inventory, refreshInventory } = useInventory();
   const [showFilter, setShowFilter] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   const {
     previewOpen,
     setPreviewOpen,
@@ -68,10 +70,6 @@ const InventoryContent: React.FC = () => {
     ],
   });
 
-  // For now, mockItem has no imageUrl
-  const imageUrl =
-    inventory.length > 0 && inventory[0].imageUrl ? inventory[0].imageUrl : '/no-image.png';
-
   // Close category dropdown on click outside
   useEffect(() => {
     if (!categoryDropdownOpen) return;
@@ -95,6 +93,16 @@ const InventoryContent: React.FC = () => {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showFilter]);
+
+  const handlePreviewOpen = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setPreviewOpen(true);
+  };
+
+  const handlePreviewClose = () => {
+    setPreviewOpen(false);
+    setSelectedItem(undefined);
+  };
 
   return (
     <div className="p-3 sm:p-6">
@@ -197,16 +205,19 @@ const InventoryContent: React.FC = () => {
 
       <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
         {viewMode === 'list' ? (
-          <InventoryTable filteredInventory={filteredInventory} setPreviewOpen={setPreviewOpen} />
+          <InventoryTable
+            filteredInventory={filteredInventory}
+            setPreviewOpen={handlePreviewOpen}
+          />
         ) : (
-          <InventoryGrid filteredInventory={filteredInventory} setPreviewOpen={setPreviewOpen} />
+          <InventoryGrid filteredInventory={filteredInventory} setPreviewOpen={handlePreviewOpen} />
         )}
       </div>
       <InventoryPreviewModal
         previewOpen={previewOpen}
-        setPreviewOpen={setPreviewOpen}
+        setPreviewOpen={handlePreviewClose}
         filteredInventory={filteredInventory}
-        imageUrl={imageUrl}
+        selectedItem={selectedItem}
       />
       <InventoryAddItemModal
         addModalOpen={addModalOpen}

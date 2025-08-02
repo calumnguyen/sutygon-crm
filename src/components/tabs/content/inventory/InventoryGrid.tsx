@@ -4,7 +4,7 @@ import { formatPriceVND } from './InventoryUtils';
 
 interface InventoryGridProps {
   filteredInventory: InventoryItem[];
-  setPreviewOpen: (open: boolean) => void;
+  setPreviewOpen: (item: InventoryItem) => void;
 }
 
 const InventoryGrid: React.FC<InventoryGridProps> = ({ filteredInventory, setPreviewOpen }) => {
@@ -22,7 +22,12 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({ filteredInventory, setPre
             src={item.imageUrl || '/no-image.png'}
             alt={item.name}
             className="w-20 h-24 sm:w-24 sm:h-32 object-contain rounded bg-gray-700 border border-gray-800 mb-2 cursor-pointer hover:opacity-80 transition"
-            onClick={() => setPreviewOpen(true)}
+            onClick={() => setPreviewOpen(item)}
+            onError={(e) => {
+              // Fallback to no-image if the image fails to load
+              const target = e.target as HTMLImageElement;
+              target.src = '/no-image.png';
+            }}
           />
           <div className="w-full flex flex-col items-center mb-2">
             <span className="font-mono text-xs text-gray-400 mb-1">{item.formattedId}</span>

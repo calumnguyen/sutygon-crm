@@ -4,7 +4,7 @@ import Button from '@/components/common/dropdowns/Button';
 
 interface InventoryTableProps {
   filteredInventory: InventoryItem[];
-  setPreviewOpen: (open: boolean) => void;
+  setPreviewOpen: (item: InventoryItem) => void;
 }
 
 const InventoryTable: React.FC<InventoryTableProps> = ({ filteredInventory, setPreviewOpen }) => {
@@ -88,7 +88,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ filteredInventory, setP
                 <td className="px-4 py-3">
                   <Button
                     variant="secondary"
-                    onClick={() => setPreviewOpen(true)}
+                    onClick={() => setPreviewOpen(item)}
                     className="p-2"
                     title="Xem trước sản phẩm"
                   >
@@ -117,7 +117,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ filteredInventory, setP
               </div>
               <Button
                 variant="secondary"
-                onClick={() => setPreviewOpen(true)}
+                onClick={() => setPreviewOpen(item)}
                 className="p-2 flex-shrink-0"
                 title="Xem trước sản phẩm"
               >
