@@ -13,6 +13,7 @@ interface InventoryAddItemModalProps {
   setForm: (form: AddItemFormState) => void;
   resetAddItemForm: () => void;
   handleAddItem: () => void;
+  isUploading?: boolean;
 }
 
 const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
@@ -24,6 +25,7 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
   setForm,
   resetAddItemForm,
   handleAddItem,
+  isUploading = false,
 }) => {
   if (!addModalOpen) return null;
   return (
@@ -32,7 +34,7 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
         <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6 text-center">
           Thêm sản phẩm mới
         </h2>
-        {addStep === 1 && <AddItemStep1 form={form} setForm={setForm} />}
+        {addStep === 1 && <AddItemStep1 form={form} setForm={setForm} isUploading={isUploading} />}
         {addStep === 2 && <AddItemStep2 form={form} setForm={setForm} />}
         <div className="flex flex-col sm:flex-row justify-end w-full mt-4 sm:mt-6 space-y-2 sm:space-y-0 sm:space-x-3">
           {addStep === 2 && (
@@ -41,6 +43,7 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
               onClick={() => setAddStep(1)}
               type="button"
               className="w-full sm:w-auto"
+              disabled={isUploading}
             >
               Quay lại
             </Button>
@@ -53,6 +56,7 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
             }}
             type="button"
             className="w-full sm:w-auto"
+            disabled={isUploading}
           >
             Huỷ
           </Button>
@@ -61,7 +65,7 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
               variant="primary"
               type="button"
               onClick={() => setAddStep(2)}
-              disabled={!form.name.trim()}
+              disabled={!form.name.trim() || isUploading}
               className="w-full sm:w-auto"
             >
               Tiếp tục
@@ -73,12 +77,13 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
               type="button"
               disabled={
                 form.sizes.length < 1 ||
-                form.sizes.some((s) => !s.title.trim() || !s.quantity || !s.price)
+                form.sizes.some((s) => !s.title.trim() || !s.quantity || !s.price) ||
+                isUploading
               }
               onClick={handleAddItem}
               className="w-full sm:w-auto"
             >
-              Thêm sản phẩm
+              {isUploading ? 'Đang tải...' : 'Thêm sản phẩm'}
             </Button>
           )}
         </div>

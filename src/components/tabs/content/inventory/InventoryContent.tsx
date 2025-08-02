@@ -34,6 +34,7 @@ const InventoryContent: React.FC = () => {
     handleAddItemClick,
     handleIdentitySuccess,
     handleAddItem,
+    isUploading,
   } = useInventoryModals(refreshInventory);
   const {
     searchQuery,
@@ -216,6 +217,7 @@ const InventoryContent: React.FC = () => {
         setForm={setForm}
         resetAddItemForm={resetAddItemForm}
         handleAddItem={handleAddItem}
+        isUploading={isUploading}
       />
       {/* Identity Confirmation Modal for admin */}
       <IdentityConfirmModal

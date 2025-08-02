@@ -250,6 +250,7 @@ export function useInventoryModals(refreshInventory: () => void) {
   const [addStep, setAddStep] = useState(1);
   const [form, setForm] = useState<AddItemFormState>(initialForm);
   const [identityModalOpen, setIdentityModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const resetAddItemForm = () => {
     setAddStep(1);
@@ -265,33 +266,81 @@ export function useInventoryModals(refreshInventory: () => void) {
     setAddModalOpen(true);
   };
 
+  const uploadImage = async (file: File): Promise<string | null> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+
+      const result = await response.json();
+      return result.url;
+    } catch (error) {
+      console.error('Upload error:', error);
+      throw error;
+    }
+  };
+
   const handleAddItem = async () => {
-    const tags = form.tagsInput
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0)
-      .slice(0, 10);
-    const sizes = form.sizes.map((s) => ({
-      title: s.title,
-      quantity: parseInt(s.quantity, 10) || 0,
-      onHand: parseInt(s.onHand, 10) || 0,
-      price: parseInt(s.price.replace(/\D/g, ''), 10) || 0,
-    }));
-    const imageUrl = form.photoFile ? URL.createObjectURL(form.photoFile) : undefined;
-    await fetch('/api/inventory', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: form.name,
-        category: form.category,
-        imageUrl,
-        tags,
-        sizes,
-      }),
-    });
-    refreshInventory();
-    resetAddItemForm();
-    setAddModalOpen(false);
+    try {
+      setIsUploading(true);
+
+      const tags = form.tagsInput
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0)
+        .slice(0, 10);
+
+      const sizes = form.sizes.map((s) => ({
+        title: s.title,
+        quantity: parseInt(s.quantity, 10) || 0,
+        onHand: parseInt(s.onHand, 10) || 0,
+        price: parseInt(s.price.replace(/\D/g, ''), 10) || 0,
+      }));
+
+      // Upload image if provided
+      let imageUrl: string | undefined;
+      if (form.photoFile) {
+        try {
+          const uploadedUrl = await uploadImage(form.photoFile);
+          imageUrl = uploadedUrl || undefined;
+        } catch (error) {
+          console.error('Image upload failed:', error);
+          // Continue without image if upload fails
+          imageUrl = undefined;
+        }
+      }
+
+      // Create inventory item
+      await fetch('/api/inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          category: form.category,
+          imageUrl,
+          tags,
+          sizes,
+        }),
+      });
+
+      refreshInventory();
+      resetAddItemForm();
+      setAddModalOpen(false);
+    } catch (error) {
+      console.error('Failed to add item:', error);
+      // You might want to show an error message to the user here
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return {
@@ -309,5 +358,6 @@ export function useInventoryModals(refreshInventory: () => void) {
     handleAddItemClick,
     handleIdentitySuccess,
     handleAddItem,
+    isUploading,
   };
 }

@@ -86,3 +86,6 @@ Desktop.ini
 # Private keys
 private.key
 private.pem
+
+# Uploaded files
+public/uploads/

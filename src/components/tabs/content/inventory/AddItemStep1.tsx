@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Upload } from 'lucide-react';
+import { Camera, Upload, Loader2 } from 'lucide-react';
 import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { parseTags } from './InventoryUtils';
 import { AddItemFormState } from './InventoryTypes';
@@ -7,9 +7,10 @@ import { AddItemFormState } from './InventoryTypes';
 interface AddItemStep1Props {
   form: AddItemFormState;
   setForm: (form: AddItemFormState) => void;
+  isUploading?: boolean;
 }
 
-const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm }) => {
+const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm, isUploading = false }) => {
   const tags = parseTags(form.tagsInput);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
@@ -54,6 +55,7 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm }) => {
             placeholder="Nhập tên sản phẩm"
             className="mt-1 block w-full rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-3 sm:px-4 py-2 text-sm sm:text-base"
             required
+            disabled={isUploading}
           />
         </div>
         <div>
@@ -65,6 +67,7 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm }) => {
             value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
             className="mt-1 block w-full rounded-lg border bg-gray-800 border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-3 sm:px-4 py-2 text-sm sm:text-base"
+            disabled={isUploading}
           >
             {CATEGORY_OPTIONS.map((option) => (
               <option key={option} value={option}>
@@ -85,6 +88,7 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm }) => {
             onChange={(e) => setForm({ ...form, tagsInput: e.target.value })}
             placeholder="Ví dụ: Cao Cấp, Bà Sui, Đám Cưới"
             className="mt-1 block w-full rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-3 sm:px-4 py-2 text-sm sm:text-base"
+            disabled={isUploading}
           />
           <div className="flex flex-wrap gap-1 mt-2">
             {tags.map((tag, idx) => (
@@ -108,22 +112,32 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm }) => {
             {isMobile() && (
               <button
                 type="button"
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm sm:text-base flex items-center justify-center gap-2"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm sm:text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleCameraCapture}
+                disabled={isUploading}
               >
-                <Camera className="w-4 h-4" />
-                Chụp ảnh
+                {isUploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+                {isUploading ? 'Đang tải...' : 'Chụp ảnh'}
               </button>
             )}
 
             {/* File Upload Button */}
             <button
               type="button"
-              className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm sm:text-base flex items-center justify-center gap-2"
+              className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm sm:text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={handleFileUpload}
+              disabled={isUploading}
             >
-              <Upload className="w-4 h-4" />
-              Tải ảnh lên
+              {isUploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              {isUploading ? 'Đang tải...' : 'Tải ảnh lên'}
             </button>
           </div>
 
@@ -135,6 +149,7 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm }) => {
             accept="image/*"
             className="hidden"
             onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+            disabled={isUploading}
           />
 
           <input
@@ -145,6 +160,7 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm }) => {
             capture="environment"
             className="hidden"
             onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+            disabled={isUploading}
           />
 
           {/* Selected File Display */}
@@ -167,7 +183,8 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm }) => {
                 <button
                   type="button"
                   onClick={() => handleFileSelect(null)}
-                  className="text-red-400 hover:text-red-300 text-sm"
+                  className="text-red-400 hover:text-red-300 text-sm disabled:opacity-50"
+                  disabled={isUploading}
                 >
                   ✕
                 </button>
