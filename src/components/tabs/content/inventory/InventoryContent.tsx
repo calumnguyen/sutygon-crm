@@ -8,7 +8,7 @@ import { InventoryItem } from '@/types/inventory';
 import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { useInventory } from './useInventory';
 import { usePopper } from 'react-popper';
-import { useInventoryTable, useInventoryModals } from './hooks';
+import { useInventoryTable, useInventoryModals, useInventorySearch } from './hooks';
 import InventoryTable from './InventoryTable';
 import InventoryGrid from './InventoryGrid';
 import InventoryFilterDropdown from './InventoryFilterDropdown';
@@ -41,9 +41,29 @@ const InventoryContent: React.FC = () => {
     setIsSaving,
     isDeleting,
   } = useInventoryModals(refreshInventory);
+
+  // Use API search for better performance and full database search
   const {
     searchQuery,
-    setSearchQuery,
+    searchResults,
+    isSearching,
+    searchError,
+    hasMore: searchHasMore,
+    total: searchTotal,
+    handleSearch,
+    loadMore: searchLoadMore,
+    clearSearch,
+  } = useInventorySearch();
+
+  // Determine which data to display based on search state
+  const displayInventory = searchQuery.trim() ? searchResults : inventory;
+  const displayLoading = searchQuery.trim() ? isSearching : loading;
+  const displayLoadingMore = searchQuery.trim() ? false : loadingMore;
+  const displayHasMore = searchQuery.trim() ? searchHasMore : hasMore;
+  const displayLoadMore = searchQuery.trim() ? searchLoadMore : loadMore;
+
+  // Use frontend filtering for non-search scenarios
+  const {
     priceSort,
     setPriceSort,
     priceRange,
@@ -57,8 +77,11 @@ const InventoryContent: React.FC = () => {
     idSort,
     setIdSort,
     priceRangeInvalid,
-    filteredInventory,
-  } = useInventoryTable(inventory);
+    filteredInventory: filteredRegularInventory,
+  } = useInventoryTable(displayInventory);
+
+  // Use search results directly when searching, otherwise use filtered inventory
+  const filteredInventory = searchQuery.trim() ? displayInventory : filteredRegularInventory;
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
@@ -155,7 +178,7 @@ const InventoryContent: React.FC = () => {
             type="text"
             placeholder="Tìm kiếm..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 w-full sm:w-64"
           />
         </div>
@@ -246,7 +269,7 @@ const InventoryContent: React.FC = () => {
           onClick={() => {
             refreshInventory();
             // Clear all filters and search
-            setSearchQuery('');
+            clearSearch();
             setPriceSort(null);
             setPriceRange({ min: '', max: '' });
             setSelectedCategories([]);
@@ -271,7 +294,7 @@ const InventoryContent: React.FC = () => {
       </div>
 
       <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-        {loading ? (
+        {displayLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-blue-400 text-lg">Đang tải dữ liệu kho...</div>
           </div>
@@ -281,9 +304,9 @@ const InventoryContent: React.FC = () => {
             setPreviewOpen={handlePreviewOpen}
             handleEditItem={handleEditItem}
             lastElementRef={lastElementRef}
-            loadingMore={loadingMore}
-            loadMore={loadMore}
-            hasMore={hasMore}
+            loadingMore={displayLoadingMore}
+            loadMore={displayLoadMore}
+            hasMore={displayHasMore}
           />
         ) : (
           <InventoryGrid
@@ -291,9 +314,9 @@ const InventoryContent: React.FC = () => {
             setPreviewOpen={handlePreviewOpen}
             handleEditItem={handleEditItem}
             lastElementRef={lastElementRef}
-            loadingMore={loadingMore}
-            loadMore={loadMore}
-            hasMore={hasMore}
+            loadingMore={displayLoadingMore}
+            loadMore={displayLoadMore}
+            hasMore={displayHasMore}
           />
         )}
       </div>

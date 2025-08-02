@@ -122,8 +122,21 @@ export function useInventoryTable(inventory: InventoryItem[]) {
   );
 
   const filteredInventory = useMemo(() => {
-    // Helper to remove accent marks
-    const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    // Helper to remove accent marks with comprehensive Vietnamese support
+    const normalize = (str: string) => {
+      return str
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+        .replace(/[đ]/g, 'd') // Replace đ with d
+        .replace(/[Đ]/g, 'D') // Replace Đ with D
+        .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+        .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+        .replace(/[ìíịỉĩ]/g, 'i')
+        .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+        .replace(/[ùúụủũưừứựửữ]/g, 'u')
+        .replace(/[ỳýỵỷỹ]/g, 'y');
+    };
 
     let result = inventory.filter((item: InventoryItem) => {
       if (priceRangeInvalid) return false;
