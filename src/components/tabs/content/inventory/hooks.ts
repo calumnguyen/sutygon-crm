@@ -245,66 +245,54 @@ const initialForm: AddItemFormState = {
 };
 
 export function useInventoryModals(refreshInventory: () => void) {
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [addStep, setAddStep] = useState(1);
-  const [form, setForm] = useState<AddItemFormState>(initialForm);
-  const [identityModalOpen, setIdentityModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [form, setForm] = useState<AddItemFormState>(initialForm);
 
   const resetAddItemForm = () => {
-    setAddStep(1);
-    setForm(initialForm);
+    setForm({
+      name: '',
+      category: '',
+      tags: [],
+      tagsInput: '',
+      photoFile: null,
+      sizes: [{ title: '', quantity: '', onHand: '', price: '' }],
+      samePrice: true,
+    });
   };
 
   const handleAddItemClick = () => {
-    setIdentityModalOpen(true);
+    setAddModalOpen(true);
   };
 
-  const handleIdentitySuccess = () => {
-    setIdentityModalOpen(false);
-    setAddModalOpen(true);
+  const handleEditItem = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setEditModalOpen(true);
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
-      console.log('DEBUG: uploadImage called with file:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          navigator.userAgent
-        ),
-      });
-
       const formData = new FormData();
       formData.append('file', file);
 
-      console.log('DEBUG: Sending upload request to /api/upload');
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
 
-      console.log('DEBUG: Upload response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('DEBUG: Upload failed:', errorData);
-        const errorMessage = errorData.error || 'Upload failed';
-        const errorDetails = errorData.details || '';
-        throw new Error(`${errorMessage}${errorDetails ? `: ${errorDetails}` : ''}`);
+        throw new Error(errorData.error || 'Upload failed');
       }
 
       const result = await response.json();
-      console.log('DEBUG: Upload successful, result:', result);
       return result.url;
     } catch (error) {
-      console.error('DEBUG: Upload error:', error);
+      console.error('Upload error:', error);
       throw error;
     }
   };
@@ -330,44 +318,14 @@ export function useInventoryModals(refreshInventory: () => void) {
       let imageUrl: string | undefined;
       if (form.photoFile) {
         try {
-          console.log('DEBUG: Starting image upload for file:', form.photoFile.name);
-          console.log('DEBUG: File details:', {
-            name: form.photoFile.name,
-            size: form.photoFile.size,
-            type: form.photoFile.type,
-            lastModified: form.photoFile.lastModified,
-          });
-
           const uploadedUrl = await uploadImage(form.photoFile);
-          console.log('DEBUG: Upload completed, received URL:', uploadedUrl);
           imageUrl = uploadedUrl || undefined;
-          console.log('DEBUG: Final imageUrl value:', imageUrl);
-
-          // Add visual feedback for mobile users
-          if (imageUrl) {
-            alert(`Upload thành công!\nURL: ${imageUrl}\nFile sẽ được lưu vào database.`);
-          } else {
-            alert('Upload thất bại! URL trống.');
-          }
         } catch (error) {
-          console.error('DEBUG: Image upload failed:', error);
-          alert(`Upload thất bại: ${error}`);
+          console.error('Image upload failed:', error);
           // Continue without image if upload fails
           imageUrl = undefined;
         }
-      } else {
-        console.log('DEBUG: No photoFile provided, imageUrl will be undefined');
-        alert('Không có file ảnh để upload!');
       }
-
-      // Debug log
-      console.log('DEBUG: About to POST /api/inventory', {
-        imageUrl,
-        photoFile: form.photoFile,
-        hasPhotoFile: !!form.photoFile,
-        imageUrlType: typeof imageUrl,
-        imageUrlLength: imageUrl?.length,
-      });
 
       // Create inventory item
       await fetch('/api/inventory', {
@@ -387,15 +345,9 @@ export function useInventoryModals(refreshInventory: () => void) {
       setAddModalOpen(false);
     } catch (error) {
       console.error('Failed to add item:', error);
-      // You might want to show an error message to the user here
     } finally {
       setIsUploading(false);
     }
-  };
-
-  const handleEditItem = (item: InventoryItem) => {
-    setSelectedItem(item);
-    setEditModalOpen(true);
   };
 
   const handleSaveEdit = async (updatedItem: {
@@ -404,6 +356,7 @@ export function useInventoryModals(refreshInventory: () => void) {
     category: string;
     tags: string[];
     sizes: Array<{ title: string; quantity: number; onHand: number; price: number }>;
+    imageUrl?: string;
   }) => {
     try {
       setIsSaving(true);
@@ -416,6 +369,7 @@ export function useInventoryModals(refreshInventory: () => void) {
           category: updatedItem.category,
           tags: updatedItem.tags,
           sizes: updatedItem.sizes,
+          imageUrl: updatedItem.imageUrl,
         }),
       });
 
@@ -448,21 +402,16 @@ export function useInventoryModals(refreshInventory: () => void) {
   };
 
   return {
-    previewOpen,
-    setPreviewOpen,
     addModalOpen,
     setAddModalOpen,
     editModalOpen,
     setEditModalOpen,
-    addStep,
-    setAddStep,
+    selectedItem,
+    setSelectedItem,
     form,
     setForm,
-    identityModalOpen,
-    setIdentityModalOpen,
     resetAddItemForm,
     handleAddItemClick,
-    handleIdentitySuccess,
     handleAddItem,
     handleEditItem,
     handleSaveEdit,
@@ -470,6 +419,5 @@ export function useInventoryModals(refreshInventory: () => void) {
     isUploading,
     isSaving,
     isDeleting,
-    selectedItem,
   };
 }

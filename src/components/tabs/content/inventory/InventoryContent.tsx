@@ -7,7 +7,6 @@ import { AddItemFormState } from '@/types/inventory';
 import { InventoryItem } from '@/types/inventory';
 import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { useInventory } from './useInventory';
-import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
 import { usePopper } from 'react-popper';
 import { useInventoryTable, useInventoryModals } from './hooks';
 import InventoryTable from './InventoryTable';
@@ -22,22 +21,16 @@ const InventoryContent: React.FC = () => {
   const { inventory, refreshInventory } = useInventory();
   const [showFilter, setShowFilter] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
+  const [previewOpen, setPreviewOpen] = useState(false);
   const {
-    previewOpen,
-    setPreviewOpen,
     addModalOpen,
     setAddModalOpen,
     editModalOpen,
     setEditModalOpen,
-    addStep,
-    setAddStep,
+    selectedItem: editSelectedItem,
     form,
     setForm,
-    identityModalOpen,
-    setIdentityModalOpen,
-    resetAddItemForm,
     handleAddItemClick,
-    handleIdentitySuccess,
     handleAddItem,
     handleEditItem,
     handleSaveEdit,
@@ -45,7 +38,6 @@ const InventoryContent: React.FC = () => {
     isUploading,
     isSaving,
     isDeleting,
-    selectedItem: editSelectedItem,
   } = useInventoryModals(refreshInventory);
   const {
     searchQuery,
@@ -274,13 +266,6 @@ const InventoryContent: React.FC = () => {
         onDelete={handleDeleteItem}
         isSaving={isSaving}
         isDeleting={isDeleting}
-      />
-      {/* Identity Confirmation Modal for admin */}
-      <IdentityConfirmModal
-        open={identityModalOpen}
-        onClose={() => setIdentityModalOpen(false)}
-        onSuccess={handleIdentitySuccess}
-        requiredRole="admin"
       />
     </div>
   );

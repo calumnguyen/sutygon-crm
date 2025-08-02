@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Button from '@/components/common/dropdowns/Button';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2, Camera, Upload, X } from 'lucide-react';
+import Webcam from 'react-webcam';
 import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { parseTags } from './InventoryUtils';
 import { AddItemFormState } from '@/types/inventory';
@@ -16,6 +17,7 @@ interface InventoryEditModalProps {
     category: string;
     tags: string[];
     sizes: Array<{ title: string; quantity: number; onHand: number; price: number }>;
+    imageUrl?: string;
   }) => void;
   onDelete: (itemId: number) => void;
   isSaving?: boolean;
@@ -33,7 +35,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
 }) => {
   const [form, setForm] = useState<AddItemFormState>({
     name: '',
-    category: 'Áo Dài',
+    category: '',
     tags: [],
     tagsInput: '',
     photoFile: null,
@@ -42,6 +44,84 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
   });
   const [editStep, setEditStep] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const webcamRef = useRef<Webcam>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const isMobile = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+  };
+
+  const handleFileSelect = (file: File | null) => {
+    if (file) {
+      setForm({ ...form, photoFile: file });
+    } else {
+      setForm({ ...form, photoFile: null });
+    }
+  };
+
+  const handleFileUpload = () => {
+    photoInputRef.current?.click();
+  };
+
+  const handleCameraCapture = () => {
+    if (isMobile()) {
+      setShowCamera(true);
+    } else {
+      cameraInputRef.current?.click();
+    }
+  };
+
+  const capturePhoto = useCallback(() => {
+    if (webcamRef.current) {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) {
+        fetch(imageSrc)
+          .then((res) => res.blob())
+          .then((blob) => {
+            const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            handleFileSelect(file);
+            setShowCamera(false);
+          })
+          .catch((error) => {
+            console.error('Error converting camera image:', error);
+          });
+      }
+    }
+  }, []);
+
+  const handleCameraError = (error: string | DOMException) => {
+    setCameraError('Không thể truy cập camera. Vui lòng sử dụng "Tải ảnh lên" thay thế.');
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      const result = await response.json();
+      return result.url;
+    } catch (error) {
+      console.error('Upload error:', error);
+      throw error;
+    }
+  };
 
   // Initialize form when item changes
   useEffect(() => {
@@ -51,21 +131,31 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
         category: item.category,
         tags: item.tags,
         tagsInput: item.tags.join(', '),
-        photoFile: null, // We don't edit the photo file, just keep the URL
+        photoFile: null,
         sizes: item.sizes.map((size) => ({
           title: size.title,
           quantity: size.quantity.toString(),
           onHand: size.onHand.toString(),
           price: size.price.toString(),
         })),
-        samePrice: false, // Don't use same price for editing
+        samePrice: false,
       });
       setEditStep(1);
     }
   }, [item]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!item) return;
+
+    if (!form.name.trim()) {
+      alert('Vui lòng nhập tên sản phẩm');
+      return;
+    }
+
+    if (!form.category.trim()) {
+      alert('Vui lòng chọn danh mục');
+      return;
+    }
 
     const tags = form.tagsInput
       .split(',')
@@ -80,12 +170,29 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
       price: parseInt(s.price.replace(/\D/g, ''), 10) || 0,
     }));
 
+    let imageUrl = item.imageUrl; // Keep existing image by default
+
+    // Upload new image if provided
+    if (form.photoFile) {
+      try {
+        setIsUploading(true);
+        const uploadedUrl = await uploadImage(form.photoFile);
+        imageUrl = uploadedUrl || item.imageUrl;
+      } catch (error) {
+        console.error('Failed to upload image:', error);
+        alert('Không thể tải ảnh lên. Sản phẩm sẽ được cập nhật mà không có ảnh mới.');
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
     onSave({
       id: parseInt(item.id, 10),
       name: form.name,
       category: form.category,
       tags,
       sizes,
+      imageUrl,
     });
   };
 
@@ -140,6 +247,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                   className="mt-1 block w-full rounded-lg border bg-gray-800 border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-3 sm:px-4 py-2 text-sm sm:text-base"
+                  required
                   disabled={isSaving || isDeleting}
                 >
                   {CATEGORY_OPTIONS.map((option) => (
@@ -175,30 +283,186 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Ảnh hiện tại</label>
-                <div className="mt-2 p-3 bg-gray-800 rounded-lg border border-gray-600">
-                  <div className="flex items-center gap-2">
-                    <div className="w-12 h-12 bg-gray-700 rounded flex items-center justify-center">
-                      <img
-                        src={item.imageUrl || '/no-image.png'}
-                        alt="Current"
-                        className="w-10 h-10 object-cover rounded"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = '/no-image.png';
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-gray-200">Ảnh hiện tại</div>
-                      <div className="text-xs text-gray-400">Không thể thay đổi ảnh</div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Ảnh sản phẩm <span className="text-xs text-gray-400">(Không bắt buộc)</span>
+                </label>
+
+                {/* Current Image Display */}
+                {item.imageUrl && !form.photoFile && (
+                  <div className="mt-2 p-3 bg-gray-800 rounded-lg border border-gray-600">
+                    <div className="flex items-center gap-2">
+                      <div className="w-12 h-12 bg-gray-700 rounded flex items-center justify-center">
+                        <img
+                          src={item.imageUrl}
+                          alt="Current"
+                          className="w-10 h-10 object-cover rounded"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-gray-200">Ảnh hiện tại</div>
+                        <div className="text-xs text-gray-400">Đã lưu trong database</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, photoFile: null })}
+                        className="text-red-400 hover:text-red-300 text-sm"
+                        title="Xóa ảnh hiện tại"
+                      >
+                        ✕
+                      </button>
                     </div>
                   </div>
+                )}
+
+                {/* New Image Upload Options */}
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                  {/* Camera Capture Button (Mobile Only) */}
+                  {isMobile() && (
+                    <button
+                      type="button"
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm sm:text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleCameraCapture}
+                      disabled={isSaving || isDeleting}
+                    >
+                      <Camera className="w-4 h-4" />
+                      Chụp ảnh mới
+                    </button>
+                  )}
+
+                  {/* File Upload Button */}
+                  <button
+                    type="button"
+                    className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm sm:text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleFileUpload}
+                    disabled={isSaving || isDeleting}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Tải ảnh mới
+                  </button>
                 </div>
+
+                {/* New File Display */}
+                {form.photoFile && (
+                  <div className="mt-2 p-3 bg-gray-800 rounded-lg border border-gray-600">
+                    <div className="flex items-center gap-2">
+                      <div className="w-12 h-12 bg-gray-700 rounded flex items-center justify-center">
+                        <img
+                          src={URL.createObjectURL(form.photoFile)}
+                          alt="Preview"
+                          className="w-10 h-10 object-cover rounded"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-gray-200 truncate">{form.photoFile.name}</div>
+                        <div className="text-xs text-gray-400">
+                          {(form.photoFile.size / 1024 / 1024).toFixed(2)} MB
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleFileSelect(null)}
+                        className="text-red-400 hover:text-red-300 text-sm disabled:opacity-50"
+                        disabled={isSaving || isDeleting}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </form>
           </div>
         )}
+
+        {/* Camera Modal */}
+        {showCamera && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div className="bg-gray-900 rounded-lg p-4 max-w-md w-full mx-4 border border-gray-600">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-white">Chụp ảnh mới</h3>
+                <button
+                  onClick={() => setShowCamera(false)}
+                  className="text-gray-400 hover:text-gray-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {cameraError ? (
+                <div className="text-center py-8">
+                  <p className="text-red-400 mb-4">{cameraError}</p>
+                  <button
+                    onClick={() => setShowCamera(false)}
+                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Webcam
+                      ref={webcamRef}
+                      screenshotFormat="image/jpeg"
+                      videoConstraints={{
+                        width: 640,
+                        height: 480,
+                        facingMode: 'environment',
+                      }}
+                      onUserMediaError={handleCameraError}
+                      className="w-full rounded"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={capturePhoto}
+                      className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+                    >
+                      Chụp ảnh
+                    </button>
+                    <button
+                      onClick={() => setShowCamera(false)}
+                      className="flex-1 bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Hidden File Inputs */}
+        <input
+          ref={photoInputRef}
+          id="editPhoto"
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0] || null;
+            handleFileSelect(file);
+          }}
+          disabled={isSaving || isDeleting}
+        />
+
+        <input
+          ref={cameraInputRef}
+          id="editCamera"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0] || null;
+            handleFileSelect(file);
+          }}
+          disabled={isSaving || isDeleting}
+        />
 
         {editStep === 2 && (
           <div className="w-full">

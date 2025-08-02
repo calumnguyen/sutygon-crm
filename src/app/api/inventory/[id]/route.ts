@@ -17,7 +17,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const body = await request.json();
-    const { name, category, tags: tagNames, sizes } = body;
+    const { name, category, tags: tagNames, sizes, imageUrl } = body;
 
     // Encrypt inventory data before storing
     const encryptedInventoryData = encryptInventoryData({
@@ -31,6 +31,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .set({
         name: encryptedInventoryData.name,
         category: encryptedInventoryData.category,
+        imageUrl: imageUrl || null, // Update imageUrl if provided
       })
       .where(eq(inventoryItems.id, itemId));
 
