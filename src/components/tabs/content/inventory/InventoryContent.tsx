@@ -37,6 +37,7 @@ const InventoryContent: React.FC = () => {
     handleDeleteItem,
     isUploading,
     isSaving,
+    setIsSaving,
     isDeleting,
   } = useInventoryModals(refreshInventory);
   const {
@@ -265,6 +266,7 @@ const InventoryContent: React.FC = () => {
         onSave={handleSaveEdit}
         onDelete={handleDeleteItem}
         isSaving={isSaving}
+        setIsSaving={setIsSaving}
         isDeleting={isDeleting}
       />
     </div>

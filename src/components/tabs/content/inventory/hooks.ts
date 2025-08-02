@@ -418,6 +418,7 @@ export function useInventoryModals(refreshInventory: () => void) {
     handleDeleteItem,
     isUploading,
     isSaving,
+    setIsSaving,
     isDeleting,
   };
 }

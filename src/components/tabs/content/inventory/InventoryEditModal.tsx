@@ -21,6 +21,7 @@ interface InventoryEditModalProps {
   }) => void;
   onDelete: (itemId: number) => void;
   isSaving?: boolean;
+  setIsSaving: (saving: boolean) => void;
   isDeleting?: boolean;
 }
 
@@ -31,6 +32,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
   onSave,
   onDelete,
   isSaving = false,
+  setIsSaving,
   isDeleting = false,
 }) => {
   const [form, setForm] = useState<AddItemFormState>({
@@ -102,6 +104,12 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
 
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
+      console.log('DEBUG: Edit modal upload starting for file:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      });
+
       const formData = new FormData();
       formData.append('file', file);
 
@@ -110,15 +118,24 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
         body: formData,
       });
 
+      console.log('DEBUG: Edit modal upload response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('DEBUG: Edit modal upload failed:', errorData);
         throw new Error(errorData.error || 'Upload failed');
       }
 
       const result = await response.json();
+      console.log('DEBUG: Edit modal upload successful, result:', result);
+
+      // Add visual feedback for mobile users
+      alert(`Upload thành công trong edit modal!\nFile: ${file.name}\nURL: ${result.url}`);
+
       return result.url;
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('DEBUG: Edit modal upload error:', error);
+      alert(`Upload thất bại trong edit modal: ${error}`);
       throw error;
     }
   };
@@ -157,43 +174,53 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
       return;
     }
 
-    const tags = form.tagsInput
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0)
-      .slice(0, 10);
+    // Set loading state immediately
+    setIsSaving(true);
 
-    const sizes = form.sizes.map((s) => ({
-      title: s.title,
-      quantity: parseInt(s.quantity, 10) || 0,
-      onHand: parseInt(s.onHand, 10) || 0,
-      price: parseInt(s.price.replace(/\D/g, ''), 10) || 0,
-    }));
+    try {
+      const tags = form.tagsInput
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0)
+        .slice(0, 10);
 
-    let imageUrl = item.imageUrl; // Keep existing image by default
+      const sizes = form.sizes.map((s) => ({
+        title: s.title,
+        quantity: parseInt(s.quantity, 10) || 0,
+        onHand: parseInt(s.onHand, 10) || 0,
+        price: parseInt(s.price.replace(/\D/g, ''), 10) || 0,
+      }));
 
-    // Upload new image if provided
-    if (form.photoFile) {
-      try {
-        setIsUploading(true);
-        const uploadedUrl = await uploadImage(form.photoFile);
-        imageUrl = uploadedUrl || item.imageUrl;
-      } catch (error) {
-        console.error('Failed to upload image:', error);
-        alert('Không thể tải ảnh lên. Sản phẩm sẽ được cập nhật mà không có ảnh mới.');
-      } finally {
-        setIsUploading(false);
+      let imageUrl = item.imageUrl; // Keep existing image by default
+
+      // Upload new image if provided
+      if (form.photoFile) {
+        try {
+          setIsUploading(true);
+          const uploadedUrl = await uploadImage(form.photoFile);
+          imageUrl = uploadedUrl || item.imageUrl;
+        } catch (error) {
+          console.error('Failed to upload image:', error);
+          alert('Không thể tải ảnh lên. Sản phẩm sẽ được cập nhật mà không có ảnh mới.');
+        } finally {
+          setIsUploading(false);
+        }
       }
-    }
 
-    onSave({
-      id: parseInt(item.id, 10),
-      name: form.name,
-      category: form.category,
-      tags,
-      sizes,
-      imageUrl,
-    });
+      onSave({
+        id: parseInt(item.id, 10),
+        name: form.name,
+        category: form.category,
+        tags,
+        sizes,
+        imageUrl,
+      });
+    } catch (error) {
+      console.error('Save error:', error);
+      alert('Có lỗi xảy ra khi lưu thay đổi. Vui lòng thử lại.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = () => {
