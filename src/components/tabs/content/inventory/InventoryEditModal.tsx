@@ -113,12 +113,6 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
 
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
-      console.log('DEBUG: Edit modal upload starting for file:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-      });
-
       const formData = new FormData();
       formData.append('file', file);
 
@@ -127,24 +121,15 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
         body: formData,
       });
 
-      console.log('DEBUG: Edit modal upload response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('DEBUG: Edit modal upload failed:', errorData);
         throw new Error(errorData.error || 'Upload failed');
       }
 
       const result = await response.json();
-      console.log('DEBUG: Edit modal upload successful, result:', result);
-
-      // Add visual feedback for mobile users
-      alert(`Upload thành công trong edit modal!\nFile: ${file.name}\nURL: ${result.url}`);
-
       return result.url;
     } catch (error) {
-      console.error('DEBUG: Edit modal upload error:', error);
-      alert(`Upload thất bại trong edit modal: ${error}`);
+      console.error('Upload error:', error);
       throw error;
     }
   };
@@ -206,16 +191,8 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
       if (form.photoFile) {
         try {
           setIsUploading(true);
-          console.log('DEBUG: Edit modal - Starting image upload for file:', form.photoFile.name);
-          alert(`DEBUG: Starting upload for file: ${form.photoFile.name}`);
-
           const uploadedUrl = await uploadImage(form.photoFile);
-          console.log('DEBUG: Edit modal - Upload completed, received URL:', uploadedUrl);
-          alert(`DEBUG: Upload completed! URL length: ${uploadedUrl?.length || 0}`);
-
           imageUrl = uploadedUrl || item.imageUrl;
-          console.log('DEBUG: Edit modal - Final imageUrl value:', imageUrl);
-          alert(`DEBUG: Final imageUrl length: ${imageUrl?.length || 0}`);
         } catch (error) {
           console.error('Failed to upload image:', error);
           alert('Không thể tải ảnh lên. Sản phẩm sẽ được cập nhật mà không có ảnh mới.');
@@ -227,13 +204,8 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
           'DEBUG: Edit modal - No photoFile provided, keeping existing imageUrl:',
           item.imageUrl
         );
-        alert(
-          `DEBUG: No new photo, keeping existing imageUrl length: ${item.imageUrl?.length || 0}`
-        );
       }
 
-      console.log('DEBUG: Edit modal - About to call onSave with imageUrl:', imageUrl);
-      alert(`DEBUG: About to save with imageUrl length: ${imageUrl?.length || 0}`);
       onSave({
         id: parseInt(item.id, 10),
         name: form.name,

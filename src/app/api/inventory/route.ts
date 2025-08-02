@@ -106,16 +106,6 @@ export async function GET() {
       updatedAt: item.updatedAt,
     };
 
-    // Debug log for items with imageUrl
-    if (item.imageUrl) {
-      console.log('DEBUG: GET /api/inventory - Item with imageUrl:', {
-        id: item.id,
-        name: decryptedItem.name,
-        imageUrl: item.imageUrl,
-        imageUrlLength: item.imageUrl.length,
-      });
-    }
-
     return resultItem;
   });
   return NextResponse.json(result);
