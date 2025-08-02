@@ -41,6 +41,7 @@ export const DEFAULT_SECOND_LEVEL_OPTIONS: Record<string, TabOption[]> = {
  * Tab content mapping
  */
 export const TAB_CONTENT_MAPPING: Record<string, string> = {
+  home: 'home',
   users: 'users',
   customers: 'customers',
   orders: 'orders',

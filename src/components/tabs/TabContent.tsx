@@ -4,6 +4,7 @@ import { useTabContext } from '@/context/TabContext';
 import { TAB_CONTENT_MAPPING } from '@/constants/tabs';
 import { DEFAULT_TAB_OPTIONS } from '@/constants/tabs';
 import { createTabId } from '@/types/tabTypes';
+import HomeContent from '@/components/tabs/content/home/HomeContent';
 import UsersContent from '@/components/tabs/content/users/UsersContent';
 import CustomerContent from '@/components/tabs/content/customers/CustomerContent';
 import OrdersContent from '@/components/tabs/content/orders/OrdersContent';
@@ -12,6 +13,7 @@ import InventoryContent from '@/components/tabs/content/inventory/InventoryConte
 import StorePasswordContent from '@/components/tabs/content/store-password/StorePasswordContent';
 
 const contentComponents = {
+  home: HomeContent,
   users: UsersContent,
   customers: CustomerContent,
   orders: OrdersContent,
