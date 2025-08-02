@@ -170,13 +170,13 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
           <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="itemName">
             Tên sản phẩm
           </label>
-          <input
+          <textarea
             id="itemName"
-            type="text"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Nhập tên sản phẩm"
-            className="mt-1 block w-full rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-3 sm:px-4 py-2 text-sm sm:text-base"
+            className="mt-1 block w-full rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-3 sm:px-4 py-2 text-sm sm:text-base resize-none"
+            rows={2}
             required
             disabled={isUploading}
           />
