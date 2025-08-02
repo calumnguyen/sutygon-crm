@@ -96,90 +96,104 @@ const InventoryContent: React.FC = () => {
   }, [showFilter]);
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">{TRANSLATIONS.inventory.title}</h1>
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 w-64"
-            />
-          </div>
-          <div className="flex items-center gap-2 bg-gray-800 rounded-md p-1">
-            <Button
-              variant={viewMode === 'list' ? 'primary' : 'secondary'}
-              onClick={() => setViewMode('list')}
-              className="p-2"
-              title="Chế độ danh sách"
-            >
-              <List className="w-5 h-5" />
-            </Button>
-            <Button
-              variant={viewMode === 'grid' ? 'primary' : 'secondary'}
-              onClick={() => setViewMode('grid')}
-              className="p-2"
-              title="Chế độ lưới"
-            >
-              <Grid className="w-5 h-5" />
-            </Button>
-            <div className="relative">
-              <Button
-                ref={filterButtonRef}
-                variant="secondary"
-                className="p-2 border-blue-500 text-blue-400 hover:bg-blue-900/30 hover:text-blue-300 focus:ring-2 focus:ring-blue-500 border"
-                title="Sắp xếp/Lọc"
-                onClick={() => {
-                  setShowFilter((v) => !v);
-                  setReferenceElement(filterButtonRef.current);
-                  setTimeout(() => update && update(), 0);
-                }}
-              >
-                <SlidersHorizontal className="w-5 h-5" />
-              </Button>
-              {showFilter && (
-                <div
-                  ref={setPopperElement}
-                  style={styles.popper}
-                  {...attributes.popper}
-                  className="z-50"
-                >
-                  <InventoryFilterDropdown
-                    priceSort={priceSort}
-                    setPriceSort={setPriceSort}
-                    priceRange={priceRange}
-                    setPriceRange={setPriceRange}
-                    priceRangeInvalid={priceRangeInvalid}
-                    CATEGORY_OPTIONS={CATEGORY_OPTIONS}
-                    selectedCategories={selectedCategories}
-                    setSelectedCategories={setSelectedCategories}
-                    categoryDropdownOpen={Boolean(categoryDropdownOpen)}
-                    setCategoryDropdownOpen={setCategoryDropdownOpen}
-                    categoryDropdownRef={categoryDropdownRef as React.RefObject<HTMLDivElement>}
-                    lastModifiedSort={lastModifiedSort}
-                    setLastModifiedSort={setLastModifiedSort}
-                    nameSort={nameSort}
-                    setNameSort={setNameSort}
-                    idSort={idSort}
-                    setIdSort={setIdSort}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-          <Button
-            variant="primary"
-            onClick={handleAddItemClick}
-            leftIcon={<Plus className="w-5 h-5" />}
-          >
-            {TRANSLATIONS.inventory.addItem}
-          </Button>
+    <div className="p-3 sm:p-6">
+      {/* Mobile Header */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-4">
+        <h1 className="text-xl sm:text-2xl font-bold text-white">{TRANSLATIONS.inventory.title}</h1>
+
+        {/* Mobile Search Bar */}
+        <div className="relative w-full sm:w-auto">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Tìm kiếm..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 w-full sm:w-64"
+          />
         </div>
       </div>
+
+      {/* Mobile Controls */}
+      <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+        {/* View Mode Toggle */}
+        <div className="flex items-center gap-2 bg-gray-800 rounded-md p-1 w-full sm:w-auto justify-center">
+          <Button
+            variant={viewMode === 'list' ? 'primary' : 'secondary'}
+            onClick={() => setViewMode('list')}
+            className="p-2 flex-1 sm:flex-none"
+            title="Chế độ danh sách"
+          >
+            <List className="w-5 h-5" />
+          </Button>
+          <Button
+            variant={viewMode === 'grid' ? 'primary' : 'secondary'}
+            onClick={() => setViewMode('grid')}
+            className="p-2 flex-1 sm:flex-none"
+            title="Chế độ lưới"
+          >
+            <Grid className="w-5 h-5" />
+          </Button>
+        </div>
+
+        {/* Filter Button */}
+        <div className="relative w-full sm:w-auto">
+          <Button
+            ref={filterButtonRef}
+            variant="secondary"
+            className="p-2 border-blue-500 text-blue-400 hover:bg-blue-900/30 hover:text-blue-300 focus:ring-2 focus:ring-blue-500 border w-full sm:w-auto"
+            title="Sắp xếp/Lọc"
+            onClick={() => {
+              setShowFilter((v) => !v);
+              setReferenceElement(filterButtonRef.current);
+              setTimeout(() => update && update(), 0);
+            }}
+          >
+            <SlidersHorizontal className="w-5 h-5" />
+            <span className="ml-2 sm:hidden">Sắp xếp/Lọc</span>
+          </Button>
+          {showFilter && (
+            <div
+              ref={setPopperElement}
+              style={styles.popper}
+              {...attributes.popper}
+              className="z-50 w-full sm:w-auto"
+            >
+              <InventoryFilterDropdown
+                priceSort={priceSort}
+                setPriceSort={setPriceSort}
+                priceRange={priceRange}
+                setPriceRange={setPriceRange}
+                priceRangeInvalid={priceRangeInvalid}
+                CATEGORY_OPTIONS={CATEGORY_OPTIONS}
+                selectedCategories={selectedCategories}
+                setSelectedCategories={setSelectedCategories}
+                categoryDropdownOpen={Boolean(categoryDropdownOpen)}
+                setCategoryDropdownOpen={setCategoryDropdownOpen}
+                categoryDropdownRef={categoryDropdownRef as React.RefObject<HTMLDivElement>}
+                lastModifiedSort={lastModifiedSort}
+                setLastModifiedSort={setLastModifiedSort}
+                nameSort={nameSort}
+                setNameSort={setNameSort}
+                idSort={idSort}
+                setIdSort={setIdSort}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Add Item Button */}
+        <Button
+          variant="primary"
+          onClick={handleAddItemClick}
+          leftIcon={<Plus className="w-5 h-5" />}
+          className="w-full sm:w-auto"
+        >
+          <span className="sm:hidden">{TRANSLATIONS.inventory.addItem}</span>
+          <span className="hidden sm:inline">{TRANSLATIONS.inventory.addItem}</span>
+        </Button>
+      </div>
+
       <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
         {viewMode === 'list' ? (
           <InventoryTable filteredInventory={filteredInventory} setPreviewOpen={setPreviewOpen} />

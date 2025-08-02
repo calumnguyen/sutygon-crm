@@ -40,7 +40,7 @@ const AddItemStep2: React.FC<AddItemStep2Props> = ({ form, setForm }) => {
   const sizeRows = form.sizes.map((size, idx) => (
     <div
       key={idx}
-      className={`grid grid-cols-12 gap-3 items-center bg-gray-800/50 rounded px-1 py-2 row-${idx}`}
+      className={`grid grid-cols-12 gap-2 sm:gap-3 items-center bg-gray-800/50 rounded px-1 py-2 row-${idx}`}
       data-idx={idx}
     >
       <span className="sr-only">Row {idx + 1}</span>
@@ -50,7 +50,7 @@ const AddItemStep2: React.FC<AddItemStep2Props> = ({ form, setForm }) => {
         value={size.title}
         onChange={(e) => handleSizeChange(idx, 'title', e.target.value)}
         placeholder={`Kích thước #${idx + 1}`}
-        className="col-span-4 rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-4 py-2"
+        className="col-span-4 rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-2 sm:px-4 py-2 text-xs sm:text-sm"
         required
       />
       <input
@@ -59,7 +59,7 @@ const AddItemStep2: React.FC<AddItemStep2Props> = ({ form, setForm }) => {
         value={size.quantity}
         onChange={(e) => handleSizeChange(idx, 'quantity', e.target.value)}
         placeholder="Tồn kho"
-        className="col-span-3 rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-2 py-2"
+        className="col-span-3 rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-2 py-2 text-xs sm:text-sm"
         required
       />
       <input
@@ -69,13 +69,13 @@ const AddItemStep2: React.FC<AddItemStep2Props> = ({ form, setForm }) => {
         value={formatNumberWithCommas(size.price)}
         onChange={(e) => handlePriceChange(idx, e.target.value)}
         placeholder="Giá"
-        className="col-span-3 rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-2 py-2"
+        className="col-span-3 rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-2 py-2 text-xs sm:text-sm"
         required
       />
       {form.sizes.length > 1 && (
         <button
           type="button"
-          className="col-span-2 text-red-400 hover:text-red-600 px-2 py-1 rounded"
+          className="col-span-2 text-red-400 hover:text-red-600 px-1 sm:px-2 py-1 rounded text-xs sm:text-sm"
           onClick={() => setForm({ ...form, sizes: form.sizes.filter((_, i) => i !== idx) })}
           title="Xoá kích thước"
         >
@@ -87,7 +87,7 @@ const AddItemStep2: React.FC<AddItemStep2Props> = ({ form, setForm }) => {
 
   return (
     <>
-      <h3 className="text-lg font-semibold text-white mb-4 text-left w-full">
+      <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 text-left w-full">
         Thông Tin Sản Phẩm Trong Kho
       </h3>
       <div className="w-full mb-3 flex items-center gap-2">
@@ -105,12 +105,15 @@ const AddItemStep2: React.FC<AddItemStep2Props> = ({ form, setForm }) => {
           }}
           className="accent-blue-600 w-4 h-4"
         />
-        <label htmlFor="samePrice" className="text-sm text-gray-200 select-none cursor-pointer">
+        <label
+          htmlFor="samePrice"
+          className="text-xs sm:text-sm text-gray-200 select-none cursor-pointer"
+        >
           Tất cả kích thước có cùng giá
         </label>
       </div>
       <div className="w-full space-y-2">
-        <div className="grid grid-cols-12 gap-3 text-xs text-gray-400 font-semibold mb-1 px-1">
+        <div className="grid grid-cols-12 gap-2 sm:gap-3 text-xs text-gray-400 font-semibold mb-1 px-1">
           <span className="col-span-4">Kích thước</span>
           <span className="col-span-3">Tồn kho</span>
           <span className="col-span-3">Giá</span>
@@ -119,7 +122,7 @@ const AddItemStep2: React.FC<AddItemStep2Props> = ({ form, setForm }) => {
         {sizeRows}
         <button
           type="button"
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm sm:text-base"
           onClick={() => {
             if (form.sizes.length < MAX_SIZES) {
               setForm({

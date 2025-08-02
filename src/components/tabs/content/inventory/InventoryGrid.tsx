@@ -12,21 +12,21 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({ filteredInventory, setPre
     return <div className="text-center text-gray-400 py-10">Chưa có sản phẩm nào trong kho.</div>;
   }
   return (
-    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
       {filteredInventory.map((item) => (
         <div
           key={item.id}
-          className="bg-gray-900 rounded-lg shadow border border-gray-700 flex flex-col items-center p-3 w-full min-w-0"
+          className="bg-gray-900 rounded-lg shadow border border-gray-700 flex flex-col items-center p-3 w-full min-w-0 hover:border-gray-600 transition-colors"
         >
           <img
             src={item.imageUrl || '/no-image.png'}
             alt={item.name}
-            className="w-24 h-32 object-contain rounded bg-gray-700 border border-gray-800 mb-2 cursor-pointer hover:opacity-80 transition"
+            className="w-20 h-24 sm:w-24 sm:h-32 object-contain rounded bg-gray-700 border border-gray-800 mb-2 cursor-pointer hover:opacity-80 transition"
             onClick={() => setPreviewOpen(true)}
           />
           <div className="w-full flex flex-col items-center mb-2">
             <span className="font-mono text-xs text-gray-400 mb-1">{item.formattedId}</span>
-            <h3 className="text-base font-bold text-white text-center w-full truncate mb-1">
+            <h3 className="text-sm sm:text-base font-bold text-white text-center w-full truncate mb-1">
               {item.name}
             </h3>
           </div>

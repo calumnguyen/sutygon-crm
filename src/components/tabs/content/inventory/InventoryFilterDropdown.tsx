@@ -40,7 +40,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
   idSort,
   setIdSort,
 }) => (
-  <div className="z-50 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg p-4 space-y-4 text-sm max-h-[80vh] overflow-y-auto">
+  <div className="z-50 w-full sm:w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg p-3 sm:p-4 space-y-3 sm:space-y-4 text-sm max-h-[80vh] overflow-y-auto">
     <div className="flex justify-between items-center mb-2">
       <span className="font-semibold text-white">Bộ lọc & Sắp xếp</span>
       <button
@@ -60,11 +60,12 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
     {/* Price Sort */}
     <div>
       <div className="font-medium text-gray-200 mb-1">Sắp xếp giá</div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-1 sm:gap-2">
         <Button
           variant={priceSort === 'asc' ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setPriceSort('asc')}
+          className="text-xs"
         >
           Tăng
         </Button>
@@ -72,6 +73,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           variant={priceSort === 'desc' ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setPriceSort('desc')}
+          className="text-xs"
         >
           Giảm
         </Button>
@@ -79,6 +81,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           variant={!priceSort ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setPriceSort(null)}
+          className="text-xs"
         >
           Không
         </Button>
@@ -92,7 +95,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           type="number"
           min="0"
           placeholder="Tối thiểu"
-          className={`w-24 px-2 py-1 rounded bg-gray-800 border ${priceRangeInvalid ? 'border-red-500' : 'border-gray-700'} text-white`}
+          className={`flex-1 sm:w-24 px-2 py-1 rounded bg-gray-800 border ${priceRangeInvalid ? 'border-red-500' : 'border-gray-700'} text-white text-xs sm:text-sm`}
           value={priceRange.min}
           onChange={(e) => setPriceRange({ min: e.target.value, max: priceRange.max })}
         />
@@ -101,7 +104,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           type="number"
           min="0"
           placeholder="Tối đa"
-          className={`w-24 px-2 py-1 rounded bg-gray-800 border ${priceRangeInvalid ? 'border-red-500' : 'border-gray-700'} text-white`}
+          className={`flex-1 sm:w-24 px-2 py-1 rounded bg-gray-800 border ${priceRangeInvalid ? 'border-red-500' : 'border-gray-700'} text-white text-xs sm:text-sm`}
           value={priceRange.max}
           onChange={(e) => setPriceRange({ min: priceRange.min, max: e.target.value })}
         />
@@ -117,7 +120,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
       <div className="font-medium text-gray-200 mb-1">Danh mục</div>
       <button
         type="button"
-        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-left text-gray-200 flex items-center justify-between hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-left text-gray-200 flex items-center justify-between hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
         onClick={() => setCategoryDropdownOpen((v: boolean) => !v)}
       >
         <span>
@@ -173,11 +176,12 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
     {/* Last Modified Sort */}
     <div>
       <div className="font-medium text-gray-200 mb-1">Sắp xếp ngày thêm</div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-1 sm:gap-2">
         <Button
           variant={lastModifiedSort === 'asc' ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setLastModifiedSort('asc')}
+          className="text-xs"
         >
           Cũ → Mới
         </Button>
@@ -185,6 +189,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           variant={lastModifiedSort === 'desc' ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setLastModifiedSort('desc')}
+          className="text-xs"
         >
           Mới → Cũ
         </Button>
@@ -192,6 +197,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           variant={!lastModifiedSort ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setLastModifiedSort(null)}
+          className="text-xs"
         >
           Không
         </Button>
@@ -200,11 +206,12 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
     {/* Name Sort */}
     <div>
       <div className="font-medium text-gray-200 mb-1">Sắp xếp tên</div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-1 sm:gap-2">
         <Button
           variant={nameSort === 'asc' ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setNameSort('asc')}
+          className="text-xs"
         >
           A → Z
         </Button>
@@ -212,6 +219,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           variant={nameSort === 'desc' ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setNameSort('desc')}
+          className="text-xs"
         >
           Z → A
         </Button>
@@ -219,6 +227,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           variant={!nameSort ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setNameSort(null)}
+          className="text-xs"
         >
           Không
         </Button>
@@ -227,11 +236,12 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
     {/* ID Sort */}
     <div>
       <div className="font-medium text-gray-200 mb-1">Sắp xếp ID</div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-1 sm:gap-2">
         <Button
           variant={idSort === 'asc' ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setIdSort('asc')}
+          className="text-xs"
         >
           A → Z
         </Button>
@@ -239,6 +249,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           variant={idSort === 'desc' ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setIdSort('desc')}
+          className="text-xs"
         >
           Z → A
         </Button>
@@ -246,6 +257,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
           variant={!idSort ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => setIdSort(null)}
+          className="text-xs"
         >
           Không
         </Button>
