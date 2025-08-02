@@ -36,35 +36,27 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
   };
 
   const handleFileSelect = (file: File | null) => {
-    console.log('DEBUG: handleFileSelect called with:', file);
+    console.log('DEBUG: handleFileSelect called with file:', file);
     if (file) {
       console.log('DEBUG: File details:', {
         name: file.name,
         size: file.size,
         type: file.type,
         lastModified: file.lastModified,
-        isMobile: isMobile(),
-        userAgent: navigator.userAgent,
       });
 
-      // Validate file for mobile
-      if (isMobile()) {
-        console.log('DEBUG: Mobile file validation');
-        if (file.size === 0) {
-          console.error('DEBUG: File size is 0, this might be a mobile issue');
-          alert('File appears to be empty. Please try selecting the file again.');
-          return;
-        }
-        if (!file.type.startsWith('image/')) {
-          console.error('DEBUG: File type is not image:', file.type);
-          alert('Please select an image file.');
-          return;
-        }
-      }
+      // Add visual feedback for mobile users
+      const fileSizeKB = (file.size / 1024).toFixed(1);
+      alert(
+        `File đã được chọn:\nTên: ${file.name}\nKích thước: ${fileSizeKB} KB\nLoại: ${file.type}`
+      );
+
+      setForm({ ...form, photoFile: file });
+      console.log('DEBUG: Form updated with photoFile');
     } else {
-      console.log('DEBUG: No file selected');
+      console.log('DEBUG: handleFileSelect called with null file');
+      setForm({ ...form, photoFile: null });
     }
-    setForm({ ...form, photoFile: file });
   };
 
   const handleFileUpload = () => {
@@ -90,6 +82,7 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
     if (webcamRef.current) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
+        console.log('DEBUG: Camera screenshot captured, converting to file...');
         // Convert base64 to File object
         fetch(imageSrc)
           .then((res) => res.blob())
@@ -100,16 +93,27 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
               size: file.size,
               type: file.type,
             });
+            console.log('DEBUG: About to call handleFileSelect with camera file');
             handleFileSelect(file);
             setShowCamera(false);
+            // Add visual feedback for mobile users
+            alert(
+              `Ảnh đã được chụp thành công!\nTên file: ${file.name}\nKích thước: ${(file.size / 1024).toFixed(1)} KB`
+            );
           })
           .catch((error) => {
             console.error('DEBUG: Error converting camera image:', error);
             alert('Không thể xử lý ảnh từ camera. Vui lòng thử lại.');
           });
+      } else {
+        console.error('DEBUG: No screenshot captured from webcam');
+        alert('Không thể chụp ảnh. Vui lòng thử lại.');
       }
+    } else {
+      console.error('DEBUG: Webcam ref is null');
+      alert('Camera không khả dụng. Vui lòng thử lại.');
     }
-  }, []);
+  }, [handleFileSelect]);
 
   const handleCameraError = (error: string | DOMException) => {
     console.error('DEBUG: Camera error:', error);

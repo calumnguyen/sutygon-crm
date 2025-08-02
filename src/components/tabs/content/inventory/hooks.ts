@@ -340,13 +340,22 @@ export function useInventoryModals(refreshInventory: () => void) {
           console.log('DEBUG: Upload completed, received URL:', uploadedUrl);
           imageUrl = uploadedUrl || undefined;
           console.log('DEBUG: Final imageUrl value:', imageUrl);
+
+          // Add visual feedback for mobile users
+          if (imageUrl) {
+            alert(`Upload thành công!\nURL: ${imageUrl}\nFile sẽ được lưu vào database.`);
+          } else {
+            alert('Upload thất bại! URL trống.');
+          }
         } catch (error) {
           console.error('DEBUG: Image upload failed:', error);
+          alert(`Upload thất bại: ${error}`);
           // Continue without image if upload fails
           imageUrl = undefined;
         }
       } else {
         console.log('DEBUG: No photoFile provided, imageUrl will be undefined');
+        alert('Không có file ảnh để upload!');
       }
 
       // Debug log
