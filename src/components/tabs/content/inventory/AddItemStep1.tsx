@@ -324,6 +324,17 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
         </div>
       </form>
 
+      {/* Navigation */}
+      <div className="flex justify-end pt-4">
+        <button
+          onClick={onNext}
+          disabled={isUploading || !form.name.trim() || !form.category.trim()}
+          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isUploading ? 'Đang tải...' : 'Tiếp theo'}
+        </button>
+      </div>
+
       {/* Hidden File Inputs */}
       <input
         ref={photoInputRef}
