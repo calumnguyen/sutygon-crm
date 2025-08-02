@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,43 +50,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads');
-    console.log('DEBUG: Uploads directory path:', uploadsDir);
+    // Convert file to base64 for storage in database
+    console.log('DEBUG: Converting file to base64...');
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    const dataUrl = `data:${file.type};base64,${base64}`;
 
-    if (!existsSync(uploadsDir)) {
-      console.log('DEBUG: Creating uploads directory');
-      await mkdir(uploadsDir, { recursive: true });
-    }
+    console.log('DEBUG: File converted to base64, length:', base64.length);
 
-    // Generate unique filename
+    // Generate a unique filename for reference
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 15);
     const fileExtension = file.name.split('.').pop() || 'jpg';
     const filename = `${timestamp}_${randomString}.${fileExtension}`;
-    const filepath = join(uploadsDir, filename);
 
-    console.log('DEBUG: Generated filepath:', filepath);
-
-    // Convert file to buffer and save
-    console.log('DEBUG: Converting file to buffer...');
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    console.log('DEBUG: Writing file to disk...');
-    await writeFile(filepath, buffer);
-    console.log('DEBUG: File written successfully');
-
-    // Return the public URL
-    const publicUrl = `/uploads/${filename}`;
-    console.log('DEBUG: Returning public URL:', publicUrl);
+    console.log('DEBUG: Returning data URL for database storage');
 
     return NextResponse.json({
       success: true,
-      url: publicUrl,
+      url: dataUrl, // This will be stored directly in the database
       filename: filename,
       size: file.size,
       type: file.type,
+      message: 'File converted to base64 for database storage',
     });
   } catch (error) {
     console.error('DEBUG: Upload error details:', error);
