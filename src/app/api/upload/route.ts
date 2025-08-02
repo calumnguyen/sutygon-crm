@@ -5,22 +5,43 @@ import { existsSync } from 'fs';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('DEBUG: Upload API called');
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
+    console.log('DEBUG: Upload API received file:', {
+      hasFile: !!file,
+      fileName: file?.name,
+      fileSize: file?.size,
+      fileType: file?.type,
+      userAgent: request.headers.get('user-agent'),
+    });
+
     if (!file) {
+      console.error('DEBUG: No file provided to upload API');
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
+      console.error('DEBUG: Invalid file type:', file.type);
       return NextResponse.json({ error: 'Only image files are allowed' }, { status: 400 });
     }
 
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
+      console.error('DEBUG: File too large:', file.size);
       return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 });
+    }
+
+    // Additional mobile validation
+    if (file.size === 0) {
+      console.error('DEBUG: File size is 0, likely mobile issue');
+      return NextResponse.json(
+        { error: 'File appears to be empty. Please try again.' },
+        { status: 400 }
+      );
     }
 
     // Create uploads directory if it doesn't exist

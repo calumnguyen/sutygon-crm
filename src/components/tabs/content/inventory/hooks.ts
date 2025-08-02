@@ -272,23 +272,37 @@ export function useInventoryModals(refreshInventory: () => void) {
 
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
+      console.log('DEBUG: uploadImage called with file:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        ),
+      });
+
       const formData = new FormData();
       formData.append('file', file);
 
+      console.log('DEBUG: Sending upload request to /api/upload');
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
 
+      console.log('DEBUG: Upload response status:', response.status);
+
       if (!response.ok) {
         const error = await response.json();
+        console.error('DEBUG: Upload failed:', error);
         throw new Error(error.error || 'Upload failed');
       }
 
       const result = await response.json();
+      console.log('DEBUG: Upload successful, result:', result);
       return result.url;
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('DEBUG: Upload error:', error);
       throw error;
     }
   };
@@ -314,19 +328,24 @@ export function useInventoryModals(refreshInventory: () => void) {
       let imageUrl: string | undefined;
       if (form.photoFile) {
         try {
+          console.log('DEBUG: Starting image upload for file:', form.photoFile.name);
           const uploadedUrl = await uploadImage(form.photoFile);
+          console.log('DEBUG: Upload completed, received URL:', uploadedUrl);
           imageUrl = uploadedUrl || undefined;
         } catch (error) {
           console.error('Image upload failed:', error);
           // Continue without image if upload fails
           imageUrl = undefined;
         }
+      } else {
+        console.log('DEBUG: No photoFile provided, imageUrl will be undefined');
       }
 
       // Debug log
       console.log('DEBUG: About to POST /api/inventory', {
         imageUrl,
         photoFile: form.photoFile,
+        hasPhotoFile: !!form.photoFile,
       });
 
       // Create inventory item

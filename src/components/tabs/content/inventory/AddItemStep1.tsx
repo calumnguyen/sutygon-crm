@@ -28,7 +28,26 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm, isUploading 
         size: file.size,
         type: file.type,
         lastModified: file.lastModified,
+        isMobile: isMobile(),
+        userAgent: navigator.userAgent,
       });
+
+      // Validate file for mobile
+      if (isMobile()) {
+        console.log('DEBUG: Mobile file validation');
+        if (file.size === 0) {
+          console.error('DEBUG: File size is 0, this might be a mobile issue');
+          alert('File appears to be empty. Please try selecting the file again.');
+          return;
+        }
+        if (!file.type.startsWith('image/')) {
+          console.error('DEBUG: File type is not image:', file.type);
+          alert('Please select an image file.');
+          return;
+        }
+      }
+    } else {
+      console.log('DEBUG: No file selected');
     }
     setForm({ ...form, photoFile: file });
   };
@@ -57,9 +76,11 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm, isUploading 
   };
 
   const isMobile = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
       navigator.userAgent
     );
+    console.log('DEBUG: isMobile() called, result:', mobile, 'userAgent:', navigator.userAgent);
+    return mobile;
   };
 
   return (
@@ -175,7 +196,20 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm, isUploading 
             className="hidden"
             onChange={(e) => {
               console.log('DEBUG: Photo input onChange triggered');
-              handleFileSelect(e.target.files?.[0] || null);
+              const file = e.target.files?.[0] || null;
+              console.log('DEBUG: Photo input file:', file);
+              if (file) {
+                console.log('DEBUG: Photo input file details:', {
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                  lastModified: file.lastModified,
+                });
+              }
+              handleFileSelect(file);
+            }}
+            onError={(e) => {
+              console.error('DEBUG: Photo input error:', e);
             }}
             disabled={isUploading}
           />
