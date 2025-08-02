@@ -1,92 +1,110 @@
-import React from 'react';
-import Button from '@/components/common/dropdowns/Button';
+import React, { useState } from 'react';
+import { X } from 'lucide-react';
 import AddItemStep1 from './AddItemStep1';
 import AddItemStep2 from './AddItemStep2';
-import { AddItemFormState } from '@/types/inventory';
+import { AddItemFormState } from './InventoryTypes';
 
 interface InventoryAddItemModalProps {
-  addModalOpen: boolean;
-  setAddModalOpen: (open: boolean) => void;
-  addStep: number;
-  setAddStep: (step: number) => void;
+  isOpen: boolean;
+  onClose: () => void;
   form: AddItemFormState;
   setForm: (form: AddItemFormState) => void;
-  resetAddItemForm: () => void;
   handleAddItem: () => void;
-  isUploading?: boolean;
+  isUploading: boolean;
+  setIsUploading: (uploading: boolean) => void;
 }
 
 const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
-  addModalOpen,
-  setAddModalOpen,
-  addStep,
-  setAddStep,
+  isOpen,
+  onClose,
   form,
   setForm,
-  resetAddItemForm,
   handleAddItem,
-  isUploading = false,
+  isUploading,
+  setIsUploading,
 }) => {
-  if (!addModalOpen) return null;
+  const [currentStep, setCurrentStep] = useState(1);
+
+  const handleNext = () => {
+    setCurrentStep(2);
+  };
+
+  const handleBack = () => {
+    setCurrentStep(1);
+  };
+
+  const handleSave = async () => {
+    try {
+      setIsUploading(true);
+      await handleAddItem();
+      onClose();
+      setCurrentStep(1);
+    } catch (error) {
+      console.error('Failed to add item:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleClose = () => {
+    onClose();
+    setCurrentStep(1);
+  };
+
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-xl p-4 sm:p-6 lg:p-8 w-full max-w-lg sm:max-w-2xl shadow-2xl border border-gray-700 flex flex-col items-center max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6 text-center">
-          Thêm sản phẩm mới
-        </h2>
-        {addStep === 1 && <AddItemStep1 form={form} setForm={setForm} isUploading={isUploading} />}
-        {addStep === 2 && <AddItemStep2 form={form} setForm={setForm} />}
-        <div className="flex flex-col sm:flex-row justify-end w-full mt-4 sm:mt-6 space-y-2 sm:space-y-0 sm:space-x-3">
-          {addStep === 2 && (
-            <Button
-              variant="secondary"
-              onClick={() => setAddStep(1)}
-              type="button"
-              className="w-full sm:w-auto"
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">Thêm sản phẩm mới</h2>
+          <button
+            onClick={handleClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {currentStep === 1 ? (
+            <AddItemStep1
+              form={form}
+              setForm={setForm}
+              onNext={handleNext}
+              isUploading={isUploading}
+              setIsUploading={setIsUploading}
+            />
+          ) : (
+            <AddItemStep2 form={form} setForm={setForm} />
+          )}
+        </div>
+
+        {/* Step 2 Navigation */}
+        {currentStep === 2 && (
+          <div className="flex justify-between p-6 border-t">
+            <button
+              onClick={handleBack}
               disabled={isUploading}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
             >
               Quay lại
-            </Button>
-          )}
-          <Button
-            variant="secondary"
-            onClick={() => {
-              resetAddItemForm();
-              setAddModalOpen(false);
-            }}
-            type="button"
-            className="w-full sm:w-auto"
-            disabled={isUploading}
-          >
-            Huỷ
-          </Button>
-          {addStep === 1 && (
-            <Button
-              variant="primary"
-              type="button"
-              onClick={() => setAddStep(2)}
-              disabled={!form.name.trim() || isUploading}
-              className="w-full sm:w-auto"
-            >
-              Tiếp tục
-            </Button>
-          )}
-          {addStep === 2 && (
-            <Button
-              variant="primary"
-              type="button"
+            </button>
+            <button
+              onClick={handleSave}
               disabled={
                 form.sizes.length < 1 ||
                 form.sizes.some((s) => !s.title.trim() || !s.quantity || !s.price) ||
                 isUploading
               }
-              onClick={handleAddItem}
-              className="w-full sm:w-auto"
+              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isUploading ? 'Đang tải...' : 'Thêm sản phẩm'}
-            </Button>
-          )}
-        </div>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

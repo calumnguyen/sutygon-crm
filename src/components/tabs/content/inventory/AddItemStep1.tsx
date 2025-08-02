@@ -1,24 +1,39 @@
-import React from 'react';
-import { Camera, Upload, Loader2 } from 'lucide-react';
-import { CATEGORY_OPTIONS } from './InventoryConstants';
-import { parseTags } from './InventoryUtils';
+import React, { useState, useRef, useCallback } from 'react';
+import { X, Upload, Camera, ArrowLeft } from 'lucide-react';
+import Webcam from 'react-webcam';
 import { AddItemFormState } from './InventoryTypes';
+import { parseTags } from './InventoryUtils';
 
 interface AddItemStep1Props {
   form: AddItemFormState;
   setForm: (form: AddItemFormState) => void;
-  isUploading?: boolean;
+  onNext: () => void;
+  onBack?: () => void;
+  isUploading: boolean;
+  setIsUploading: (uploading: boolean) => void;
 }
 
-const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm, isUploading = false }) => {
-  const tags = parseTags(form.tagsInput);
-  const photoInputRef = React.useRef<HTMLInputElement>(null);
-  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+const AddItemStep1: React.FC<AddItemStep1Props> = ({
+  form,
+  setForm,
+  onNext,
+  onBack,
+  isUploading,
+  setIsUploading,
+}) => {
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const webcamRef = useRef<Webcam>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // Debug log for form state
-  React.useEffect(() => {
-    console.log('DEBUG: Current form.photoFile:', form.photoFile);
-  }, [form.photoFile]);
+  const isMobile = () => {
+    const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+    console.log('DEBUG: isMobile() called, result:', mobile, 'userAgent:', navigator.userAgent);
+    return mobile;
+  };
 
   const handleFileSelect = (file: File | null) => {
     console.log('DEBUG: handleFileSelect called with:', file);
@@ -52,258 +67,319 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm, isUploading 
     setForm({ ...form, photoFile: file });
   };
 
+  const handleFileUpload = () => {
+    console.log('DEBUG: File upload button clicked');
+    photoInputRef.current?.click();
+  };
+
   const handleCameraCapture = () => {
     console.log('DEBUG: Camera capture button clicked');
-    if (cameraInputRef.current) {
+    if (isMobile()) {
+      setShowCamera(true);
+    } else {
       try {
-        cameraInputRef.current.click();
+        cameraInputRef.current?.click();
       } catch (error) {
-        console.error('DEBUG: Back camera failed, trying front camera:', error);
-        // Try fallback camera input
-        const fallbackInput = document.getElementById('camera-fallback') as HTMLInputElement;
-        if (fallbackInput) {
-          fallbackInput.click();
-        }
+        console.error('DEBUG: Camera input error:', error);
+        alert('Không thể truy cập camera. Vui lòng sử dụng "Tải ảnh lên" thay thế.');
       }
     }
   };
 
-  const handleFileUpload = () => {
-    console.log('DEBUG: File upload button clicked');
-    if (photoInputRef.current) {
-      photoInputRef.current.click();
+  const capturePhoto = useCallback(() => {
+    if (webcamRef.current) {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) {
+        // Convert base64 to File object
+        fetch(imageSrc)
+          .then((res) => res.blob())
+          .then((blob) => {
+            const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            console.log('DEBUG: Camera captured file:', {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+            });
+            handleFileSelect(file);
+            setShowCamera(false);
+          })
+          .catch((error) => {
+            console.error('DEBUG: Error converting camera image:', error);
+            alert('Không thể xử lý ảnh từ camera. Vui lòng thử lại.');
+          });
+      }
     }
+  }, []);
+
+  const handleCameraError = (error: string | DOMException) => {
+    console.error('DEBUG: Camera error:', error);
+    setCameraError('Không thể truy cập camera. Vui lòng sử dụng "Tải ảnh lên" thay thế.');
   };
 
-  const isMobile = () => {
-    const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    );
-    console.log('DEBUG: isMobile() called, result:', mobile, 'userAgent:', navigator.userAgent);
-    return mobile;
+  const handleNext = () => {
+    if (!form.name.trim()) {
+      alert('Vui lòng nhập tên sản phẩm');
+      return;
+    }
+    if (!form.category.trim()) {
+      alert('Vui lòng chọn danh mục');
+      return;
+    }
+    onNext();
   };
+
+  const tags = parseTags(form.tagsInput);
 
   return (
-    <>
-      <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 text-left w-full">
-        Thông tin sản phẩm
-      </h3>
-      <form className="w-full space-y-4 sm:space-y-5" onSubmit={(e) => e.preventDefault()}>
+    <div className="space-y-6">
+      {/* Header with back button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-900">Thông tin cơ bản</h2>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm">Quay lại</span>
+          </button>
+        )}
+      </div>
+
+      {/* Camera Modal */}
+      {showCamera && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-4 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Chụp ảnh</h3>
+              <button
+                onClick={() => setShowCamera(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {cameraError ? (
+              <div className="text-center py-8">
+                <p className="text-red-600 mb-4">{cameraError}</p>
+                <button
+                  onClick={() => setShowCamera(false)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                >
+                  Đóng
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative">
+                  <Webcam
+                    ref={webcamRef}
+                    screenshotFormat="image/jpeg"
+                    videoConstraints={{
+                      width: 640,
+                      height: 480,
+                      facingMode: 'environment',
+                    }}
+                    onUserMediaError={handleCameraError}
+                    className="w-full rounded"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={capturePhoto}
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+                  >
+                    Chụp ảnh
+                  </button>
+                  <button
+                    onClick={() => setShowCamera(false)}
+                    className="flex-1 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                  >
+                    Hủy
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Form Fields */}
+      <div className="space-y-4">
+        {/* Product Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="itemName">
-            Tên sản phẩm
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Tên sản phẩm *</label>
           <input
-            id="itemName"
             type="text"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Nhập tên sản phẩm"
-            className="mt-1 block w-full rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-3 sm:px-4 py-2 text-sm sm:text-base"
-            required
             disabled={isUploading}
           />
         </div>
+
+        {/* Category */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="category">
-            Danh mục
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Danh mục *</label>
           <select
-            id="category"
             value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
-            className="mt-1 block w-full rounded-lg border bg-gray-800 border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-3 sm:px-4 py-2 text-sm sm:text-base"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isUploading}
           >
-            {CATEGORY_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
+            <option value="">Chọn danh mục</option>
+            <option value="Áo">Áo</option>
+            <option value="Quần">Quần</option>
+            <option value="Giày">Giày</option>
+            <option value="Túi">Túi</option>
+            <option value="Phụ kiện">Phụ kiện</option>
           </select>
         </div>
+
+        {/* Tags */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="tags">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Tags (tối đa 10, phân tách bằng dấu phẩy){' '}
-            <span className="text-xs text-gray-400">(Không bắt buộc)</span>
+            <span className="text-xs text-gray-500">(Không bắt buộc)</span>
           </label>
           <input
-            id="tags"
             type="text"
             value={form.tagsInput}
             onChange={(e) => setForm({ ...form, tagsInput: e.target.value })}
             placeholder="Ví dụ: Cao Cấp, Bà Sui, Đám Cưới"
-            className="mt-1 block w-full rounded-lg border bg-gray-800 border-gray-600 text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition px-3 sm:px-4 py-2 text-sm sm:text-base"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isUploading}
           />
           <div className="flex flex-wrap gap-1 mt-2">
             {tags.map((tag, idx) => (
               <span
                 key={idx}
-                className="px-2 py-0.5 bg-gray-700 rounded-full text-xs text-gray-200"
+                className="px-2 py-0.5 bg-gray-100 rounded-full text-xs text-gray-700"
               >
                 {tag}
               </span>
             ))}
           </div>
         </div>
+
+        {/* Image Upload Section */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">
-            Ảnh sản phẩm <span className="text-xs text-gray-400">(Không bắt buộc)</span>
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Hình ảnh sản phẩm</label>
 
-          {/* Image Upload Options */}
-          <div className="flex flex-col sm:flex-row gap-2 mb-2">
-            {/* Camera Capture Button (Mobile Only) */}
-            {isMobile() && (
-              <button
-                type="button"
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm sm:text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleCameraCapture}
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Camera className="w-4 h-4" />
-                )}
-                {isUploading ? 'Đang tải...' : 'Chụp ảnh'}
-              </button>
-            )}
-
-            {/* File Upload Button */}
-            <button
-              type="button"
-              className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded-lg transition text-sm sm:text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleFileUpload}
-              disabled={isUploading}
-            >
-              {isUploading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4" />
-              )}
-              {isUploading ? 'Đang tải...' : 'Tải ảnh lên'}
-            </button>
-          </div>
-
-          {/* Hidden File Inputs */}
-          <input
-            ref={photoInputRef}
-            id="photo"
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              console.log('DEBUG: Photo input onChange triggered');
-              const file = e.target.files?.[0] || null;
-              console.log('DEBUG: Photo input file:', file);
-              if (file) {
-                console.log('DEBUG: Photo input file details:', {
-                  name: file.name,
-                  size: file.size,
-                  type: file.type,
-                  lastModified: file.lastModified,
-                });
-              }
-              handleFileSelect(file);
-            }}
-            onError={(e) => {
-              console.error('DEBUG: Photo input error:', e);
-            }}
-            disabled={isUploading}
-          />
-
-          <input
-            ref={cameraInputRef}
-            id="camera"
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => {
-              console.log('DEBUG: Camera input onChange triggered');
-              const file = e.target.files?.[0] || null;
-              console.log('DEBUG: Camera file:', file);
-              if (file) {
-                console.log('DEBUG: Camera file details:', {
-                  name: file.name,
-                  size: file.size,
-                  type: file.type,
-                });
-                // Validate file size (max 10MB for mobile photos)
-                if (file.size > 10 * 1024 * 1024) {
-                  alert('Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 10MB.');
-                  return;
-                }
-              }
-              handleFileSelect(file);
-            }}
-            onError={(e) => {
-              console.error('DEBUG: Camera input error:', e);
-              alert('Không thể truy cập camera. Vui lòng sử dụng "Tải ảnh lên" thay thế.');
-            }}
-            disabled={isUploading}
-          />
-
-          {/* Fallback camera input for better mobile compatibility */}
-          <input
-            id="camera-fallback"
-            type="file"
-            accept="image/*"
-            capture="user"
-            className="hidden"
-            onChange={(e) => {
-              console.log('DEBUG: Fallback camera input onChange triggered');
-              const file = e.target.files?.[0] || null;
-              if (file) {
-                console.log('DEBUG: Fallback camera file details:', {
-                  name: file.name,
-                  size: file.size,
-                  type: file.type,
-                });
-                // Validate file size (max 10MB for mobile photos)
-                if (file.size > 10 * 1024 * 1024) {
-                  alert('Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 10MB.');
-                  return;
-                }
-              }
-              handleFileSelect(file);
-            }}
-            disabled={isUploading}
-          />
-
-          {/* Selected File Display */}
-          {form.photoFile && (
-            <div className="mt-2 p-3 bg-gray-800 rounded-lg border border-gray-600">
-              <div className="flex items-center gap-2">
-                <div className="w-12 h-12 bg-gray-700 rounded flex items-center justify-center">
-                  <img
-                    src={URL.createObjectURL(form.photoFile)}
-                    alt="Preview"
-                    className="w-10 h-10 object-cover rounded"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-gray-200 truncate">{form.photoFile.name}</div>
-                  <div className="text-xs text-gray-400">
-                    {(form.photoFile.size / 1024 / 1024).toFixed(2)} MB
-                  </div>
-                </div>
+          <div className="space-y-3">
+            {/* Current Image Preview */}
+            {form.photoFile && (
+              <div className="relative">
+                <img
+                  src={URL.createObjectURL(form.photoFile)}
+                  alt="Preview"
+                  className="w-full h-48 object-cover rounded-md"
+                />
                 <button
-                  type="button"
-                  onClick={() => handleFileSelect(null)}
-                  className="text-red-400 hover:text-red-300 text-sm disabled:opacity-50"
-                  disabled={isUploading}
+                  onClick={() => setForm({ ...form, photoFile: null })}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
+            )}
+
+            {/* Upload Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={handleFileUpload}
+                disabled={isUploading}
+                className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Tải ảnh lên</span>
+              </button>
+
+              {isMobile() && (
+                <button
+                  type="button"
+                  onClick={handleCameraCapture}
+                  disabled={isUploading}
+                  className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Chụp ảnh</span>
+                </button>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      </form>
-    </>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex justify-end pt-4">
+        <button
+          onClick={handleNext}
+          disabled={isUploading || !form.name.trim() || !form.category.trim()}
+          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isUploading ? 'Đang tải...' : 'Tiếp theo'}
+        </button>
+      </div>
+
+      {/* Hidden File Inputs */}
+      <input
+        ref={photoInputRef}
+        id="photo"
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          console.log('DEBUG: Photo input onChange triggered');
+          const file = e.target.files?.[0] || null;
+          console.log('DEBUG: Photo input file:', file);
+          if (file) {
+            console.log('DEBUG: Photo input file details:', {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              lastModified: file.lastModified,
+            });
+          }
+          handleFileSelect(file);
+        }}
+        onError={(e) => {
+          console.error('DEBUG: Photo input error:', e);
+        }}
+        disabled={isUploading}
+      />
+
+      <input
+        ref={cameraInputRef}
+        id="camera"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          console.log('DEBUG: Camera input onChange triggered');
+          const file = e.target.files?.[0] || null;
+          console.log('DEBUG: Camera input file:', file);
+          if (file) {
+            console.log('DEBUG: Camera input file details:', {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              lastModified: file.lastModified,
+            });
+          }
+          handleFileSelect(file);
+        }}
+        onError={(e) => {
+          console.error('DEBUG: Camera input error:', e);
+          alert('Không thể truy cập camera. Vui lòng sử dụng "Tải ảnh lên" thay thế.');
+        }}
+        disabled={isUploading}
+      />
+    </div>
   );
 };
 

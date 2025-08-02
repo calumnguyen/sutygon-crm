@@ -234,15 +234,15 @@ const InventoryContent: React.FC = () => {
         selectedItem={selectedItem}
       />
       <InventoryAddItemModal
-        addModalOpen={addModalOpen}
-        setAddModalOpen={setAddModalOpen}
-        addStep={addStep}
-        setAddStep={setAddStep}
+        isOpen={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
         form={form}
         setForm={setForm}
-        resetAddItemForm={resetAddItemForm}
         handleAddItem={handleAddItem}
         isUploading={isUploading}
+        setIsUploading={(uploading) => {
+          // This will be handled by the hooks
+        }}
       />
       <InventoryEditModal
         editModalOpen={editModalOpen}
