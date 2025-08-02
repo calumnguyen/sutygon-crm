@@ -15,17 +15,42 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm, isUploading 
   const photoInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Debug log for form state
+  React.useEffect(() => {
+    console.log('DEBUG: Current form.photoFile:', form.photoFile);
+  }, [form.photoFile]);
+
   const handleFileSelect = (file: File | null) => {
+    console.log('DEBUG: handleFileSelect called with:', file);
+    if (file) {
+      console.log('DEBUG: File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+      });
+    }
     setForm({ ...form, photoFile: file });
   };
 
   const handleCameraCapture = () => {
+    console.log('DEBUG: Camera capture button clicked');
     if (cameraInputRef.current) {
-      cameraInputRef.current.click();
+      try {
+        cameraInputRef.current.click();
+      } catch (error) {
+        console.error('DEBUG: Back camera failed, trying front camera:', error);
+        // Try fallback camera input
+        const fallbackInput = document.getElementById('camera-fallback') as HTMLInputElement;
+        if (fallbackInput) {
+          fallbackInput.click();
+        }
+      }
     }
   };
 
   const handleFileUpload = () => {
+    console.log('DEBUG: File upload button clicked');
     if (photoInputRef.current) {
       photoInputRef.current.click();
     }
@@ -148,7 +173,10 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm, isUploading 
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+            onChange={(e) => {
+              console.log('DEBUG: Photo input onChange triggered');
+              handleFileSelect(e.target.files?.[0] || null);
+            }}
             disabled={isUploading}
           />
 
@@ -159,7 +187,55 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({ form, setForm, isUploading 
             accept="image/*"
             capture="environment"
             className="hidden"
-            onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+            onChange={(e) => {
+              console.log('DEBUG: Camera input onChange triggered');
+              const file = e.target.files?.[0] || null;
+              console.log('DEBUG: Camera file:', file);
+              if (file) {
+                console.log('DEBUG: Camera file details:', {
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                });
+                // Validate file size (max 10MB for mobile photos)
+                if (file.size > 10 * 1024 * 1024) {
+                  alert('Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 10MB.');
+                  return;
+                }
+              }
+              handleFileSelect(file);
+            }}
+            onError={(e) => {
+              console.error('DEBUG: Camera input error:', e);
+              alert('Không thể truy cập camera. Vui lòng sử dụng "Tải ảnh lên" thay thế.');
+            }}
+            disabled={isUploading}
+          />
+
+          {/* Fallback camera input for better mobile compatibility */}
+          <input
+            id="camera-fallback"
+            type="file"
+            accept="image/*"
+            capture="user"
+            className="hidden"
+            onChange={(e) => {
+              console.log('DEBUG: Fallback camera input onChange triggered');
+              const file = e.target.files?.[0] || null;
+              if (file) {
+                console.log('DEBUG: Fallback camera file details:', {
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                });
+                // Validate file size (max 10MB for mobile photos)
+                if (file.size > 10 * 1024 * 1024) {
+                  alert('Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 10MB.');
+                  return;
+                }
+              }
+              handleFileSelect(file);
+            }}
             disabled={isUploading}
           />
 
