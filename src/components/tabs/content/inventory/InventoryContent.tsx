@@ -15,6 +15,7 @@ import InventoryGrid from './InventoryGrid';
 import InventoryFilterDropdown from './InventoryFilterDropdown';
 import InventoryPreviewModal from './InventoryPreviewModal';
 import InventoryAddItemModal from './InventoryAddItemModal';
+import InventoryEditModal from './InventoryEditModal';
 
 const InventoryContent: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -26,6 +27,8 @@ const InventoryContent: React.FC = () => {
     setPreviewOpen,
     addModalOpen,
     setAddModalOpen,
+    editModalOpen,
+    setEditModalOpen,
     addStep,
     setAddStep,
     form,
@@ -36,7 +39,13 @@ const InventoryContent: React.FC = () => {
     handleAddItemClick,
     handleIdentitySuccess,
     handleAddItem,
+    handleEditItem,
+    handleSaveEdit,
+    handleDeleteItem,
     isUploading,
+    isSaving,
+    isDeleting,
+    selectedItem: editSelectedItem,
   } = useInventoryModals(refreshInventory);
   const {
     searchQuery,
@@ -208,9 +217,14 @@ const InventoryContent: React.FC = () => {
           <InventoryTable
             filteredInventory={filteredInventory}
             setPreviewOpen={handlePreviewOpen}
+            handleEditItem={handleEditItem}
           />
         ) : (
-          <InventoryGrid filteredInventory={filteredInventory} setPreviewOpen={handlePreviewOpen} />
+          <InventoryGrid
+            filteredInventory={filteredInventory}
+            setPreviewOpen={handlePreviewOpen}
+            handleEditItem={handleEditItem}
+          />
         )}
       </div>
       <InventoryPreviewModal
@@ -229,6 +243,15 @@ const InventoryContent: React.FC = () => {
         resetAddItemForm={resetAddItemForm}
         handleAddItem={handleAddItem}
         isUploading={isUploading}
+      />
+      <InventoryEditModal
+        editModalOpen={editModalOpen}
+        setEditModalOpen={setEditModalOpen}
+        item={editSelectedItem}
+        onSave={handleSaveEdit}
+        onDelete={handleDeleteItem}
+        isSaving={isSaving}
+        isDeleting={isDeleting}
       />
       {/* Identity Confirmation Modal for admin */}
       <IdentityConfirmModal

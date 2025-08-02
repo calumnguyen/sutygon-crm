@@ -113,6 +113,9 @@ export async function POST(req: NextRequest) {
   // Expect: { name, category, imageUrl, tags: string[], sizes: [{title, quantity, onHand, price}] }
   const { name, category, imageUrl, tags: tagNames, sizes } = body;
 
+  // Debug log
+  console.log('DEBUG: Received imageUrl in POST /api/inventory', imageUrl);
+
   // Encrypt the category for counter lookup
   const encryptedCategory = encryptInventoryData({ name: '', category }).category;
 

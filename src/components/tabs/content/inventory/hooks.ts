@@ -247,10 +247,14 @@ const initialForm: AddItemFormState = {
 export function useInventoryModals(refreshInventory: () => void) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [addStep, setAddStep] = useState(1);
   const [form, setForm] = useState<AddItemFormState>(initialForm);
   const [identityModalOpen, setIdentityModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
   const resetAddItemForm = () => {
     setAddStep(1);
@@ -319,6 +323,12 @@ export function useInventoryModals(refreshInventory: () => void) {
         }
       }
 
+      // Debug log
+      console.log('DEBUG: About to POST /api/inventory', {
+        imageUrl,
+        photoFile: form.photoFile,
+      });
+
       // Create inventory item
       await fetch('/api/inventory', {
         method: 'POST',
@@ -343,11 +353,67 @@ export function useInventoryModals(refreshInventory: () => void) {
     }
   };
 
+  const handleEditItem = (item: InventoryItem) => {
+    setSelectedItem(item);
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (updatedItem: {
+    id: number;
+    name: string;
+    category: string;
+    tags: string[];
+    sizes: Array<{ title: string; quantity: number; onHand: number; price: number }>;
+  }) => {
+    try {
+      setIsSaving(true);
+
+      await fetch(`/api/inventory/${updatedItem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: updatedItem.name,
+          category: updatedItem.category,
+          tags: updatedItem.tags,
+          sizes: updatedItem.sizes,
+        }),
+      });
+
+      refreshInventory();
+      setEditModalOpen(false);
+      setSelectedItem(null);
+    } catch (error) {
+      console.error('Failed to update item:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteItem = async (itemId: number) => {
+    try {
+      setIsDeleting(true);
+
+      await fetch(`/api/inventory/${itemId}`, {
+        method: 'DELETE',
+      });
+
+      refreshInventory();
+      setEditModalOpen(false);
+      setSelectedItem(null);
+    } catch (error) {
+      console.error('Failed to delete item:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return {
     previewOpen,
     setPreviewOpen,
     addModalOpen,
     setAddModalOpen,
+    editModalOpen,
+    setEditModalOpen,
     addStep,
     setAddStep,
     form,
@@ -358,6 +424,12 @@ export function useInventoryModals(refreshInventory: () => void) {
     handleAddItemClick,
     handleIdentitySuccess,
     handleAddItem,
+    handleEditItem,
+    handleSaveEdit,
+    handleDeleteItem,
     isUploading,
+    isSaving,
+    isDeleting,
+    selectedItem,
   };
 }

@@ -1,13 +1,19 @@
 import React from 'react';
 import { InventoryItem } from '@/types/inventory';
 import Button from '@/components/common/dropdowns/Button';
+import { Edit, Eye } from 'lucide-react';
 
 interface InventoryTableProps {
   filteredInventory: InventoryItem[];
   setPreviewOpen: (item: InventoryItem) => void;
+  handleEditItem: (item: InventoryItem) => void;
 }
 
-const InventoryTable: React.FC<InventoryTableProps> = ({ filteredInventory, setPreviewOpen }) => {
+const InventoryTable: React.FC<InventoryTableProps> = ({
+  filteredInventory,
+  setPreviewOpen,
+  handleEditItem,
+}) => {
   if (filteredInventory.length === 0) {
     return <div className="text-center text-gray-400 py-10">Chưa có sản phẩm nào trong kho.</div>;
   }
@@ -86,14 +92,24 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ filteredInventory, setP
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <Button
-                    variant="secondary"
-                    onClick={() => setPreviewOpen(item)}
-                    className="p-2"
-                    title="Xem trước sản phẩm"
-                  >
-                    Xem
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setPreviewOpen(item)}
+                      className="p-2"
+                      title="Xem trước sản phẩm"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleEditItem(item)}
+                      className="p-2"
+                      title="Chỉnh sửa sản phẩm"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -115,14 +131,24 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ filteredInventory, setP
                 </div>
                 <h3 className="text-white font-semibold truncate">{item.name}</h3>
               </div>
-              <Button
-                variant="secondary"
-                onClick={() => setPreviewOpen(item)}
-                className="p-2 flex-shrink-0"
-                title="Xem trước sản phẩm"
-              >
-                Xem
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => setPreviewOpen(item)}
+                  className="p-2 flex-shrink-0"
+                  title="Xem trước sản phẩm"
+                >
+                  <Eye className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleEditItem(item)}
+                  className="p-2 flex-shrink-0"
+                  title="Chỉnh sửa sản phẩm"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Inventory Info */}
