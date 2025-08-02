@@ -258,26 +258,32 @@ export async function GET(request: NextRequest) {
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
             .replace(/[đ]/g, 'd') // Replace đ with d
-            .replace(/[Đ]/g, 'D'); // Replace Đ with D
+            .replace(/[Đ]/g, 'D') // Replace Đ with D
+            .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+            .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+            .replace(/[ìíịỉĩ]/g, 'i')
+            .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+            .replace(/[ùúụủũưừứựửữ]/g, 'u')
+            .replace(/[ỳýỵỷỹ]/g, 'y');
         };
 
         const normalizedQuery = normalizeVietnamese(searchQuery);
         const normalizedName = normalizeVietnamese(item.name);
         const normalizedCategory = normalizeVietnamese(item.category);
 
-        // Check if all words in the query are found in the name or category
+        // Check if any words in the query are found in the name or category
         const queryWords = normalizedQuery.split(/\s+/).filter((word) => word.length > 0);
-        const nameMatch = queryWords.every((word) => normalizedName.includes(word));
-        const categoryMatch = queryWords.every((word) => normalizedCategory.includes(word));
+        const nameMatch = queryWords.some((word) => normalizedName.includes(word));
+        const categoryMatch = queryWords.some((word) => normalizedCategory.includes(word));
 
         // Original exact matching for backward compatibility
         const exactNameMatch = item.name.toLowerCase().includes(searchQuery);
         const exactCategoryMatch = item.category.toLowerCase().includes(searchQuery);
 
-        // Search by tags
+        // Search by tags - check if any word matches any tag
         const tagMatch = item.tags.some((tag) => {
           const normalizedTag = normalizeVietnamese(tag);
-          return queryWords.every((word) => normalizedTag.includes(word));
+          return queryWords.some((word) => normalizedTag.includes(word));
         });
 
         if (
