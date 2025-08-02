@@ -55,13 +55,13 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-600">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">Thêm sản phẩm mới</h2>
+        <div className="flex items-center justify-between p-6 border-b border-gray-600">
+          <h2 className="text-xl font-semibold text-white">Thêm sản phẩm mới</h2>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-200 transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -84,11 +84,11 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
 
         {/* Step 2 Navigation */}
         {currentStep === 2 && (
-          <div className="flex justify-between p-6 border-t">
+          <div className="flex justify-between p-6 border-t border-gray-600">
             <button
               onClick={handleBack}
               disabled={isUploading}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+              className="px-4 py-2 text-gray-400 hover:text-gray-200 disabled:opacity-50"
             >
               Quay lại
             </button>
