@@ -11,7 +11,7 @@ export function useInventory() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
-  const ITEMS_PER_PAGE = 20;
+  const ITEMS_PER_PAGE = 10;
 
   const fetchInventory = useCallback(async (pageNum: number = 1, append: boolean = false) => {
     try {

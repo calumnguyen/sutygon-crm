@@ -41,7 +41,7 @@ function getFormattedId(category: string, categoryCounter: number) {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const limit = parseInt(searchParams.get('limit') || '20');
+  const limit = parseInt(searchParams.get('limit') || '10');
   const offset = parseInt(searchParams.get('offset') || '0');
   const page = parseInt(searchParams.get('page') || '1');
 
