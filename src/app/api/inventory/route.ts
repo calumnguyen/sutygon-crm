@@ -93,7 +93,8 @@ export async function GET() {
         const decryptedTag = decryptTagData(t);
         return decryptedTag.name;
       });
-    return {
+
+    const resultItem = {
       id: item.id,
       formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
       name: decryptedItem.name,
@@ -104,6 +105,18 @@ export async function GET() {
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
+
+    // Debug log for items with imageUrl
+    if (item.imageUrl) {
+      console.log('DEBUG: GET /api/inventory - Item with imageUrl:', {
+        id: item.id,
+        name: decryptedItem.name,
+        imageUrl: item.imageUrl,
+        imageUrlLength: item.imageUrl.length,
+      });
+    }
+
+    return resultItem;
   });
   return NextResponse.json(result);
 }

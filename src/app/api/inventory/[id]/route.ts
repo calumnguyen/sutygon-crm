@@ -19,6 +19,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const body = await request.json();
     const { name, category, tags: tagNames, sizes, imageUrl } = body;
 
+    console.log('DEBUG: PUT /api/inventory/[id] - Received data:', {
+      itemId,
+      name,
+      category,
+      imageUrl,
+      hasImageUrl: !!imageUrl,
+      imageUrlLength: imageUrl?.length,
+    });
+
     // Encrypt inventory data before storing
     const encryptedInventoryData = encryptInventoryData({
       name,
@@ -34,6 +43,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         imageUrl: imageUrl || null, // Update imageUrl if provided
       })
       .where(eq(inventoryItems.id, itemId));
+
+    console.log('DEBUG: PUT /api/inventory/[id] - Database update completed');
 
     // Delete existing sizes and tags
     await db.delete(inventorySizes).where(eq(inventorySizes.itemId, itemId));
