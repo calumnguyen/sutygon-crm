@@ -18,7 +18,7 @@ import InventoryEditModal from './InventoryEditModal';
 
 const InventoryContent: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const { inventory, refreshInventory } = useInventory();
+  const { inventory, refreshInventory, isRefreshing } = useInventory();
   const [showFilter, setShowFilter] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -218,12 +218,19 @@ const InventoryContent: React.FC = () => {
             setNameSort(null);
             setIdSort(null);
           }}
-          leftIcon={<RefreshCw className="w-5 h-5" />}
+          leftIcon={
+            isRefreshing ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-5 h-5" />
+            )
+          }
           className="w-full sm:w-auto border-green-500 text-green-400 hover:bg-green-900/30 hover:text-green-300 focus:ring-2 focus:ring-green-500"
           title="Làm mới dữ liệu"
+          disabled={isRefreshing}
         >
-          <span className="sm:hidden">Làm mới</span>
-          <span className="hidden sm:inline">Làm mới</span>
+          <span className="sm:hidden">{isRefreshing ? 'Đang tải...' : 'Làm mới'}</span>
+          <span className="hidden sm:inline">{isRefreshing ? 'Đang tải...' : 'Làm mới'}</span>
         </Button>
       </div>
 
