@@ -289,13 +289,26 @@ export function useOrderStep3ItemsLogic(
       const exactNameMatch = item.name.toLowerCase().includes(searchQuery);
       const exactCategoryMatch = item.category.toLowerCase().includes(searchQuery);
 
-      // Check tags
+      // Check tags - look for any query word in any tag
       const tagMatch = item.tags.some((tag) => {
         const normalizedTag = normalizeVietnamese(tag);
-        return queryWords.every((word: string) => normalizedTag.includes(word));
+        return queryWords.some((word: string) => normalizedTag.includes(word));
       });
 
-      return nameMatch || categoryMatch || exactNameMatch || exactCategoryMatch || tagMatch;
+      // Also check if any tag contains the full search query
+      const fullTagMatch = item.tags.some((tag) => {
+        const normalizedTag = normalizeVietnamese(tag);
+        return normalizedTag.includes(normalizedQuery);
+      });
+
+      return (
+        nameMatch ||
+        categoryMatch ||
+        exactNameMatch ||
+        exactCategoryMatch ||
+        tagMatch ||
+        fullTagMatch
+      );
     });
 
     // Sort results by relevance
@@ -311,9 +324,18 @@ export function useOrderStep3ItemsLogic(
         if (itemName.includes(searchQuery)) score += 8;
         if (itemCategory.includes(searchQuery)) score += 6;
 
-        // Partial matches
-        if (itemName.includes(searchQuery)) score += 4;
-        if (itemCategory.includes(searchQuery)) score += 2;
+        // Tag matches
+        const tagMatches = item.tags.filter((tag) => {
+          const normalizedTag = normalizeVietnamese(tag);
+          return queryWords.some((word: string) => normalizedTag.includes(word));
+        }).length;
+        score += tagMatches * 4; // Each matching tag adds 4 points
+
+        // Partial word matches in name and category
+        queryWords.forEach((word: string) => {
+          if (itemName.includes(word)) score += 2;
+          if (itemCategory.includes(word)) score += 1;
+        });
 
         return { ...item, matchCount: score };
       })
