@@ -17,11 +17,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    // Validate file size (max 2MB for base64 encoding)
+    const maxSize = 2 * 1024 * 1024; // 2MB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) must be less than 5MB` },
+        {
+          error: `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) must be less than 2MB. Please compress the image or choose a smaller file.`,
+        },
         { status: 400 }
       );
     }
@@ -41,6 +43,17 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString('base64');
     const dataUrl = `data:${file.type};base64,${base64}`;
+
+    // Check if base64 string is too large (max 3MB for database)
+    const maxBase64Size = 3 * 1024 * 1024; // 3MB
+    if (dataUrl.length > maxBase64Size) {
+      return NextResponse.json(
+        {
+          error: `Image is too large after encoding (${(dataUrl.length / 1024 / 1024).toFixed(2)}MB). Please choose a smaller image or compress it.`,
+        },
+        { status: 400 }
+      );
+    }
 
     // Generate a unique filename for reference
     const timestamp = Date.now();

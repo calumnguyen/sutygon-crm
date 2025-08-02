@@ -37,6 +37,15 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
 
   const handleFileSelect = (file: File | null) => {
     if (file) {
+      // Check file size before processing (max 2MB)
+      const maxSize = 2 * 1024 * 1024; // 2MB
+      if (file.size > maxSize) {
+        alert(
+          `File too large! Size: ${(file.size / 1024 / 1024).toFixed(2)}MB\nMaximum allowed: 2MB\nPlease choose a smaller image.`
+        );
+        return;
+      }
+
       setForm({ ...form, photoFile: file });
     } else {
       setForm({ ...form, photoFile: null });
