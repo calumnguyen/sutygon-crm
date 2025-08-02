@@ -45,90 +45,100 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(searchParams.get('offset') || '0');
   const page = parseInt(searchParams.get('page') || '1');
 
-  // Get items with pagination
-  const items = await db.select().from(inventoryItems).limit(limit).offset(offset);
+  try {
+    // Get items with pagination
+    const items = await db.select().from(inventoryItems).limit(limit).offset(offset);
 
-  if (!items.length) return NextResponse.json({ items: [], hasMore: false, total: 0 });
+    if (!items.length) {
+      return NextResponse.json({ items: [], hasMore: false, total: 0 });
+    }
 
-  // Get all sizes for these items
-  const sizes = await db
-    .select()
-    .from(inventorySizes)
-    .where(
-      inArray(
-        inventorySizes.itemId,
-        items.map((i) => i.id)
-      )
-    );
-  // Get all inventory_tags for these items
-  const invTags = await db
-    .select()
-    .from(inventoryTags)
-    .where(
-      inArray(
-        inventoryTags.itemId,
-        items.map((i) => i.id)
-      )
-    );
-  // Get all tags for these tag ids
-  const tagIds = invTags.map((t) => t.tagId);
-  const allTags = tagIds.length ? await db.select().from(tags).where(inArray(tags.id, tagIds)) : [];
+    // Get total count efficiently
+    const totalResult = await db.select({ count: sql<number>`count(*)` }).from(inventoryItems);
+    const total = totalResult[0]?.count || 0;
 
-  // Get total count for pagination
-  const totalResult = await db.select({ count: sql<number>`count(*)` }).from(inventoryItems);
-  const total = totalResult[0]?.count || 0;
+    // Get all sizes for these items in a single query
+    const sizes = await db
+      .select()
+      .from(inventorySizes)
+      .where(
+        inArray(
+          inventorySizes.itemId,
+          items.map((i) => i.id)
+        )
+      );
 
-  // Build nested structure with decryption
-  const result = items.map((item) => {
-    // Decrypt inventory item data
-    const decryptedItem = decryptInventoryData(item);
+    // Get all inventory_tags for these items in a single query
+    const invTags = await db
+      .select()
+      .from(inventoryTags)
+      .where(
+        inArray(
+          inventoryTags.itemId,
+          items.map((i) => i.id)
+        )
+      );
 
-    const itemSizes = sizes
-      .filter((s) => s.itemId === item.id)
-      .map((s) => {
-        // Decrypt size data with type safety
-        const decryptedSize = decryptInventorySizeData(s);
-        return {
-          title: decryptedSize.title,
-          quantity: decryptedSize.quantity,
-          onHand: decryptedSize.onHand,
-          price: decryptedSize.price,
-        };
-      });
-    const itemTagIds = invTags.filter((t) => t.itemId === item.id).map((t) => t.tagId);
-    const itemTags = allTags
-      .filter((t) => itemTagIds.includes(t.id))
-      .map((t) => {
-        // Decrypt tag data
-        const decryptedTag = decryptTagData(t);
-        return decryptedTag.name;
-      });
+    // Get all tags for these tag ids in a single query
+    const tagIds = invTags.map((t) => t.tagId);
+    const allTags = tagIds.length
+      ? await db.select().from(tags).where(inArray(tags.id, tagIds))
+      : [];
 
-    const resultItem = {
-      id: item.id,
-      formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
-      name: decryptedItem.name,
-      category: decryptedItem.category,
-      imageUrl: item.imageUrl,
-      tags: itemTags,
-      sizes: itemSizes,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-    };
+    // Build nested structure with decryption
+    const result = items.map((item) => {
+      // Decrypt inventory item data
+      const decryptedItem = decryptInventoryData(item);
 
-    return resultItem;
-  });
+      const itemSizes = sizes
+        .filter((s) => s.itemId === item.id)
+        .map((s) => {
+          // Decrypt size data with type safety
+          const decryptedSize = decryptInventorySizeData(s);
+          return {
+            title: decryptedSize.title,
+            quantity: decryptedSize.quantity,
+            onHand: decryptedSize.onHand,
+            price: decryptedSize.price,
+          };
+        });
 
-  const hasMore = offset + limit < total;
+      const itemTagIds = invTags.filter((t) => t.itemId === item.id).map((t) => t.tagId);
+      const itemTags = allTags
+        .filter((t) => itemTagIds.includes(t.id))
+        .map((t) => {
+          // Decrypt tag data
+          const decryptedTag = decryptTagData(t);
+          return decryptedTag.name;
+        });
 
-  return NextResponse.json({
-    items: result,
-    hasMore,
-    total,
-    page,
-    limit,
-    offset,
-  });
+      return {
+        id: item.id,
+        formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
+        name: decryptedItem.name,
+        category: decryptedItem.category,
+        imageUrl: item.imageUrl,
+        tags: itemTags,
+        sizes: itemSizes,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      };
+    });
+
+    const hasMore = offset + limit < total;
+
+    return NextResponse.json({
+      items: result,
+      hasMore,
+      total,
+      page,
+      limit,
+      offset,
+    });
+  } catch (error) {
+    console.error('Error fetching inventory:', error);
+    return NextResponse.json({ error: 'Failed to fetch inventory' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

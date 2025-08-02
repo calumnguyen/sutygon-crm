@@ -89,7 +89,7 @@ const InventoryContent: React.FC = () => {
           }
         },
         {
-          rootMargin: '100px', // Start loading when 100px away from the bottom
+          rootMargin: '200px', // Increased margin for better mobile detection
           threshold: 0.1,
         }
       );
@@ -282,6 +282,8 @@ const InventoryContent: React.FC = () => {
             handleEditItem={handleEditItem}
             lastElementRef={lastElementRef}
             loadingMore={loadingMore}
+            loadMore={loadMore}
+            hasMore={hasMore}
           />
         ) : (
           <InventoryGrid
@@ -290,7 +292,23 @@ const InventoryContent: React.FC = () => {
             handleEditItem={handleEditItem}
             lastElementRef={lastElementRef}
             loadingMore={loadingMore}
+            loadMore={loadMore}
+            hasMore={hasMore}
           />
+        )}
+
+        {/* Manual load more button for mobile fallback */}
+        {hasMore && !loadingMore && (
+          <div className="flex items-center justify-center py-4">
+            <Button
+              variant="secondary"
+              onClick={loadMore}
+              className="px-6 py-2 text-sm"
+              disabled={loadingMore}
+            >
+              {loadingMore ? 'Đang tải...' : 'Tải thêm'}
+            </Button>
+          </div>
         )}
       </div>
       <InventoryPreviewModal

@@ -9,6 +9,8 @@ interface InventoryTableProps {
   handleEditItem: (item: InventoryItem) => void;
   lastElementRef?: (node: HTMLElement | null) => void;
   loadingMore?: boolean;
+  loadMore?: () => void;
+  hasMore?: boolean;
 }
 
 const InventoryTable: React.FC<InventoryTableProps> = ({
@@ -17,6 +19,8 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
   handleEditItem,
   lastElementRef,
   loadingMore,
+  loadMore,
+  hasMore,
 }) => {
   if (filteredInventory.length === 0) {
     return <div className="text-center text-gray-400 py-10">Chưa có sản phẩm nào trong kho.</div>;
@@ -199,6 +203,20 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
       {loadingMore && (
         <div className="flex items-center justify-center py-4">
           <div className="text-blue-400 text-sm">Đang tải thêm...</div>
+        </div>
+      )}
+
+      {/* Manual load more button for mobile fallback */}
+      {hasMore && !loadingMore && loadMore && (
+        <div className="flex items-center justify-center py-4">
+          <Button
+            variant="secondary"
+            onClick={loadMore}
+            className="px-6 py-2 text-sm"
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Đang tải...' : 'Tải thêm'}
+          </Button>
         </div>
       )}
     </div>

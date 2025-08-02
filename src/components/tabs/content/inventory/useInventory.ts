@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { InventoryItem } from '@/types/inventory';
 
 export function useInventory() {
@@ -10,49 +10,59 @@ export function useInventory() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [isFetching, setIsFetching] = useState(false);
 
   const ITEMS_PER_PAGE = 10;
 
-  const fetchInventory = useCallback(async (pageNum: number = 1, append: boolean = false) => {
-    try {
-      if (pageNum === 1) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
+  const fetchInventory = useCallback(
+    async (pageNum: number = 1, append: boolean = false) => {
+      // Prevent multiple simultaneous requests
+      if (isFetching) return;
+
+      try {
+        setIsFetching(true);
+
+        if (pageNum === 1) {
+          setLoading(true);
+        } else {
+          setLoadingMore(true);
+        }
+        setFetchError(null);
+
+        const offset = (pageNum - 1) * ITEMS_PER_PAGE;
+        const response = await fetch(
+          `/api/inventory?limit=${ITEMS_PER_PAGE}&offset=${offset}&page=${pageNum}`
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch inventory');
+        }
+
+        const data = await response.json();
+
+        if (append) {
+          setInventory((prev) => [...prev, ...data.items]);
+        } else {
+          setInventory(data.items);
+        }
+
+        setHasMore(data.hasMore);
+        setTotal(data.total);
+        setPage(pageNum);
+      } catch (err) {
+        setFetchError('Lỗi khi tải dữ liệu kho.');
+        console.error('Fetch error:', err);
+        if (!append) {
+          setInventory([]);
+        }
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+        setIsFetching(false);
       }
-      setFetchError(null);
-
-      const offset = (pageNum - 1) * ITEMS_PER_PAGE;
-      const response = await fetch(
-        `/api/inventory?limit=${ITEMS_PER_PAGE}&offset=${offset}&page=${pageNum}`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch inventory');
-      }
-
-      const data = await response.json();
-
-      if (append) {
-        setInventory((prev) => [...prev, ...data.items]);
-      } else {
-        setInventory(data.items);
-      }
-
-      setHasMore(data.hasMore);
-      setTotal(data.total);
-      setPage(pageNum);
-    } catch (err) {
-      setFetchError('Lỗi khi tải dữ liệu kho.');
-      console.error('Fetch error:', err);
-      if (!append) {
-        setInventory([]);
-      }
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, []);
+    },
+    [isFetching]
+  );
 
   const refreshInventory = useCallback(async () => {
     setIsRefreshing(true);
@@ -70,10 +80,10 @@ export function useInventory() {
   }, [fetchInventory]);
 
   const loadMore = useCallback(async () => {
-    if (!loadingMore && hasMore) {
+    if (!loadingMore && hasMore && !isFetching) {
       await fetchInventory(page + 1, true);
     }
-  }, [loadingMore, hasMore, page, fetchInventory]);
+  }, [loadingMore, hasMore, page, fetchInventory, isFetching]);
 
   // Fetch inventory on mount
   useEffect(() => {

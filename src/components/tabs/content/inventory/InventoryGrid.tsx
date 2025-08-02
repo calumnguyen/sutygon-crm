@@ -10,6 +10,8 @@ interface InventoryGridProps {
   handleEditItem: (item: InventoryItem) => void;
   lastElementRef?: (node: HTMLElement | null) => void;
   loadingMore?: boolean;
+  loadMore?: () => void;
+  hasMore?: boolean;
 }
 
 const InventoryGrid: React.FC<InventoryGridProps> = ({
@@ -18,6 +20,8 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
   handleEditItem,
   lastElementRef,
   loadingMore,
+  loadMore,
+  hasMore,
 }) => {
   if (filteredInventory.length === 0) {
     return <div className="text-center text-gray-400 py-10">Chưa có sản phẩm nào trong kho.</div>;
@@ -25,13 +29,6 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
   return (
     <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
       {filteredInventory.map((item, index) => {
-        console.log('DEBUG: Rendering inventory item:', {
-          id: item.id,
-          name: item.name,
-          imageUrl: item.imageUrl,
-          hasImageUrl: !!item.imageUrl,
-        });
-
         return (
           <div
             key={item.id}
@@ -126,6 +123,20 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
       {loadingMore && (
         <div className="col-span-full flex items-center justify-center py-4">
           <div className="text-blue-400 text-sm">Đang tải thêm...</div>
+        </div>
+      )}
+
+      {/* Manual load more button for mobile fallback */}
+      {hasMore && !loadingMore && loadMore && (
+        <div className="col-span-full flex items-center justify-center py-4">
+          <Button
+            variant="secondary"
+            onClick={loadMore}
+            className="px-6 py-2 text-sm"
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Đang tải...' : 'Tải thêm'}
+          </Button>
         </div>
       )}
     </div>
