@@ -60,7 +60,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
     );
   };
 
-  const handleFileSelect = (file: File | null) => {
+  const handleFileSelect = useCallback((file: File | null) => {
     if (file) {
       // Check file size before processing (max 2MB)
       const maxSize = 2 * 1024 * 1024; // 2MB
@@ -71,11 +71,11 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
         return;
       }
 
-      setForm({ ...form, photoFile: file });
+      setForm((prevForm) => ({ ...prevForm, photoFile: file }));
     } else {
-      setForm({ ...form, photoFile: null });
+      setForm((prevForm) => ({ ...prevForm, photoFile: null }));
     }
-  };
+  }, []);
 
   const handleFileUpload = () => {
     photoInputRef.current?.click();
@@ -105,7 +105,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
           });
       }
     }
-  }, []);
+  }, [handleFileSelect]);
 
   const handleCameraError = (error: string | DOMException) => {
     setCameraError('Không thể truy cập camera. Vui lòng sử dụng "Tải ảnh lên" thay thế.');
