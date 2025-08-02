@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { X, Upload, Camera, ArrowLeft } from 'lucide-react';
+import { Camera, Upload, X } from 'lucide-react';
 import Webcam from 'react-webcam';
-import { AddItemFormState } from './InventoryTypes';
+import { AddItemFormState } from '@/types/inventory';
+import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { parseTags } from './InventoryUtils';
 
 interface AddItemStep1Props {
@@ -185,11 +186,11 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
             disabled={isUploading}
           >
             <option value="">Chọn danh mục</option>
-            <option value="Áo">Áo</option>
-            <option value="Quần">Quần</option>
-            <option value="Giày">Giày</option>
-            <option value="Túi">Túi</option>
-            <option value="Phụ kiện">Phụ kiện</option>
+            {CATEGORY_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
           </select>
         </div>
 
