@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, List, Grid, Search, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import Button from '@/components/common/dropdowns/Button';
 import { TRANSLATIONS } from '@/config/translations';
@@ -18,7 +18,8 @@ import InventoryEditModal from './InventoryEditModal';
 
 const InventoryContent: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const { inventory, refreshInventory, isRefreshing } = useInventory();
+  const { inventory, refreshInventory, isRefreshing, loading, loadingMore, hasMore, loadMore } =
+    useInventory();
   const [showFilter, setShowFilter] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -71,6 +72,41 @@ const InventoryContent: React.FC = () => {
       { name: 'flip', options: { fallbackPlacements: ['top-end', 'bottom-end'] } },
     ],
   });
+
+  // Intersection Observer for infinite scrolling
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  const lastElementRef = useCallback(
+    (node: HTMLElement | null) => {
+      if (loading) return;
+
+      if (observerRef.current) observerRef.current.disconnect();
+
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && hasMore && !loadingMore) {
+            loadMore();
+          }
+        },
+        {
+          rootMargin: '100px', // Start loading when 100px away from the bottom
+          threshold: 0.1,
+        }
+      );
+
+      if (node) observerRef.current.observe(node);
+    },
+    [loading, hasMore, loadingMore, loadMore]
+  );
+
+  // Cleanup observer on unmount
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, []);
 
   // Close category dropdown on click outside
   useEffect(() => {
@@ -235,17 +271,25 @@ const InventoryContent: React.FC = () => {
       </div>
 
       <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-        {viewMode === 'list' ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-blue-400 text-lg">Đang tải dữ liệu kho...</div>
+          </div>
+        ) : viewMode === 'list' ? (
           <InventoryTable
             filteredInventory={filteredInventory}
             setPreviewOpen={handlePreviewOpen}
             handleEditItem={handleEditItem}
+            lastElementRef={lastElementRef}
+            loadingMore={loadingMore}
           />
         ) : (
           <InventoryGrid
             filteredInventory={filteredInventory}
             setPreviewOpen={handlePreviewOpen}
             handleEditItem={handleEditItem}
+            lastElementRef={lastElementRef}
+            loadingMore={loadingMore}
           />
         )}
       </div>

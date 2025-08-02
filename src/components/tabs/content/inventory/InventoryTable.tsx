@@ -7,12 +7,16 @@ interface InventoryTableProps {
   filteredInventory: InventoryItem[];
   setPreviewOpen: (item: InventoryItem) => void;
   handleEditItem: (item: InventoryItem) => void;
+  lastElementRef?: (node: HTMLElement | null) => void;
+  loadingMore?: boolean;
 }
 
 const InventoryTable: React.FC<InventoryTableProps> = ({
   filteredInventory,
   setPreviewOpen,
   handleEditItem,
+  lastElementRef,
+  loadingMore,
 }) => {
   if (filteredInventory.length === 0) {
     return <div className="text-center text-gray-400 py-10">Chưa có sản phẩm nào trong kho.</div>;
@@ -35,8 +39,12 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
-            {filteredInventory.map((item) => (
-              <tr key={item.id} className="text-white hover:bg-gray-700/50">
+            {filteredInventory.map((item, index) => (
+              <tr
+                key={item.id}
+                className="text-white hover:bg-gray-700/50"
+                ref={index === filteredInventory.length - 1 ? lastElementRef : undefined}
+              >
                 <td className="px-4 py-3 font-mono text-sm">{item.formattedId}</td>
                 <td className="px-4 py-3">{item.name}</td>
                 <td className="px-4 py-3">
@@ -186,6 +194,13 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Loading indicator for infinite scroll */}
+      {loadingMore && (
+        <div className="flex items-center justify-center py-4">
+          <div className="text-blue-400 text-sm">Đang tải thêm...</div>
+        </div>
+      )}
     </div>
   );
 };

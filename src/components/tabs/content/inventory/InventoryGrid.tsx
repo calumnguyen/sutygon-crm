@@ -8,19 +8,23 @@ interface InventoryGridProps {
   filteredInventory: InventoryItem[];
   setPreviewOpen: (item: InventoryItem) => void;
   handleEditItem: (item: InventoryItem) => void;
+  lastElementRef?: (node: HTMLElement | null) => void;
+  loadingMore?: boolean;
 }
 
 const InventoryGrid: React.FC<InventoryGridProps> = ({
   filteredInventory,
   setPreviewOpen,
   handleEditItem,
+  lastElementRef,
+  loadingMore,
 }) => {
   if (filteredInventory.length === 0) {
     return <div className="text-center text-gray-400 py-10">Chưa có sản phẩm nào trong kho.</div>;
   }
   return (
     <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-      {filteredInventory.map((item) => {
+      {filteredInventory.map((item, index) => {
         console.log('DEBUG: Rendering inventory item:', {
           id: item.id,
           name: item.name,
@@ -31,6 +35,7 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
         return (
           <div
             key={item.id}
+            ref={index === filteredInventory.length - 1 ? lastElementRef : undefined}
             className="bg-gray-900 rounded-lg shadow border border-gray-700 flex flex-col items-center p-3 w-full min-w-0 hover:border-gray-600 transition-colors"
           >
             <div className="relative w-full">
@@ -116,6 +121,13 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
           </div>
         );
       })}
+
+      {/* Loading indicator for infinite scroll */}
+      {loadingMore && (
+        <div className="col-span-full flex items-center justify-center py-4">
+          <div className="text-blue-400 text-sm">Đang tải thêm...</div>
+        </div>
+      )}
     </div>
   );
 };

@@ -39,10 +39,16 @@ function getFormattedId(category: string, categoryCounter: number) {
   return `${code}-${String(categoryCounter).padStart(6, '0')}`;
 }
 
-export async function GET() {
-  // Get all items
-  const items = await db.select().from(inventoryItems);
-  if (!items.length) return NextResponse.json([]);
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const limit = parseInt(searchParams.get('limit') || '20');
+  const offset = parseInt(searchParams.get('offset') || '0');
+  const page = parseInt(searchParams.get('page') || '1');
+
+  // Get items with pagination
+  const items = await db.select().from(inventoryItems).limit(limit).offset(offset);
+
+  if (!items.length) return NextResponse.json({ items: [], hasMore: false, total: 0 });
 
   // Get all sizes for these items
   const sizes = await db
@@ -67,6 +73,10 @@ export async function GET() {
   // Get all tags for these tag ids
   const tagIds = invTags.map((t) => t.tagId);
   const allTags = tagIds.length ? await db.select().from(tags).where(inArray(tags.id, tagIds)) : [];
+
+  // Get total count for pagination
+  const totalResult = await db.select({ count: sql<number>`count(*)` }).from(inventoryItems);
+  const total = totalResult[0]?.count || 0;
 
   // Build nested structure with decryption
   const result = items.map((item) => {
@@ -108,7 +118,17 @@ export async function GET() {
 
     return resultItem;
   });
-  return NextResponse.json(result);
+
+  const hasMore = offset + limit < total;
+
+  return NextResponse.json({
+    items: result,
+    hasMore,
+    total,
+    page,
+    limit,
+    offset,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -203,5 +223,5 @@ export async function POST(req: NextRequest) {
   }
 
   // Return the created item in UI structure
-  return GET();
+  return GET(req);
 }
