@@ -329,11 +329,19 @@ export function useInventoryModals(refreshInventory: () => void) {
       if (form.photoFile) {
         try {
           console.log('DEBUG: Starting image upload for file:', form.photoFile.name);
+          console.log('DEBUG: File details:', {
+            name: form.photoFile.name,
+            size: form.photoFile.size,
+            type: form.photoFile.type,
+            lastModified: form.photoFile.lastModified,
+          });
+
           const uploadedUrl = await uploadImage(form.photoFile);
           console.log('DEBUG: Upload completed, received URL:', uploadedUrl);
           imageUrl = uploadedUrl || undefined;
+          console.log('DEBUG: Final imageUrl value:', imageUrl);
         } catch (error) {
-          console.error('Image upload failed:', error);
+          console.error('DEBUG: Image upload failed:', error);
           // Continue without image if upload fails
           imageUrl = undefined;
         }
@@ -346,6 +354,8 @@ export function useInventoryModals(refreshInventory: () => void) {
         imageUrl,
         photoFile: form.photoFile,
         hasPhotoFile: !!form.photoFile,
+        imageUrlType: typeof imageUrl,
+        imageUrlLength: imageUrl?.length,
       });
 
       // Create inventory item
