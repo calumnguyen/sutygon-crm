@@ -198,10 +198,15 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
         try {
           setIsUploading(true);
           console.log('DEBUG: Edit modal - Starting image upload for file:', form.photoFile.name);
+          alert(`DEBUG: Starting upload for file: ${form.photoFile.name}`);
+
           const uploadedUrl = await uploadImage(form.photoFile);
           console.log('DEBUG: Edit modal - Upload completed, received URL:', uploadedUrl);
+          alert(`DEBUG: Upload completed! URL length: ${uploadedUrl?.length || 0}`);
+
           imageUrl = uploadedUrl || item.imageUrl;
           console.log('DEBUG: Edit modal - Final imageUrl value:', imageUrl);
+          alert(`DEBUG: Final imageUrl length: ${imageUrl?.length || 0}`);
         } catch (error) {
           console.error('Failed to upload image:', error);
           alert('Không thể tải ảnh lên. Sản phẩm sẽ được cập nhật mà không có ảnh mới.');
@@ -213,9 +218,13 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
           'DEBUG: Edit modal - No photoFile provided, keeping existing imageUrl:',
           item.imageUrl
         );
+        alert(
+          `DEBUG: No new photo, keeping existing imageUrl length: ${item.imageUrl?.length || 0}`
+        );
       }
 
       console.log('DEBUG: Edit modal - About to call onSave with imageUrl:', imageUrl);
+      alert(`DEBUG: About to save with imageUrl length: ${imageUrl?.length || 0}`);
       onSave({
         id: parseInt(item.id, 10),
         name: form.name,

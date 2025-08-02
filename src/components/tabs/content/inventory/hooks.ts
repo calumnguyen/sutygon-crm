@@ -361,7 +361,7 @@ export function useInventoryModals(refreshInventory: () => void) {
     try {
       setIsSaving(true);
 
-      await fetch(`/api/inventory/${updatedItem.id}`, {
+      const response = await fetch(`/api/inventory/${updatedItem.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -373,11 +373,21 @@ export function useInventoryModals(refreshInventory: () => void) {
         }),
       });
 
+      const result = await response.json();
+
+      // Show debug info for mobile users
+      if (result.debug) {
+        alert(
+          `DEBUG: API Response - ${result.debug.message}\nImageUrl length: ${result.debug.imageUrlLength}\nHas imageUrl: ${result.debug.hasImageUrl}`
+        );
+      }
+
       refreshInventory();
       setEditModalOpen(false);
       setSelectedItem(null);
     } catch (error) {
       console.error('Failed to update item:', error);
+      alert(`DEBUG: Save failed - ${error}`);
     } finally {
       setIsSaving(false);
     }

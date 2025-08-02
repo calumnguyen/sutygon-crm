@@ -46,6 +46,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     console.log('DEBUG: PUT /api/inventory/[id] - Database update completed');
 
+    return NextResponse.json({
+      success: true,
+      debug: {
+        message: 'Database update completed',
+        imageUrlLength: imageUrl?.length || 0,
+        hasImageUrl: !!imageUrl,
+      },
+    });
+
     // Delete existing sizes and tags
     await db.delete(inventorySizes).where(eq(inventorySizes.itemId, itemId));
     await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
