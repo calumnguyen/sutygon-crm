@@ -296,20 +296,6 @@ const InventoryContent: React.FC = () => {
             hasMore={hasMore}
           />
         )}
-
-        {/* Manual load more button for mobile fallback */}
-        {hasMore && !loadingMore && (
-          <div className="flex items-center justify-center py-4">
-            <Button
-              variant="secondary"
-              onClick={loadMore}
-              className="px-6 py-2 text-sm"
-              disabled={loadingMore}
-            >
-              {loadingMore ? 'Đang tải...' : 'Tải thêm'}
-            </Button>
-          </div>
-        )}
       </div>
       <InventoryPreviewModal
         previewOpen={previewOpen}
