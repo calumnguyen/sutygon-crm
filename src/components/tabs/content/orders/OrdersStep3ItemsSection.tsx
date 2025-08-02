@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OrderItem } from './types';
 import { useInventoryFetch, useOrderStep3ItemsLogic } from './hooks';
 import OrderStep3AddItemInput from './OrderStep3AddItemInput';
@@ -12,6 +12,7 @@ interface OrdersStep3ItemsSectionProps {
   setOrderItems: React.Dispatch<React.SetStateAction<OrderItem[]>>;
   onItemClick: (item: OrderItem) => void;
   selectedItemId?: string | null;
+  date?: string;
 }
 
 const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
@@ -19,8 +20,35 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
   setOrderItems,
   onItemClick,
   selectedItemId,
+  date,
 }) => {
-  const { inventory, inventoryLoading, inventoryError } = useInventoryFetch();
+  // Calculate date range for inventory (order date to expected return date)
+  // Parse date from dd/MM/yyyy format
+  const parseDateFromString = (dateStr: string): Date => {
+    if (!dateStr || dateStr.length !== 10) return new Date();
+    const [day, month, year] = dateStr.split('/').map(Number);
+
+    const parsedDate = new Date(year, month - 1, day); // month is 0-indexed
+
+    return parsedDate;
+  };
+
+  const orderDate = date ? parseDateFromString(date) : new Date();
+
+  // Calculate total rental days including extension
+  const extensionItem = orderItems.find((item) => item.isExtension);
+  const extraDays = extensionItem?.extraDays || 0;
+  const totalRentalDays = 3 + extraDays; // Base 3 days + extension days
+
+  const expectedReturnDate = new Date(
+    orderDate.getTime() + (totalRentalDays - 1) * 24 * 60 * 60 * 1000
+  ); // +totalRentalDays-1 days
+
+  const { inventory, inventoryLoading, inventoryError } = useInventoryFetch(
+    orderDate.toISOString(),
+    expectedReturnDate.toISOString()
+  );
+
   const logic = useOrderStep3ItemsLogic(orderItems, setOrderItems, inventory);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customName, setCustomName] = useState('');
@@ -28,7 +56,6 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
   const [customError, setCustomError] = useState('');
 
   // Helper: split regular and extension items
-  const extensionItem = orderItems.find((item) => item.isExtension);
   const regularItems = orderItems.filter((item) => !item.isExtension);
 
   // Robust handler: only event-driven state updates
@@ -114,6 +141,8 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
         inventory={inventory}
         onItemClick={onItemClick}
         selectedItemId={typeof selectedItemId !== 'undefined' ? selectedItemId : null}
+        dateFrom={orderDate.toISOString()}
+        dateTo={expectedReturnDate.toISOString()}
       />
 
       {/* Special Extension Item Section */}

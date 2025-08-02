@@ -3,9 +3,21 @@ import { Order } from '@/lib/actions/orders';
 import { TRANSLATIONS } from '@/config/translations';
 import { generateReceiptPDF, ReceiptData } from '@/lib/utils/pdfGenerator';
 
+// Helper function to format date with Vietnamese day names
+function formatVietnameseDate(dateString: string): string {
+  const date = new Date(dateString);
+  const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+  const dayName = days[date.getDay()];
+  return `${dayName}, ${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+}
 
 interface OrdersTableProps {
-  orders: (Order & { customerName: string; calculatedReturnDate: Date; noteNotComplete: number; noteTotal: number })[];
+  orders: (Order & {
+    customerName: string;
+    calculatedReturnDate: Date;
+    noteNotComplete: number;
+    noteTotal: number;
+  })[];
   loading: boolean;
   error: string | null;
   loadingMore: boolean;
@@ -13,13 +25,13 @@ interface OrdersTableProps {
   loadMore: () => void;
 }
 
-export const OrdersTable: React.FC<OrdersTableProps> = ({ 
-  orders: initialOrders, 
-  loading, 
-  error, 
-  loadingMore, 
-  hasMore, 
-  loadMore 
+export const OrdersTable: React.FC<OrdersTableProps> = ({
+  orders: initialOrders,
+  loading,
+  error,
+  loadingMore,
+  hasMore,
+  loadMore,
 }) => {
   const [orders, setOrders] = useState(initialOrders);
   const [vatPercentage, setVatPercentage] = useState(8);
@@ -31,22 +43,28 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
   }, [initialOrders]);
 
   // Intersection Observer for infinite scrolling
-  const lastElementRef = useCallback((node: HTMLTableRowElement | null) => {
-    if (loading) return;
-    
-    if (observerRef.current) observerRef.current.disconnect();
-    
-    observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loadingMore) {
-        loadMore();
-      }
-    }, {
-      rootMargin: '100px', // Start loading when 100px away from the bottom
-      threshold: 0.1
-    });
-    
-    if (node) observerRef.current.observe(node);
-  }, [loading, hasMore, loadingMore, loadMore]);
+  const lastElementRef = useCallback(
+    (node: HTMLTableRowElement | null) => {
+      if (loading) return;
+
+      if (observerRef.current) observerRef.current.disconnect();
+
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && hasMore && !loadingMore) {
+            loadMore();
+          }
+        },
+        {
+          rootMargin: '100px', // Start loading when 100px away from the bottom
+          threshold: 0.1,
+        }
+      );
+
+      if (node) observerRef.current.observe(node);
+    },
+    [loading, hasMore, loadingMore, loadMore]
+  );
 
   // Cleanup observer on unmount
   useEffect(() => {
@@ -72,7 +90,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
     return new Date(date).toLocaleDateString('vi-VN', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
     });
   };
 
@@ -86,17 +104,20 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
 
   const getStatusBadge = (status: string) => {
     const statusColors = {
-      'Processing': 'bg-blue-500',
-      'Completed': 'bg-green-500',
-      'Cancelled': 'bg-red-500',
-      'Returned': 'bg-gray-500',
+      Processing: 'bg-blue-500',
+      Completed: 'bg-green-500',
+      Cancelled: 'bg-red-500',
+      Returned: 'bg-gray-500',
     };
-    
+
     const color = statusColors[status as keyof typeof statusColors] || 'bg-gray-500';
-    const label = TRANSLATIONS.orders.status[status as keyof typeof TRANSLATIONS.orders.status] || status;
-    
+    const label =
+      TRANSLATIONS.orders.status[status as keyof typeof TRANSLATIONS.orders.status] || status;
+
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white ${color}`}>
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white ${color}`}
+      >
         {label}
       </span>
     );
@@ -106,40 +127,83 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
     const statusColors = {
       'Paid Full': 'bg-green-500',
       'Partially Paid': 'bg-yellow-500',
-      'Unpaid': 'bg-red-500',
+      Unpaid: 'bg-red-500',
       'Paid Full with Deposit': 'bg-green-600',
     };
-    
+
     const color = statusColors[paymentStatus as keyof typeof statusColors] || 'bg-gray-500';
-    const label = TRANSLATIONS.orders.paymentStatus[paymentStatus as keyof typeof TRANSLATIONS.orders.paymentStatus] || paymentStatus;
-    
+    const label =
+      TRANSLATIONS.orders.paymentStatus[
+        paymentStatus as keyof typeof TRANSLATIONS.orders.paymentStatus
+      ] || paymentStatus;
+
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white ${color}`}>
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white ${color}`}
+      >
         {label}
       </span>
     );
   };
 
-  const hasDocument = (order: Order & { customerName: string; calculatedReturnDate: Date; noteNotComplete: number; noteTotal: number }) => {
+  const hasDocument = (
+    order: Order & {
+      customerName: string;
+      calculatedReturnDate: Date;
+      noteNotComplete: number;
+      noteTotal: number;
+    }
+  ) => {
     return !!(order.documentType && order.documentName);
   };
 
-  const handlePrintReceipt = async (order: Order & { customerName: string; calculatedReturnDate: Date; noteNotComplete: number; noteTotal: number }) => {
+  const handlePrintReceipt = async (
+    order: Order & {
+      customerName: string;
+      calculatedReturnDate: Date;
+      noteNotComplete: number;
+      noteTotal: number;
+    }
+  ) => {
     try {
       // Fetch order items and customer details
       const [itemsResponse, customerResponse] = await Promise.all([
         fetch(`/api/orders/${order.id}/items`),
-        fetch(`/api/customers/${order.customerId}`)
+        fetch(`/api/customers/${order.customerId}`),
       ]);
 
       if (!itemsResponse.ok || !customerResponse.ok) {
         throw new Error('Failed to fetch order details');
       }
 
-      const [items, customer] = await Promise.all([
-        itemsResponse.json(),
-        customerResponse.json()
-      ]);
+      const [items, customer] = await Promise.all([itemsResponse.json(), customerResponse.json()]);
+
+      // Calculate payment history
+      const paymentHistory = [];
+      if (order.paymentMethod && order.paidAmount > 0) {
+        paymentHistory.push({
+          date: formatVietnameseDate(order.updatedAt.toISOString()),
+          method: order.paymentMethod as 'cash' | 'qr',
+          amount: order.paidAmount,
+        });
+      }
+
+      // Calculate settlement info
+      const totalPaid = order.paidAmount;
+      const totalAmount =
+        order.totalAmount +
+        (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)));
+      const remainingBalance = Math.max(0, totalAmount - totalPaid);
+      const depositAmount = (() => {
+        if (order.depositType && order.depositValue) {
+          if (order.depositType === 'percent') {
+            return Math.round(order.totalAmount * (order.depositValue / 100));
+          } else {
+            return order.depositValue;
+          }
+        }
+        return 0;
+      })();
 
       const receiptData: ReceiptData = {
         orderId: formatOrderId(order.id),
@@ -149,27 +213,35 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
         orderDate: formatDate(order.orderDate),
         rentDate: formatDate(order.orderDate),
         returnDate: formatDate(order.calculatedReturnDate),
-        items: items.map((item: { id?: number; inventoryItemId?: number | null; formattedId?: string | null; name?: string; price?: number; quantity?: number }) => ({
-          id: item.id || 'N/A',
-          inventoryItemId: item.inventoryItemId || null,
-          formattedId: item.formattedId || null,
-          name: item.name || 'N/A',
-          price: item.price || 0,
-          quantity: item.quantity || 0,
-          total: (item.price || 0) * (item.quantity || 0)
-        })),
+        items: items.map(
+          (item: {
+            id?: number;
+            inventoryItemId?: number | null;
+            formattedId?: string | null;
+            name?: string;
+            price?: number;
+            quantity?: number;
+          }) => ({
+            id: item.formattedId || item.id?.toString() || 'N/A',
+            inventoryItemId: item.inventoryItemId || null,
+            formattedId: item.formattedId || null,
+            name: item.name || 'N/A',
+            price: item.price || 0,
+            quantity: item.quantity || 0,
+            total: (item.price || 0) * (item.quantity || 0),
+          })
+        ),
         totalAmount: order.totalAmount,
         vatAmount: order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)),
-        depositAmount: (() => {
-          if (order.depositType && order.depositValue) {
-            if (order.depositType === 'percent') {
-              return Math.round(order.totalAmount * (order.depositValue / 100));
-            } else {
-              return order.depositValue;
-            }
-          }
-          return 0;
-        })()
+        depositAmount: depositAmount,
+        paymentHistory: paymentHistory,
+        settlementInfo: {
+          remainingBalance: remainingBalance,
+          depositReturned: 0, // Will be updated when deposit is returned
+          documentType: order.documentType || undefined,
+          documentReturned: false, // Will be updated when document is returned
+        },
+        lastUpdated: order.updatedAt.toISOString(),
       };
 
       await generateReceiptPDF(receiptData);
@@ -181,10 +253,15 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
 
   const handleToggleTaxInvoice = async (orderId: number, currentStatus: boolean) => {
     // Optimistic update - immediately update UI
-    setOrders(prevOrders => 
-      prevOrders.map(order => 
-        order.id === orderId 
-          ? { ...order, documentType: currentStatus ? 'TAX_INVOICE_EXPORTED:false' : 'TAX_INVOICE_EXPORTED:true' }
+    setOrders((prevOrders) =>
+      prevOrders.map((order) =>
+        order.id === orderId
+          ? {
+              ...order,
+              documentType: currentStatus
+                ? 'TAX_INVOICE_EXPORTED:false'
+                : 'TAX_INVOICE_EXPORTED:true',
+            }
           : order
       )
     );
@@ -207,21 +284,33 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
       // Success - no need to do anything since we already updated optimistically
     } catch (error) {
       console.error('Error updating tax invoice status:', error);
-      
+
       // Revert optimistic update on error
-      setOrders(prevOrders => 
-        prevOrders.map(order => 
-          order.id === orderId 
-            ? { ...order, documentType: currentStatus ? 'TAX_INVOICE_EXPORTED:true' : 'TAX_INVOICE_EXPORTED:false' }
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order.id === orderId
+            ? {
+                ...order,
+                documentType: currentStatus
+                  ? 'TAX_INVOICE_EXPORTED:true'
+                  : 'TAX_INVOICE_EXPORTED:false',
+              }
             : order
         )
       );
-      
+
       alert('Có lỗi khi cập nhật trạng thái xuất hóa đơn. Vui lòng thử lại.');
     }
   };
 
-  const getTaxInvoiceStatus = (order: Order & { customerName: string; calculatedReturnDate: Date; noteNotComplete: number; noteTotal: number }) => {
+  const getTaxInvoiceStatus = (
+    order: Order & {
+      customerName: string;
+      calculatedReturnDate: Date;
+      noteNotComplete: number;
+      noteTotal: number;
+    }
+  ) => {
     // Check if tax invoice is exported by looking at documentType
     // This is a temporary solution until we have the proper database column
     return order.documentType === 'TAX_INVOICE_EXPORTED:true';
@@ -261,7 +350,16 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
   }
 
   // Mobile card component
-  const OrderCard = ({ order }: { order: Order & { customerName: string; calculatedReturnDate: Date; noteNotComplete: number; noteTotal: number } }) => (
+  const OrderCard = ({
+    order,
+  }: {
+    order: Order & {
+      customerName: string;
+      calculatedReturnDate: Date;
+      noteNotComplete: number;
+      noteTotal: number;
+    };
+  }) => (
     <div className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
       <div className="flex justify-between items-start mb-3">
         <div className="text-lg font-semibold text-white">{formatOrderId(order.id)}</div>
@@ -270,33 +368,37 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
           {getPaymentStatusBadge(order.paymentStatus)}
         </div>
       </div>
-      
+
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">Khách hàng:</span>
           <span className="text-white font-medium">{order.customerName}</span>
         </div>
-        
+
         <div className="flex justify-between">
           <span className="text-gray-400">Ngày thuê:</span>
           <span className="text-white">{formatDate(order.orderDate)}</span>
         </div>
-        
+
         <div className="flex justify-between">
           <span className="text-gray-400">Ngày trả:</span>
           <span className="text-white">{formatDate(order.calculatedReturnDate)}</span>
         </div>
-        
+
         <div className="flex justify-between">
           <span className="text-gray-400">Tổng tiền:</span>
           <span className="text-white font-medium">{formatCurrency(order.totalAmount)}</span>
         </div>
-        
+
         <div className="flex justify-between">
           <span className="text-gray-400">VAT ({vatPercentage}%):</span>
-          <span className="text-white">{formatCurrency(order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)))}</span>
+          <span className="text-white">
+            {formatCurrency(
+              order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))
+            )}
+          </span>
         </div>
-        
+
         <div className="flex justify-between">
           <span className="text-gray-400">Tiền cọc:</span>
           <span className="text-white">
@@ -305,7 +407,9 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
               if (order.depositType && order.depositValue) {
                 if (order.depositType === 'percent') {
                   // For percentage deposits, calculate based on order total
-                  const calculatedAmount = Math.round(order.totalAmount * (order.depositValue / 100));
+                  const calculatedAmount = Math.round(
+                    order.totalAmount * (order.depositValue / 100)
+                  );
                   return formatCurrency(calculatedAmount);
                 } else {
                   // For fixed amount deposits, use the value directly
@@ -317,29 +421,31 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
             })()}
           </span>
         </div>
-        
+
         <div className="flex justify-between">
           <span className="text-gray-400">Đã trả:</span>
           <span className="text-white">{formatCurrency(order.paidAmount)}</span>
         </div>
-        
+
         <div className="flex justify-between">
           <span className="text-gray-400">Giấy tờ:</span>
           <span className="text-white">{hasDocument(order) ? 'Có' : 'Không'}</span>
         </div>
-        
+
         <div className="flex justify-between">
           <span className="text-gray-400">Ghi chú:</span>
-          <span className="text-white">{order.noteNotComplete}/{order.noteTotal}</span>
+          <span className="text-white">
+            {order.noteNotComplete}/{order.noteTotal}
+          </span>
         </div>
-        
+
         <div className="flex justify-between">
           <span className="text-gray-400">Xuất hóa đơn:</span>
           <button
             onClick={() => handleToggleTaxInvoice(order.id, getTaxInvoiceStatus(order))}
             className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
               getTaxInvoiceStatus(order)
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                ? 'bg-green-600 hover:bg-green-700 text-white'
                 : 'bg-gray-600 hover:bg-gray-700 text-gray-300'
             }`}
             title={getTaxInvoiceStatus(order) ? 'Đã xuất hóa đơn' : 'Chưa xuất hóa đơn'}
@@ -347,7 +453,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
             {getTaxInvoiceStatus(order) ? '✅ Đã xuất' : '❌ Chưa xuất'}
           </button>
         </div>
-        
+
         <div className="mt-4 pt-3 border-t border-gray-600">
           <button
             onClick={() => handlePrintReceipt(order)}
@@ -366,14 +472,14 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
       {/* Mobile view - Cards */}
       <div className="block sm:hidden p-4">
         {orders.map((order, index) => (
-          <div 
-            key={order.id}
+          <div
+            key={`${order.id}-${index}`}
             ref={index === orders.length - 1 ? lastElementRef : null}
           >
             <OrderCard order={order} />
           </div>
         ))}
-        
+
         {/* Loading indicator for mobile */}
         {loadingMore && (
           <div className="text-center py-4">
@@ -406,7 +512,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                 <div className="flex items-center gap-1">
                   <span>Tổng Tiền</span>
                   <div className="relative">
-                    <span 
+                    <span
                       className="text-blue-400 cursor-help text-sm font-bold hover:text-blue-300 select-none"
                       onMouseEnter={(e) => {
                         const tooltip = document.createElement('div');
@@ -432,13 +538,13 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                           </div>
                         `;
                         document.body.appendChild(tooltip);
-                        
+
                         const target = e.target as HTMLElement;
                         const rect = target.getBoundingClientRect();
                         const tooltipDiv = tooltip.firstElementChild as HTMLElement;
                         if (tooltipDiv) {
-                          tooltipDiv.style.left = (rect.left + rect.width / 2 - 125) + 'px';
-                          tooltipDiv.style.top = (rect.top - 80) + 'px';
+                          tooltipDiv.style.left = rect.left + rect.width / 2 - 125 + 'px';
+                          tooltipDiv.style.top = rect.top - 80 + 'px';
                         }
                       }}
                       onMouseLeave={() => {
@@ -455,7 +561,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                 <div className="flex items-center gap-1">
                   <span>VAT ({vatPercentage}%)</span>
                   <div className="relative">
-                    <span 
+                    <span
                       className="text-blue-400 cursor-help text-sm font-bold hover:text-blue-300 select-none"
                       onMouseEnter={(e) => {
                         const tooltip = document.createElement('div');
@@ -481,13 +587,13 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                           </div>
                         `;
                         document.body.appendChild(tooltip);
-                        
+
                         const target = e.target as HTMLElement;
                         const rect = target.getBoundingClientRect();
                         const tooltipDiv = tooltip.firstElementChild as HTMLElement;
                         if (tooltipDiv) {
-                          tooltipDiv.style.left = (rect.left + rect.width / 2 - 125) + 'px';
-                          tooltipDiv.style.top = (rect.top - 80) + 'px';
+                          tooltipDiv.style.left = rect.left + rect.width / 2 - 125 + 'px';
+                          tooltipDiv.style.top = rect.top - 80 + 'px';
                         }
                       }}
                       onMouseLeave={() => {
@@ -528,8 +634,8 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
           </thead>
           <tbody className="bg-gray-800 divide-y divide-gray-700">
             {orders.map((order, index) => (
-              <tr 
-                key={order.id} 
+              <tr
+                key={`${order.id}-${index}`}
                 className="hover:bg-gray-700 transition-colors"
                 ref={index === orders.length - 1 ? lastElementRef : null}
               >
@@ -549,7 +655,9 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                   {formatCurrency(order.totalAmount)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {formatCurrency(order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)))}
+                  {formatCurrency(
+                    order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                   {(() => {
@@ -557,7 +665,9 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                     if (order.depositType && order.depositValue) {
                       if (order.depositType === 'percent') {
                         // For percentage deposits, calculate based on order total
-                        const calculatedAmount = Math.round(order.totalAmount * (order.depositValue / 100));
+                        const calculatedAmount = Math.round(
+                          order.totalAmount * (order.depositValue / 100)
+                        );
                         return formatCurrency(calculatedAmount);
                       } else {
                         // For fixed amount deposits, use the value directly
@@ -588,7 +698,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                     onClick={() => handleToggleTaxInvoice(order.id, getTaxInvoiceStatus(order))}
                     className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                       getTaxInvoiceStatus(order)
-                        ? 'bg-green-600 hover:bg-green-700 text-white' 
+                        ? 'bg-green-600 hover:bg-green-700 text-white'
                         : 'bg-gray-600 hover:bg-gray-700 text-gray-300'
                     }`}
                     title={getTaxInvoiceStatus(order) ? 'Đã xuất hóa đơn' : 'Chưa xuất hóa đơn'}
@@ -607,7 +717,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                 </td>
               </tr>
             ))}
-            
+
             {/* Loading indicator for infinite scroll */}
             {loadingMore && (
               <tr>
@@ -635,7 +745,14 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
           <div className="flex justify-between">
             <span>Tổng VAT:</span>
             <span className="text-white">
-              {formatCurrency(orders.reduce((sum, order) => sum + (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))), 0))}
+              {formatCurrency(
+                orders.reduce(
+                  (sum, order) =>
+                    sum +
+                    (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))),
+                  0
+                )
+              )}
             </span>
           </div>
         </div>
@@ -646,13 +763,22 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
         <div className="flex justify-between text-sm text-gray-300">
           <div className="flex items-center gap-4">
             <span>
-              Tổng giá trị: <span className="text-white font-medium">
+              Tổng giá trị:{' '}
+              <span className="text-white font-medium">
                 {formatCurrency(orders.reduce((sum, order) => sum + order.totalAmount, 0))}
               </span>
             </span>
             <span>
-              Tổng VAT: <span className="text-white">
-                {formatCurrency(orders.reduce((sum, order) => sum + (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))), 0))}
+              Tổng VAT:{' '}
+              <span className="text-white">
+                {formatCurrency(
+                  orders.reduce(
+                    (sum, order) =>
+                      sum +
+                      (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))),
+                    0
+                  )
+                )}
               </span>
             </span>
           </div>
@@ -665,4 +791,4 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
       </div>
     </div>
   );
-}; 
+};

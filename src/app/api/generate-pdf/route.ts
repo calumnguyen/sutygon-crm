@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
+import QRCode from 'qrcode';
+import bwipjs from 'bwip-js';
 
 interface ReceiptItem {
   id: string;
@@ -11,10 +13,64 @@ interface ReceiptItem {
   total: number;
 }
 
+interface PaymentHistory {
+  date: string;
+  method: 'cash' | 'qr';
+  amount: number;
+}
+
+interface SettlementInfo {
+  remainingBalance: number;
+  depositReturned: number;
+  depositReturnedDate?: string;
+  documentType?: string;
+  documentReturned: boolean;
+  documentReturnedDate?: string;
+}
+
+// Helper function to format date with Vietnamese day names
+function formatVietnameseDate(dateString: string): string {
+  const date = new Date(dateString);
+  const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+  const dayName = days[date.getDay()];
+  return `${dayName}, ${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    
+
+    // Generate QR code for Google Review
+    const googleReviewUrl =
+      'https://search.google.com/local/writereview?placeid=ChIJz3ZmxDAYQjEREAXF-VdDjF0';
+    const qrCodeDataUrl = await QRCode.toDataURL(googleReviewUrl, {
+      width: 120,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF',
+      },
+    });
+    // Generate barcode for order number
+    const orderNumber = (
+      typeof data.orderId === 'number'
+        ? data.orderId
+        : parseInt(data.orderId?.replace(/\D/g, '')) || 0
+    )
+      .toString()
+      .padStart(6, '0');
+    const barcodeValue = `ORDER-${orderNumber}`;
+    const barcodePng = await bwipjs.toBuffer({
+      bcid: 'code128',
+      text: barcodeValue,
+      scale: 2,
+      height: 12,
+      includetext: true,
+      textxalign: 'center',
+      textsize: 10,
+    });
+    const barcodeDataUrl = `data:image/png;base64,${barcodePng.toString('base64')}`;
+
     // Launch browser
     const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
@@ -30,45 +86,54 @@ export async function POST(request: NextRequest) {
           body {
             font-family: 'Roboto', sans-serif;
             margin: 0;
-            padding: 20px;
-            font-size: 12px;
-            line-height: 1.4;
+            padding: 15px;
+            font-size: 10px;
+            line-height: 1.2;
           }
           .header {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 20px;
+            align-items: center;
+            margin-bottom: 15px;
           }
           .logo {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: bold;
-            color: #0066cc;
+            color: #ec4899;
+            flex: 1;
+          }
+          .barcode {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
           }
           .company-info {
             text-align: right;
-            font-size: 10px;
+            font-size: 8px;
+            flex: 1;
           }
           .description {
             text-align: center;
-            margin: 15px 0;
-            font-size: 11px;
+            margin: 10px 0;
+            font-size: 9px;
           }
           .title {
             text-align: center;
-            font-size: 24px;
+            font-size: 18px;
             font-weight: bold;
-            margin: 20px 0;
+            margin: 15px 0;
           }
           .info-section {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
           }
           .customer-info, .order-info {
             width: 45%;
           }
           .info-row {
-            margin-bottom: 8px;
+            margin-bottom: 4px;
           }
           .label {
             font-weight: bold;
@@ -76,34 +141,88 @@ export async function POST(request: NextRequest) {
           table {
             width: 100%;
             border-collapse: collapse;
-            margin: 20px 0;
+            margin: 15px 0;
           }
           th {
             background-color: #f0f0f0;
-            padding: 8px;
+            padding: 4px 6px;
             text-align: left;
             font-weight: bold;
+            font-size: 9px;
           }
           td {
-            padding: 8px;
+            padding: 3px 6px;
             border-bottom: 1px solid #ddd;
+            font-size: 9px;
           }
           .summary {
             text-align: right;
-            margin-top: 20px;
+            margin-top: 15px;
+          }
+          .payment-history {
+            margin: 15px 0;
+          }
+          .payment-history h3 {
+            margin: 10px 0 5px 0;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+          }
+          .payment-history table {
+            margin: 5px 0;
+          }
+          .payment-history th, .payment-history td {
+            padding: 2px 4px;
+            font-size: 8px;
+          }
+          .settlement-info {
+            margin: 15px 0;
+          }
+          .settlement-info h3 {
+            margin: 10px 0 5px 0;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+          }
+          .settlement-info .flex {
+            display: flex;
+            gap: 15px;
+            margin: 5px 0;
+          }
+          .settlement-info .flex > div {
+            flex: 1;
+          }
+          .settlement-info .info-row {
+            margin-bottom: 3px;
+          }
+          .document-info {
+            margin: 15px 0;
+          }
+          .document-info h3 {
+            margin: 10px 0 5px 0;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+          }
+          .document-info .info-row {
+            margin-bottom: 3px;
           }
           .footer {
             text-align: center;
-            margin-top: 30px;
+            margin-top: 20px;
             font-style: italic;
-            font-size: 10px;
+            font-size: 8px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
           }
         </style>
       </head>
       <body>
         <div class="header">
-          <div class="logo">
-            <img src="file://${process.cwd()}/public/Logo.png" alt="SUTYGON Logo" style="width: 120px; height: auto;">
+          <div class="logo">SUTYGON</div>
+          <div class="barcode">
+            <img src="${barcodeDataUrl}" alt="Order Barcode" style="height: 40px; margin-bottom: 2px;"/>
+            <div style="font-size: 9px; color: #333; margin-top: 2px;">${barcodeValue}</div>
           </div>
           <div class="company-info">
             <div><strong>CÔNG TY TNHH MTV SUTYGON</strong></div>
@@ -159,7 +278,9 @@ export async function POST(request: NextRequest) {
             </tr>
           </thead>
           <tbody>
-            ${data.items.map((item: ReceiptItem) => `
+            ${data.items
+              .map(
+                (item: ReceiptItem) => `
               <tr>
                 <td>${item.formattedId || item.inventoryItemId || item.id}</td>
                 <td>${item.name}</td>
@@ -167,7 +288,9 @@ export async function POST(request: NextRequest) {
                 <td>${item.quantity}</td>
                 <td>${item.total.toLocaleString('vi-VN')}</td>
               </tr>
-            `).join('')}
+            `
+              )
+              .join('')}
           </tbody>
         </table>
 
@@ -183,8 +306,134 @@ export async function POST(request: NextRequest) {
           </div>
         </div>
 
+        ${
+          data.paymentHistory && data.paymentHistory.length > 0
+            ? `
+        <div class="payment-history">
+          <h3>Lịch Sử Thanh Toán</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Ngày Thanh Toán</th>
+                <th>Phương Thức</th>
+                <th style="text-align: right;">Số Tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.paymentHistory
+                .map(
+                  (payment: PaymentHistory) => `
+                <tr>
+                  <td>${payment.date}</td>
+                  <td>${payment.method === 'qr' ? 'QR Code' : 'Tiền mặt'}</td>
+                  <td style="text-align: right;">${payment.amount.toLocaleString('vi-VN')} đ</td>
+                </tr>
+              `
+                )
+                .join('')}
+            </tbody>
+          </table>
+          <div style="text-align: right; margin-top: 5px; font-weight: bold; font-size: 9px;">
+            <span>Tổng đã thanh toán:</span> ${data.paymentHistory.reduce((sum: number, payment: PaymentHistory) => sum + payment.amount, 0).toLocaleString('vi-VN')} đ
+          </div>
+        </div>
+        `
+            : ''
+        }
+
+        ${
+          data.settlementInfo
+            ? `
+        <div class="settlement-info">
+          <h3>Thông Tin Tất Toán</h3>
+          <div class="flex">
+            <div>
+              <div class="info-row">
+                <span class="label">Số dư còn lại:</span>
+                <span style="margin-left: 5px;">${data.settlementInfo.remainingBalance.toLocaleString('vi-VN')} đ</span>
+              </div>
+            </div>
+            <div>
+              <div class="info-row">
+                <span class="label">Tiền cọc trả khách:</span>
+                <span style="margin-left: 5px;">${data.settlementInfo.depositReturned.toLocaleString('vi-VN')} đ</span>
+              </div>
+              ${
+                data.settlementInfo.depositReturnedDate
+                  ? `
+              <div class="info-row">
+                <span class="label">Ngày trả cọc:</span>
+                <span style="margin-left: 5px;">${data.settlementInfo.depositReturnedDate}</span>
+              </div>
+              `
+                  : ''
+              }
+            </div>
+          </div>
+        </div>
+        `
+            : ''
+        }
+
+        ${
+          data.settlementInfo && data.settlementInfo.documentType
+            ? `
+        <div class="document-info">
+          <h3>Thông Tin Giấy Tờ</h3>
+          <div>
+            <div class="info-row">
+              <span>Bạn đã để lại cho chúng tôi một ${data.settlementInfo.documentType}.</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Giấy tờ đã trả khách:</span>
+              <span style="margin-left: 5px;">${data.settlementInfo.documentReturned ? 'Có' : 'Chưa'}</span>
+            </div>
+            ${
+              data.settlementInfo.documentReturnedDate
+                ? `
+            <div class="info-row">
+              <span class="label">Ngày trả giấy tờ:</span>
+              <span style="margin-left: 5px;">${data.settlementInfo.documentReturnedDate}</span>
+            </div>
+            `
+                : ''
+            }
+          </div>
+        </div>
+        `
+            : ''
+        }
+
         <div class="footer">
-          Cảm ơn quý khách đã sử dụng dịch vụ của chúng tôi!
+          <div>Cảm ơn quý khách đã sử dụng dịch vụ của chúng tôi!</div>
+          <div style="margin-top: 5px; font-size: 7px; color: #666;">
+            <span>Được tạo lúc: ${new Date().toLocaleString('vi-VN')}</span>
+            ${data.lastUpdated ? `<span style="margin-left: 15px;">Cập nhật lần cuối: ${new Date(data.lastUpdated).toLocaleString('vi-VN')}</span>` : ''}
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+          <div style="display: flex; gap: 20px; align-items: flex-start;">
+            <div style="flex: 1; text-align: center;">
+              <div style="font-size: 10px; font-weight: bold; margin-bottom: 8px; color: #ec4899;">
+                Yêu thích trải nghiệm của bạn? Hãy tặng SUTYGON 5 sao trên Google Review nhé!<br/>
+                Quét mã QR bên dưới để lan tỏa niềm vui 💖
+              </div>
+              <div style="background-color: #f8f9fa; padding: 8px; border-radius: 4px; display: inline-block;">
+                <img src='${qrCodeDataUrl}' alt='Google Review QR Code' style='width: 80px; height: 80px;'/>
+              </div>
+            </div>
+            <div style="flex: 1; text-align: center;">
+              <div style="font-size: 10px; font-weight: bold; margin-bottom: 8px; color: #0066cc;">
+                Có điều gì chưa hài lòng? Đừng ngại liên hệ tụi mình nhé!
+              </div>
+              <div style="font-size: 9px; color: #666; line-height: 1.3;">
+                <div>Email: <b>cskh@sutygon.com</b></div>
+                <div>Hotline: <b>0905 188 428</b></div>
+                <div style="margin-top: 4px; font-size: 8px; color: #888;">Đội ngũ SUTYGON luôn sẵn sàng lắng nghe bạn! 😊</div>
+              </div>
+            </div>
+          </div>
         </div>
       </body>
       </html>
@@ -192,7 +441,7 @@ export async function POST(request: NextRequest) {
 
     // Set content and wait for fonts to load
     await page.setContent(htmlContent);
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for fonts to load
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for fonts to load
 
     // Generate PDF
     const pdfBuffer = await page.pdf({
@@ -201,9 +450,9 @@ export async function POST(request: NextRequest) {
         top: '20mm',
         right: '20mm',
         bottom: '20mm',
-        left: '20mm'
+        left: '20mm',
       },
-      printBackground: true
+      printBackground: true,
     });
 
     await browser.close();
@@ -212,12 +461,14 @@ export async function POST(request: NextRequest) {
     return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Bien_Nhan_${data.orderId}_${data.customerName.replace(/[^a-zA-Z0-9\s\u00C0-\u017F]/g, '').replace(/\s+/g, '_').substring(0, 30)}_${new Date().toISOString().split('T')[0]}.pdf"`
-      }
+        'Content-Disposition': `attachment; filename="Bien_Nhan_${data.orderId}_${data.customerName
+          .replace(/[^a-zA-Z0-9\s\u00C0-\u017F]/g, '')
+          .replace(/\s+/g, '_')
+          .substring(0, 30)}_${new Date().toISOString().split('T')[0]}.pdf"`,
+      },
     });
-
   } catch (error) {
     console.error('PDF generation error:', error);
     return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
   }
-} 
+}

@@ -37,10 +37,25 @@ interface OrderSummaryPaymentRequirementProps {
   isPaymentSubmitted: boolean;
   setIsPaymentSubmitted: (v: boolean) => void;
   orderId: string;
-  customer: { name: string } | null;
+  customer: { id: number; name: string; address?: string; phone?: string } | null;
   date: string;
-  orderItems: unknown[];
-  notes: unknown[];
+  orderItems: Array<{
+    inventoryItemId?: number | null;
+    name: string;
+    size: string;
+    quantity: number;
+    price: number;
+    isExtension?: boolean;
+    extraDays?: number | null;
+    feeType?: string | null;
+    percent?: number | null;
+    isCustom?: boolean;
+  }>;
+  notes: Array<{
+    itemId: string | null;
+    text: string;
+    done: boolean;
+  }>;
   onPaymentSuccess?: () => void;
 }
 
@@ -80,15 +95,56 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
   const vatAmount = Math.round(total * (vatPercentage / 100)); // 8% VAT
   const totalPay = total + vatAmount + depositValue;
 
+  // Prepare order data for payment (only if order doesn't exist yet)
+  const orderData =
+    orderId === '0000-A'
+      ? {
+          customerId: customer?.id || 0,
+          orderDate: date.split('/').reverse().join('-'), // Convert dd/MM/yyyy to yyyy-MM-dd
+          expectedReturnDate: new Date(
+            new Date(date.split('/').reverse().join('-')).getTime() + 3 * 24 * 60 * 60 * 1000
+          )
+            .toISOString()
+            .split('T')[0], // +3 days
+          totalAmount: total,
+          depositAmount: depositValue,
+          items: orderItems.map((item) => ({
+            inventoryItemId: item.inventoryItemId || null,
+            name: item.name,
+            size: item.size,
+            quantity: item.quantity,
+            price: item.price,
+            isExtension: item.isExtension || false,
+            extraDays: item.extraDays || null,
+            feeType: item.feeType || null,
+            percent: item.percent || null,
+            isCustom: item.isCustom || false,
+          })),
+          notes: notes.map((note) => ({
+            itemId: note.itemId,
+            text: note.text,
+            done: note.done,
+          })),
+        }
+      : null;
+
   // Use the useOrderPayment hook for all payment state/handlers
   const payment = useOrderPayment(
     totalPay,
     orderId,
+    orderData,
     documentInfo,
     depositInfo,
     onPaymentSuccess,
     setIsPaymentSubmitted,
-    customer?.name
+    customer?.name,
+    customer?.address || 'N/A',
+    customer?.phone || 'N/A',
+    date,
+    date,
+    new Date(
+      new Date(date.split('/').reverse().join('-')).getTime() + 3 * 24 * 60 * 60 * 1000
+    ).toLocaleDateString('vi-VN')
   );
 
   // Effects

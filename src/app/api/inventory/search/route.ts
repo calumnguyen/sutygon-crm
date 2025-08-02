@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { inventoryItems, inventorySizes, inventoryTags, tags } from '@/lib/db/schema';
-import { inArray, desc } from 'drizzle-orm';
+import {
+  inventoryItems,
+  inventorySizes,
+  inventoryTags,
+  tags,
+  orderItems,
+  orders,
+} from '@/lib/db/schema';
+import { inArray, desc, isNotNull, and, or, lte, gte, eq } from 'drizzle-orm';
 import {
   decryptInventoryData,
   decryptInventorySizeData,
   decryptTagData,
+  decryptField,
 } from '@/lib/utils/inventoryEncryption';
 // import { monitorDatabaseQuery } from '@/lib/utils/performance';
 
@@ -32,6 +40,10 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const category = searchParams.get('category') || '';
+    const dateFrom = searchParams.get('dateFrom');
+    const dateTo = searchParams.get('dateTo');
+
+    console.log('Inventory search API called with:', { dateFrom, dateTo });
 
     const offset = (page - 1) * limit;
 
@@ -55,6 +67,94 @@ export async function GET(request: NextRequest) {
       .from(inventorySizes)
       .where(inArray(inventorySizes.itemId, itemIds));
 
+    // Get order items that overlap with the date range
+    let overlappingOrderItems = [];
+    if (dateFrom && dateTo) {
+      const fromDate = new Date(dateFrom);
+      const toDate = new Date(dateTo);
+
+      console.log('Date range for overlapping orders:', { fromDate, toDate });
+
+      overlappingOrderItems = await db
+        .select({
+          inventoryItemId: orderItems.inventoryItemId,
+          size: orderItems.size,
+          quantity: orderItems.quantity,
+          orderId: orderItems.orderId,
+        })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .where(
+          and(
+            isNotNull(orderItems.inventoryItemId),
+            // Check if order dates overlap with the requested date range
+            or(
+              // Order starts before our range ends AND order ends after our range starts
+              and(lte(orders.orderDate, toDate), gte(orders.expectedReturnDate, fromDate))
+            )
+          )
+        );
+
+      console.log('Overlapping order items found:', overlappingOrderItems.length);
+      console.log('Overlapping items:', overlappingOrderItems);
+
+      // Also check if there are any orders at all
+      const allOrders = await db.select().from(orders);
+      console.log('Total orders in database:', allOrders.length);
+      if (allOrders.length > 0) {
+        console.log(
+          'All order dates:',
+          allOrders.map((o) => ({
+            id: o.id,
+            orderDate: o.orderDate,
+            expectedReturnDate: o.expectedReturnDate,
+            status: o.status,
+          }))
+        );
+      }
+
+      // Check specifically for order 64
+      const order64 = allOrders.find((o) => o.id === 64);
+      if (order64) {
+        console.log('Order 64 found:', {
+          id: order64.id,
+          orderDate: order64.orderDate,
+          expectedReturnDate: order64.expectedReturnDate,
+          status: order64.status,
+        });
+
+        // Check if it should overlap
+        const orderStart = new Date(order64.orderDate);
+        const orderEnd = new Date(order64.expectedReturnDate);
+        const startsBeforeEnd = orderStart <= toDate;
+        const endsAfterStart = orderEnd >= fromDate;
+        const overlaps = startsBeforeEnd && endsAfterStart;
+
+        console.log('Order 64 overlap check:', {
+          orderStart,
+          orderEnd,
+          fromDate,
+          toDate,
+          startsBeforeEnd,
+          endsAfterStart,
+          overlaps,
+        });
+      }
+    } else {
+      // If no date range, get all order items
+      overlappingOrderItems = await db
+        .select({
+          inventoryItemId: orderItems.inventoryItemId,
+          size: orderItems.size,
+          quantity: orderItems.quantity,
+          orderId: orderItems.orderId,
+        })
+        .from(orderItems)
+        .where(isNotNull(orderItems.inventoryItemId));
+
+      console.log('All order items found (no date range):', overlappingOrderItems.length);
+    }
+
     // Get all tags for these items
     const invTags = await db
       .select()
@@ -75,10 +175,43 @@ export async function GET(request: NextRequest) {
         .filter((s) => s.itemId === item.id)
         .map((s) => {
           const decryptedSize = decryptInventorySizeData(s);
+
+          // Calculate available stock by subtracting overlapping orders
+          const overlappingItems = overlappingOrderItems.filter(
+            (oi) => oi.inventoryItemId === item.id
+          );
+
+          // Find items with the same size
+          const sameSizeItems = overlappingItems.filter((oi) => {
+            const normalize = (str: string) => str.replace(/[-_ ]/g, '').toLowerCase();
+
+            // Decrypt the order item size if it's encrypted
+            let orderItemSize = oi.size;
+            if (oi.size.includes(':')) {
+              try {
+                orderItemSize = decryptField(oi.size);
+              } catch {
+                orderItemSize = oi.size; // Use original if decryption fails
+              }
+            }
+
+            const normalizedOrderSize = normalize(orderItemSize);
+            const normalizedInventorySize = normalize(decryptedSize.title);
+
+            return normalizedOrderSize === normalizedInventorySize;
+          });
+
+          // Calculate total reserved quantity for this size
+          const totalReserved = sameSizeItems.reduce((sum, item) => sum + item.quantity, 0);
+
+          // Calculate available stock (onHand - reserved)
+          const onHand = parseInt(decryptedSize.onHand.toString(), 10);
+          const availableStock = Math.max(0, onHand - totalReserved);
+
           return {
             title: decryptedSize.title,
             quantity: decryptedSize.quantity,
-            onHand: decryptedSize.onHand,
+            onHand: availableStock.toString(), // Return available stock instead of raw onHand
             price: decryptedSize.price,
           };
         });

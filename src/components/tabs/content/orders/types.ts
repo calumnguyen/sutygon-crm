@@ -11,6 +11,7 @@ export interface OrderItem {
   size: string;
   quantity: number;
   price: number;
+  inventoryItemId?: number | null;
   isExtension?: boolean;
   extraDays?: number;
   feeType?: 'vnd' | 'percent';

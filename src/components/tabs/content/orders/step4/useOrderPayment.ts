@@ -1,8 +1,32 @@
 import { useState, useEffect } from 'react';
 
 export function useOrderPayment(
-  totalPay: number, 
+  totalPay: number,
   orderId: string,
+  orderData?: {
+    customerId: number;
+    orderDate: string;
+    expectedReturnDate: string;
+    totalAmount: number;
+    depositAmount: number;
+    items: Array<{
+      inventoryItemId?: number | null;
+      name: string;
+      size: string;
+      quantity: number;
+      price: number;
+      isExtension?: boolean;
+      extraDays?: number | null;
+      feeType?: string | null;
+      percent?: number | null;
+      isCustom?: boolean;
+    }>;
+    notes: Array<{
+      itemId: string | null;
+      text: string;
+      done: boolean;
+    }>;
+  } | null,
   documentInfo?: {
     documentType: string;
     documentOther?: string;
@@ -15,7 +39,12 @@ export function useOrderPayment(
   } | null,
   onPaymentSuccess?: () => void,
   setIsPaymentSubmitted?: (submitted: boolean) => void,
-  customerName?: string
+  customerName?: string,
+  customerAddress?: string,
+  customerPhone?: string,
+  orderDate?: string,
+  rentDate?: string,
+  returnDate?: string
 ) {
   // State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -42,12 +71,10 @@ export function useOrderPayment(
       setQrSVG(null);
       setQrError(null);
       setQrLoading(true);
-      
+
       // Use partial payment amount if available, otherwise use total
-      const qrAmount = isPartialPayment && partialAmount 
-        ? parseInt(partialAmount) 
-        : totalPay;
-      
+      const qrAmount = isPartialPayment && partialAmount ? parseInt(partialAmount) : totalPay;
+
       fetch('https://api.vietqr.io/v2/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,17 +104,16 @@ export function useOrderPayment(
   useEffect(() => {
     // For partial payments, complete when paidAmount >= partialAmount
     // For full payments, complete when paidAmount >= totalPay
-    const requiredAmount = isPartialPayment && partialAmount 
-      ? parseInt(partialAmount) || 0
-      : totalPay;
-    
+    const requiredAmount =
+      isPartialPayment && partialAmount ? parseInt(partialAmount) || 0 : totalPay;
+
     console.log('=== Payment Completion Debug ===');
     console.log('paidAmount (number):', paidAmount, 'type:', typeof paidAmount);
     console.log('partialAmount (string):', partialAmount, 'type:', typeof partialAmount);
     console.log('requiredAmount (number):', requiredAmount, 'type:', typeof requiredAmount);
     console.log('paidAmount >= requiredAmount:', paidAmount >= requiredAmount);
     console.log('paidAmount > 0:', paidAmount > 0);
-    
+
     if (paidAmount >= requiredAmount && paidAmount > 0) {
       console.log('✅ Setting paymentComplete to true');
       setPaymentComplete(true);
@@ -98,10 +124,6 @@ export function useOrderPayment(
       setChangeAmount(0);
     }
   }, [paidAmount, totalPay, isPartialPayment, partialAmount]);
-
-
-
-
 
   // Handlers
   function handlePaymentOption(option: 'full' | 'partial' | 'later') {
@@ -170,26 +192,29 @@ export function useOrderPayment(
       console.log('documentInfo.documentName:', documentInfo?.documentName);
       console.log('isPartialPayment:', isPartialPayment);
       console.log('partialAmount:', partialAmount);
-      
+
       // Determine payment amount
       // For partial payments, use the partialAmount (target amount) or paidAmount (whichever is smaller)
       // For full payments, use the total amount
-      const paymentAmount = isPartialPayment 
+      const paymentAmount = isPartialPayment
         ? Math.min(parseInt(partialAmount) || 0, paidAmount)
         : totalPay;
-      
+
       // Transform depositInfo to match backend expectation
-      const transformedDepositInfo = depositInfo ? {
-        depositType: depositInfo.type,
-        depositValue: depositInfo.value,
-      } : undefined;
-      
+      const transformedDepositInfo = depositInfo
+        ? {
+            depositType: depositInfo.type,
+            depositValue: depositInfo.value,
+          }
+        : undefined;
+
       // Call API to complete payment
       const response = await fetch('/api/orders/payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: parseInt(orderId),
+          orderId: orderId === '0000-A' ? null : parseInt(orderId), // Pass null if it's a placeholder ID
+          orderData: orderId === '0000-A' ? orderData : null, // Pass order data if order doesn't exist yet
           paymentMethod: selectedPaymentMethod,
           paidAmount: paymentAmount,
           documentInfo: documentInfo,
@@ -203,7 +228,7 @@ export function useOrderPayment(
 
       // Mark payment as submitted
       setIsPaymentSubmitted?.(true);
-      
+
       // Close payment modals
       setShowPaymentMethodModal(false);
       setShowPaymentModal(false);
@@ -266,8 +291,82 @@ export function useOrderPayment(
     setQrLoading(false);
   }
 
-  function handlePrint() {
-    window.print();
+  async function handlePrint() {
+    try {
+      // Generate PDF receipt instead of using window.print()
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: orderId === '0000-A' ? `TEMP-${Date.now().toString().slice(-6)}` : orderId,
+          customerName: customerName || 'N/A',
+          customerAddress: customerAddress || 'N/A',
+          customerPhone: customerPhone || 'N/A',
+          orderDate: orderDate || new Date().toLocaleDateString('vi-VN'),
+          rentDate: rentDate || new Date().toLocaleDateString('vi-VN'),
+          returnDate: returnDate || new Date().toLocaleDateString('vi-VN'),
+          items:
+            orderData?.items.map((item) => ({
+              id: item.inventoryItemId
+                ? `ID-${item.inventoryItemId.toString().padStart(6, '0')}`
+                : 'N/A',
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+              total: item.price * item.quantity,
+            })) || [],
+          totalAmount: totalPay,
+          vatAmount: Math.round(totalPay * 0.08), // 8% VAT
+          depositAmount: depositInfo
+            ? depositInfo.type === 'vnd'
+              ? depositInfo.value
+              : Math.round(totalPay * (depositInfo.value / 100))
+            : 0,
+          paymentHistory: [
+            {
+              date: new Date().toLocaleString('vi-VN', {
+                weekday: 'long',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              method: selectedPaymentMethod || 'cash',
+              amount: totalPay,
+            },
+          ],
+          settlementInfo: {
+            remainingBalance: 0,
+            depositReturned: 0,
+            documentType: documentInfo?.documentType,
+            documentReturned: false,
+          },
+          lastUpdated: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      // Get the PDF blob and trigger download
+      const pdfBlob = await response.blob();
+      const url = window.URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Bien_Nhan_${orderId}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Có lỗi khi tạo biên nhận. Vui lòng thử lại.');
+    }
+
     setShowPrintModal(false);
   }
 
@@ -283,24 +382,25 @@ export function useOrderPayment(
       console.log('documentInfo.documentName:', documentInfo?.documentName);
       console.log('isPartialPayment:', isPartialPayment);
       console.log('partialAmount:', partialAmount);
-      
+
       // Determine payment amount
-      const paymentAmount = isPartialPayment && partialAmount 
-        ? parseInt(partialAmount) 
-        : totalPay;
-      
+      const paymentAmount = isPartialPayment && partialAmount ? parseInt(partialAmount) : totalPay;
+
       // Transform depositInfo to match backend expectation
-      const transformedDepositInfo = depositInfo ? {
-        depositType: depositInfo.type,
-        depositValue: depositInfo.value,
-      } : undefined;
-      
+      const transformedDepositInfo = depositInfo
+        ? {
+            depositType: depositInfo.type,
+            depositValue: depositInfo.value,
+          }
+        : undefined;
+
       // Call API to complete payment
       const response = await fetch('/api/orders/payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: parseInt(orderId),
+          orderId: orderId === '0000-A' ? null : parseInt(orderId), // Pass null if it's a placeholder ID
+          orderData: orderId === '0000-A' ? orderData : null, // Pass order data if order doesn't exist yet
           paymentMethod: 'qr',
           paidAmount: paymentAmount,
           documentInfo: documentInfo,
@@ -379,19 +479,22 @@ export function useOrderPayment(
       console.log('=== Pay Later Confirmed ===');
       console.log('documentInfo:', documentInfo);
       console.log('depositInfo:', depositInfo);
-      
+
       // Transform depositInfo to match backend expectation
-      const transformedDepositInfo = depositInfo ? {
-        depositType: depositInfo.type,
-        depositValue: depositInfo.value,
-      } : undefined;
+      const transformedDepositInfo = depositInfo
+        ? {
+            depositType: depositInfo.type,
+            depositValue: depositInfo.value,
+          }
+        : undefined;
 
       // Call API to mark order as pay later
       const response = await fetch('/api/orders/pay-later', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: parseInt(orderId),
+          orderId: orderId === '0000-A' ? null : parseInt(orderId), // Pass null if it's a placeholder ID
+          orderData: orderId === '0000-A' ? orderData : null, // Pass order data if order doesn't exist yet
           documentInfo: documentInfo,
           depositInfo: transformedDepositInfo,
         }),
@@ -402,10 +505,10 @@ export function useOrderPayment(
       }
 
       setShowPayLaterModal(false);
-      
+
       // Mark as payment submitted (though it's pay later)
       setIsPaymentSubmitted?.(true);
-      
+
       // Check if there's document info to show retention modal
       if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
         console.log('✅ Document info found - showing retention modal for pay later');

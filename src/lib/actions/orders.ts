@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { orders, orderItems, orderNotes, customers } from '@/lib/db/schema';
+import { orders, orderItems, orderNotes, customers, inventoryItems } from '@/lib/db/schema';
 import { eq, desc, asc, and, or, gte, lte, count, inArray, sql } from 'drizzle-orm';
 import {
   encryptOrderData,
@@ -12,9 +12,26 @@ import {
   decryptOrderNoteData,
   decryptField,
 } from '@/lib/utils/orderEncryption';
+import { decryptInventoryData } from '@/lib/utils/inventoryEncryption';
 import { encrypt, decrypt } from '@/lib/utils/encryption';
 import { monitorDatabaseQuery } from '@/lib/utils/performance';
 import { calculateExpectedReturnDate } from '@/lib/utils/orderUtils';
+
+// Helper: get formatted ID (e.g., AD-000001)
+function getFormattedId(category: string, categoryCounter: number) {
+  let code = (category || 'XX')
+    .split(' ')
+    .map((w: string) => w[0])
+    .join('');
+  // Replace Đ/đ with D/d, then remove diacritics
+  code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
+  code = code
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\u0300-\u036f/g, '');
+  code = code.toUpperCase().slice(0, 2);
+  return `${code}-${String(categoryCounter).padStart(6, '0')}`;
+}
 
 export interface Order {
   id: number;
@@ -45,6 +62,7 @@ export interface OrderItem {
   id: number;
   orderId: number;
   inventoryItemId?: number | null;
+  formattedId?: string | null;
   name: string;
   size: string;
   quantity: number;
@@ -274,13 +292,37 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
 export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
   const dbItems = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
 
+  // Get inventory items for formatted IDs
+  const inventoryItemIds = dbItems
+    .map((item) => item.inventoryItemId)
+    .filter((id): id is number => id !== null);
+
+  let inventoryItemsData: (typeof inventoryItems.$inferSelect)[] = [];
+  if (inventoryItemIds.length > 0) {
+    inventoryItemsData = await db
+      .select()
+      .from(inventoryItems)
+      .where(inArray(inventoryItems.id, inventoryItemIds));
+  }
+
   // Decrypt sensitive data for display
   return dbItems.map((item) => {
     const decrypted = decryptOrderItemData(item);
+
+    // Find corresponding inventory item for formatted ID
+    const inventoryItem = inventoryItemsData.find((inv) => inv.id === item.inventoryItemId);
+    let formattedId = null;
+
+    if (inventoryItem) {
+      const decryptedInventoryItem = decryptInventoryData(inventoryItem);
+      formattedId = getFormattedId(decryptedInventoryItem.category, inventoryItem.categoryCounter);
+    }
+
     return {
       id: item.id,
       orderId: item.orderId,
       inventoryItemId: item.inventoryItemId,
+      formattedId: formattedId,
       name: decrypted.name,
       size: decrypted.size,
       quantity: item.quantity,
@@ -627,7 +669,8 @@ export async function completeOrderPayment(
   depositInfo?: {
     depositType: 'vnd' | 'percent';
     depositValue: number;
-  }
+  },
+  orderTotalAmount?: number // New parameter for when order was just created
 ): Promise<Order> {
   try {
     console.log('Starting payment completion for order ID:', orderId);
@@ -664,7 +707,9 @@ export async function completeOrderPayment(
     // Determine payment status based on payment amount and deposit
     let paymentStatus: string;
 
-    const orderTotal = Number(existingOrder[0].totalAmount);
+    // Use provided order total amount if available (for newly created orders), otherwise get from database
+    const orderTotal =
+      orderTotalAmount !== undefined ? orderTotalAmount : Number(existingOrder[0].totalAmount);
     const depositAmount = depositInfo ? depositInfo.depositValue : 0;
     const totalRequired = orderTotal + depositAmount; // Total amount that needs to be paid
 

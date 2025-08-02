@@ -184,7 +184,7 @@ export function useOrderNewFlow() {
   };
 }
 
-export function useInventoryFetch() {
+export function useInventoryFetch(dateFrom?: string, dateTo?: string) {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
@@ -194,12 +194,21 @@ export function useInventoryFetch() {
       setInventoryLoading(true);
       setInventoryError(null);
       try {
+        // Build URL with date range parameters if provided
+        let url = '/api/inventory/search?q=&page=1&limit=100';
+        if (dateFrom && dateTo) {
+          url += `&dateFrom=${encodeURIComponent(dateFrom)}&dateTo=${encodeURIComponent(dateTo)}`;
+        } else {
+        }
+
         // Use the optimized search API to get all items (empty query)
-        const res = await fetch('/api/inventory/search?q=&page=1&limit=100');
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Lỗi khi tải dữ liệu kho');
         const data = await res.json();
+
         setInventory(data.items);
-      } catch {
+      } catch (error) {
+        console.error('Inventory fetch error:', error);
         setInventoryError('Không thể tải dữ liệu kho');
         setInventory([]);
       } finally {
@@ -207,7 +216,7 @@ export function useInventoryFetch() {
       }
     }
     fetchInventory();
-  }, []);
+  }, [dateFrom, dateTo]); // Restored dependencies to trigger on date changes
 
   return { inventory, inventoryLoading, inventoryError };
 }
@@ -439,6 +448,8 @@ export function useOrderStep3ItemsLogic(
             return {
               ...i,
               quantity: newQty,
+              inventoryItemId: typeof inv?.id === 'number' ? inv.id : i.inventoryItemId,
+              isCustom: !inv,
               warning: newQty > onHand ? 'Cảnh báo: vượt quá số lượng tồn kho' : undefined,
             };
           }
@@ -446,6 +457,11 @@ export function useOrderStep3ItemsLogic(
         });
         return updated;
       }
+      // Find the inventory item ID
+      const inventoryItem = inventory.find(
+        (invItem) => (invItem.formattedId || invItem.id) === item.id || invItem.id === item.id
+      );
+
       return [
         ...prev,
         {
@@ -454,6 +470,8 @@ export function useOrderStep3ItemsLogic(
           size: sizeTitle,
           quantity: 1,
           price,
+          inventoryItemId: typeof inventoryItem?.id === 'number' ? inventoryItem.id : null,
+          isCustom: !inventoryItem, // Only custom if no inventory item found
           warning: 1 > onHand ? 'Cảnh báo: vượt quá số lượng tồn kho' : undefined,
         },
       ];
