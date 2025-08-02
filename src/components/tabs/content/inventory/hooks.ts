@@ -269,6 +269,11 @@ export function useInventoryModals(
   const [isDeleting, setIsDeleting] = useState(false);
   const [form, setForm] = useState<AddItemFormState>(initialForm);
 
+  // Lightning mode state
+  const [lightningMode, setLightningMode] = useState(false);
+  const [heldTags, setHeldTags] = useState<string[]>([]);
+  const [lastCategory, setLastCategory] = useState('');
+
   const resetAddItemForm = () => {
     setForm({
       name: '',
@@ -313,9 +318,10 @@ export function useInventoryModals(
     }
   };
 
-  const handleAddItem = async () => {
+  const handleAddItem = async (shouldCloseModal: boolean = true) => {
     console.log('DEBUG: handleAddItem called');
     console.log('DEBUG: Current form data:', form);
+    console.log('DEBUG: shouldCloseModal:', shouldCloseModal);
 
     try {
       setIsUploading(true);
@@ -421,8 +427,11 @@ export function useInventoryModals(
         }
       }
 
-      resetAddItemForm();
-      setAddModalOpen(false);
+      // Only close modal and reset form if shouldCloseModal is true (normal mode)
+      if (shouldCloseModal) {
+        resetAddItemForm();
+        setAddModalOpen(false);
+      }
     } catch (error) {
       console.error('Failed to add item:', error);
     } finally {
@@ -504,8 +513,16 @@ export function useInventoryModals(
     handleSaveEdit,
     handleDeleteItem,
     isUploading,
+    setIsUploading,
     isSaving,
     setIsSaving,
     isDeleting,
+    // Lightning mode exports
+    lightningMode,
+    setLightningMode,
+    heldTags,
+    setHeldTags,
+    lastCategory,
+    setLastCategory,
   };
 }

@@ -12,6 +12,10 @@ interface AddItemStep1Props {
   onBack?: () => void;
   isUploading: boolean;
   setIsUploading: (uploading: boolean) => void;
+  // Lightning mode props
+  lightningMode?: boolean;
+  heldTags?: string[];
+  setHeldTags?: (tags: string[]) => void;
 }
 
 const AddItemStep1: React.FC<AddItemStep1Props> = ({
@@ -21,6 +25,9 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
   onBack,
   isUploading,
   setIsUploading,
+  lightningMode = false,
+  heldTags = [],
+  setHeldTags,
 }) => {
   const [showCamera, setShowCamera] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -99,6 +106,34 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
   };
 
   const tags = parseTags(form.tagsInput);
+
+  // Handle tag click for holding/unholding in lightning mode
+  const handleTagClick = (tag: string) => {
+    if (!lightningMode || !setHeldTags) return;
+
+    if (heldTags.includes(tag)) {
+      // Remove from held tags
+      setHeldTags(heldTags.filter((t) => t !== tag));
+    } else {
+      // Add to held tags
+      setHeldTags([...heldTags, tag]);
+    }
+  };
+
+  // Handle removing a tag from the input
+  const handleRemoveTag = (tagToRemove: string) => {
+    const currentTags = form.tagsInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const newTags = currentTags.filter((tag) => tag !== tagToRemove);
+    setForm({ ...form, tagsInput: newTags.join(', ') });
+
+    // Also remove from held tags if it was held
+    if (lightningMode && setHeldTags && heldTags.includes(tagToRemove)) {
+      setHeldTags(heldTags.filter((t) => t !== tagToRemove));
+    }
+  };
 
   return (
     <>
@@ -219,14 +254,36 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
             disabled={isUploading}
           />
           <div className="flex flex-wrap gap-1 mt-2">
-            {tags.map((tag, idx) => (
-              <span
-                key={idx}
-                className="px-2 py-0.5 bg-gray-700 rounded-full text-xs text-gray-200"
-              >
-                {tag}
-              </span>
-            ))}
+            {tags.map((tag, idx) => {
+              const isHeld = lightningMode && heldTags.includes(tag);
+              return (
+                <span
+                  key={idx}
+                  className={`px-2 py-0.5 rounded-full text-xs flex items-center gap-1 cursor-pointer transition-colors ${
+                    isHeld
+                      ? 'bg-yellow-600 text-black font-medium'
+                      : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                  }`}
+                  onClick={() => (lightningMode ? handleTagClick(tag) : handleRemoveTag(tag))}
+                  title={
+                    lightningMode
+                      ? isHeld
+                        ? 'Click to unhold'
+                        : 'Click to hold'
+                      : 'Click to remove'
+                  }
+                >
+                  {tag}
+                  {lightningMode && isHeld && <span className="text-xs">📌</span>}
+                  {!lightningMode && <X className="w-3 h-3 hover:text-red-400" />}
+                </span>
+              );
+            })}
+            {lightningMode && tags.length > 0 && (
+              <div className="text-xs text-gray-400 mt-1 w-full">
+                💡 Lightning mode: Click tags to hold them for next item
+              </div>
+            )}
           </div>
         </div>
 

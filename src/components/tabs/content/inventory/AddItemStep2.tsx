@@ -6,9 +6,17 @@ import { AddItemFormState } from './InventoryTypes';
 interface AddItemStep2Props {
   form: AddItemFormState;
   setForm: (form: AddItemFormState) => void;
+  // Lightning mode props
+  onNext?: () => void;
+  lightningMode?: boolean;
 }
 
-const AddItemStep2: React.FC<AddItemStep2Props> = ({ form, setForm }) => {
+const AddItemStep2: React.FC<AddItemStep2Props> = ({
+  form,
+  setForm,
+  onNext,
+  lightningMode = false,
+}) => {
   const handleSizeChange = (idx: number, field: 'title' | 'quantity' | 'price', value: string) => {
     const newSizes = [...form.sizes];
     newSizes[idx][field] = value;

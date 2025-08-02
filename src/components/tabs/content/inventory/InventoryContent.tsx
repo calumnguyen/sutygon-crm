@@ -45,9 +45,17 @@ const InventoryContent: React.FC = () => {
     handleSaveEdit,
     handleDeleteItem,
     isUploading,
+    setIsUploading,
     isSaving,
     setIsSaving,
     isDeleting,
+    // Lightning mode props
+    lightningMode,
+    setLightningMode,
+    heldTags,
+    setHeldTags,
+    lastCategory,
+    setLastCategory,
   } = useInventoryModals(refreshInventory, setInventory);
 
   // Use API search for better performance and full database search
@@ -341,9 +349,13 @@ const InventoryContent: React.FC = () => {
         setForm={setForm}
         handleAddItem={handleAddItem}
         isUploading={isUploading}
-        setIsUploading={(uploading) => {
-          // This will be handled by the hooks
-        }}
+        setIsUploading={setIsUploading}
+        lightningMode={lightningMode}
+        setLightningMode={setLightningMode}
+        heldTags={heldTags}
+        setHeldTags={setHeldTags}
+        lastCategory={lastCategory}
+        setLastCategory={setLastCategory}
       />
       <InventoryEditModal
         editModalOpen={editModalOpen}
