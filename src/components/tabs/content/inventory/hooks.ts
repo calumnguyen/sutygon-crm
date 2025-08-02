@@ -293,9 +293,11 @@ export function useInventoryModals(refreshInventory: () => void) {
       console.log('DEBUG: Upload response status:', response.status);
 
       if (!response.ok) {
-        const error = await response.json();
-        console.error('DEBUG: Upload failed:', error);
-        throw new Error(error.error || 'Upload failed');
+        const errorData = await response.json();
+        console.error('DEBUG: Upload failed:', errorData);
+        const errorMessage = errorData.error || 'Upload failed';
+        const errorDetails = errorData.details || '';
+        throw new Error(`${errorMessage}${errorDetails ? `: ${errorDetails}` : ''}`);
       }
 
       const result = await response.json();

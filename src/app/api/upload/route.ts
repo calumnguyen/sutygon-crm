@@ -25,28 +25,40 @@ export async function POST(request: NextRequest) {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       console.error('DEBUG: Invalid file type:', file.type);
-      return NextResponse.json({ error: 'Only image files are allowed' }, { status: 400 });
+      return NextResponse.json(
+        { error: `Invalid file type: ${file.type}. Only image files are allowed.` },
+        { status: 400 }
+      );
     }
 
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
-      console.error('DEBUG: File too large:', file.size);
-      return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 });
+      console.error('DEBUG: File too large:', file.size, 'bytes');
+      return NextResponse.json(
+        { error: `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) must be less than 5MB` },
+        { status: 400 }
+      );
     }
 
     // Additional mobile validation
     if (file.size === 0) {
       console.error('DEBUG: File size is 0, likely mobile issue');
       return NextResponse.json(
-        { error: 'File appears to be empty. Please try again.' },
+        {
+          error:
+            'File appears to be empty (0 bytes). This often happens on mobile devices. Please try again.',
+        },
         { status: 400 }
       );
     }
 
     // Create uploads directory if it doesn't exist
     const uploadsDir = join(process.cwd(), 'public', 'uploads');
+    console.log('DEBUG: Uploads directory path:', uploadsDir);
+
     if (!existsSync(uploadsDir)) {
+      console.log('DEBUG: Creating uploads directory');
       await mkdir(uploadsDir, { recursive: true });
     }
 
@@ -57,13 +69,20 @@ export async function POST(request: NextRequest) {
     const filename = `${timestamp}_${randomString}.${fileExtension}`;
     const filepath = join(uploadsDir, filename);
 
+    console.log('DEBUG: Generated filepath:', filepath);
+
     // Convert file to buffer and save
+    console.log('DEBUG: Converting file to buffer...');
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+
+    console.log('DEBUG: Writing file to disk...');
     await writeFile(filepath, buffer);
+    console.log('DEBUG: File written successfully');
 
     // Return the public URL
     const publicUrl = `/uploads/${filename}`;
+    console.log('DEBUG: Returning public URL:', publicUrl);
 
     return NextResponse.json({
       success: true,
@@ -73,7 +92,13 @@ export async function POST(request: NextRequest) {
       type: file.type,
     });
   } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
+    console.error('DEBUG: Upload error details:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to upload file',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
   }
 }
