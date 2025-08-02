@@ -18,8 +18,16 @@ import InventoryEditModal from './InventoryEditModal';
 
 const InventoryContent: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const { inventory, refreshInventory, isRefreshing, loading, loadingMore, hasMore, loadMore } =
-    useInventory();
+  const {
+    inventory,
+    refreshInventory,
+    isRefreshing,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    setInventory,
+  } = useInventory();
   const [showFilter, setShowFilter] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -40,7 +48,7 @@ const InventoryContent: React.FC = () => {
     isSaving,
     setIsSaving,
     isDeleting,
-  } = useInventoryModals(refreshInventory);
+  } = useInventoryModals(refreshInventory, setInventory);
 
   // Use API search for better performance and full database search
   const {

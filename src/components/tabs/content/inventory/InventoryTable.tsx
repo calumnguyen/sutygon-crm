@@ -45,7 +45,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
           <tbody className="divide-y divide-gray-700">
             {filteredInventory.map((item, index) => (
               <tr
-                key={item.id}
+                key={`${item.formattedId}-${index}`}
                 className="text-white hover:bg-gray-700/50"
                 ref={index === filteredInventory.length - 1 ? lastElementRef : undefined}
               >

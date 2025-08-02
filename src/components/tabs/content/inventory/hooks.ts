@@ -257,7 +257,10 @@ const initialForm: AddItemFormState = {
   samePrice: true,
 };
 
-export function useInventoryModals(refreshInventory: () => void) {
+export function useInventoryModals(
+  refreshInventory: () => void,
+  setInventory?: React.Dispatch<React.SetStateAction<InventoryItem[]>>
+) {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -311,6 +314,9 @@ export function useInventoryModals(refreshInventory: () => void) {
   };
 
   const handleAddItem = async () => {
+    console.log('DEBUG: handleAddItem called');
+    console.log('DEBUG: Current form data:', form);
+
     try {
       setIsUploading(true);
 
@@ -327,12 +333,17 @@ export function useInventoryModals(refreshInventory: () => void) {
         price: parseInt(s.price.replace(/\D/g, ''), 10) || 0,
       }));
 
+      console.log('DEBUG: Processed tags:', tags);
+      console.log('DEBUG: Processed sizes:', sizes);
+
       // Upload image if provided
       let imageUrl: string | undefined;
       if (form.photoFile) {
+        console.log('DEBUG: Uploading image...');
         try {
           const uploadedUrl = await uploadImage(form.photoFile);
           imageUrl = uploadedUrl || undefined;
+          console.log('DEBUG: Image uploaded, URL:', imageUrl);
         } catch (error) {
           console.error('Image upload failed:', error);
           // Continue without image if upload fails
@@ -341,7 +352,8 @@ export function useInventoryModals(refreshInventory: () => void) {
       }
 
       // Create inventory item
-      await fetch('/api/inventory', {
+      console.log('DEBUG: Sending API request to /api/inventory');
+      const response = await fetch('/api/inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -353,7 +365,62 @@ export function useInventoryModals(refreshInventory: () => void) {
         }),
       });
 
-      refreshInventory();
+      console.log('DEBUG: API response status:', response.status);
+      console.log('DEBUG: API response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('DEBUG: API error response:', errorText);
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('DEBUG: API response data:', result);
+
+      // Instead of refreshing the entire inventory, add the new item to the local state
+      if (result.success && result.item) {
+        if (setInventory) {
+          // Optimistic update: add the new item to the beginning of the inventory list
+          // Check for duplicates and ensure uniqueness
+          setInventory((prev) => {
+            console.log('DEBUG: Optimistic update - new item:', result.item);
+            console.log('DEBUG: Optimistic update - current inventory length:', prev.length);
+
+            // Check for existing items with same formattedId
+            const duplicatesByFormattedId = prev.filter(
+              (item) => item.formattedId === result.item.formattedId
+            );
+            if (duplicatesByFormattedId.length > 0) {
+              console.warn('DEBUG: Found duplicates by formattedId:', duplicatesByFormattedId);
+            }
+
+            // Check for existing items with same ID
+            const duplicatesById = prev.filter((item) => item.id === result.item.id);
+            if (duplicatesById.length > 0) {
+              console.warn('DEBUG: Found duplicates by ID:', duplicatesById);
+            }
+
+            // Remove any existing items with the same formattedId to prevent duplicates
+            const filteredPrev = prev.filter(
+              (item) => item.formattedId !== result.item.formattedId
+            );
+
+            // Also check for items with the same ID as a backup
+            const finalFiltered = filteredPrev.filter((item) => item.id !== result.item.id);
+
+            console.log(
+              'DEBUG: Optimistic update - filtered inventory length:',
+              finalFiltered.length
+            );
+
+            return [result.item, ...finalFiltered];
+          });
+        } else {
+          // Fallback to full refresh if setInventory is not available
+          refreshInventory();
+        }
+      }
+
       resetAddItemForm();
       setAddModalOpen(false);
     } catch (error) {

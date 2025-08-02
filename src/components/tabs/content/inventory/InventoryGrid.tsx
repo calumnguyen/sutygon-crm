@@ -31,7 +31,7 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
       {filteredInventory.map((item, index) => {
         return (
           <div
-            key={item.id}
+            key={`${item.formattedId}-${index}`}
             ref={index === filteredInventory.length - 1 ? lastElementRef : undefined}
             className="bg-gray-900 rounded-lg shadow border border-gray-700 flex flex-col items-center p-3 w-full min-w-0 hover:border-gray-600 transition-colors"
           >

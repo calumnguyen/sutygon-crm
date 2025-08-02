@@ -7,7 +7,7 @@ import {
   inventoryTags,
   categoryCounters,
 } from '@/lib/db/schema';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray, sql, desc } from 'drizzle-orm';
 import {
   encryptInventoryData,
   decryptInventoryData,
@@ -46,8 +46,13 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get('page') || '1');
 
   try {
-    // Get items with pagination
-    const items = await db.select().from(inventoryItems).limit(limit).offset(offset);
+    // Get items with pagination, sorted by newest first
+    const items = await db
+      .select()
+      .from(inventoryItems)
+      .orderBy(desc(inventoryItems.createdAt))
+      .limit(limit)
+      .offset(offset);
 
     if (!items.length) {
       return NextResponse.json({ items: [], hasMore: false, total: 0 });
@@ -233,5 +238,48 @@ export async function POST(req: NextRequest) {
   }
 
   // Return the created item in UI structure
-  return GET(req);
+  const decryptedItem = decryptInventoryData(item);
+
+  // Get sizes for this item
+  const itemSizes = await db
+    .select()
+    .from(inventorySizes)
+    .where(eq(inventorySizes.itemId, item.id));
+
+  const decryptedSizes = itemSizes.map((s) => {
+    const decryptedSize = decryptInventorySizeData(s);
+    return {
+      title: decryptedSize.title,
+      quantity: decryptedSize.quantity,
+      onHand: decryptedSize.onHand,
+      price: decryptedSize.price,
+    };
+  });
+
+  // Get tags for this item
+  const invTags = await db.select().from(inventoryTags).where(eq(inventoryTags.itemId, item.id));
+
+  const itemTagIds = invTags.map((t) => t.tagId);
+  const allTags = itemTagIds.length
+    ? await db.select().from(tags).where(inArray(tags.id, itemTagIds))
+    : [];
+
+  const itemTags = allTags.map((t) => {
+    const decryptedTag = decryptTagData(t);
+    return decryptedTag.name;
+  });
+
+  const result = {
+    id: item.id,
+    formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
+    name: decryptedItem.name,
+    category: decryptedItem.category,
+    imageUrl: item.imageUrl,
+    tags: itemTags,
+    sizes: decryptedSizes,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+
+  return NextResponse.json({ success: true, item: result });
 }

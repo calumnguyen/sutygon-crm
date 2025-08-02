@@ -98,6 +98,7 @@ export function useInventory() {
     loadingMore,
     hasMore,
     loadMore,
+    page,
     total,
   };
 }
