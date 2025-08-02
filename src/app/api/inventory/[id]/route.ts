@@ -46,15 +46,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     console.log('DEBUG: PUT /api/inventory/[id] - Database update completed');
 
-    return NextResponse.json({
-      success: true,
-      debug: {
-        message: 'Database update completed',
-        imageUrlLength: imageUrl?.length || 0,
-        hasImageUrl: !!imageUrl,
-      },
-    });
-
     // Delete existing sizes and tags
     await db.delete(inventorySizes).where(eq(inventorySizes.itemId, itemId));
     await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
@@ -97,7 +88,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId, tagId })));
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      debug: {
+        message: 'Database update completed',
+        imageUrlLength: imageUrl?.length || 0,
+        hasImageUrl: !!imageUrl,
+      },
+    });
   } catch (error) {
     console.error('Update inventory error:', error);
     return NextResponse.json({ error: 'Failed to update inventory item' }, { status: 500 });

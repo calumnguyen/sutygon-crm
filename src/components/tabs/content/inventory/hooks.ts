@@ -373,13 +373,29 @@ export function useInventoryModals(refreshInventory: () => void) {
         }),
       });
 
-      const result = await response.json();
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error:', errorText);
+        alert(`DEBUG: API Error - Status: ${response.status}\nResponse: ${errorText}`);
+        return;
+      }
+
+      let result;
+      try {
+        result = await response.json();
+      } catch (jsonError) {
+        console.error('JSON Parse Error:', jsonError);
+        alert(`DEBUG: JSON Parse Error - ${jsonError}`);
+        return;
+      }
 
       // Show debug info for mobile users
       if (result.debug) {
         alert(
           `DEBUG: API Response - ${result.debug.message}\nImageUrl length: ${result.debug.imageUrlLength}\nHas imageUrl: ${result.debug.hasImageUrl}`
         );
+      } else {
+        alert(`DEBUG: API Response - Success: ${result.success}`);
       }
 
       refreshInventory();
