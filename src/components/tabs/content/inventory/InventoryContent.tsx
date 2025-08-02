@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, List, Grid, Search, SlidersHorizontal } from 'lucide-react';
+import { Plus, List, Grid, Search, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import Button from '@/components/common/dropdowns/Button';
 import { TRANSLATIONS } from '@/config/translations';
 import { AddItemFormState } from '@/types/inventory';
@@ -209,6 +209,28 @@ const InventoryContent: React.FC = () => {
         >
           <span className="sm:hidden">{TRANSLATIONS.inventory.addItem}</span>
           <span className="hidden sm:inline">{TRANSLATIONS.inventory.addItem}</span>
+        </Button>
+
+        {/* Hard Refresh Button */}
+        <Button
+          variant="secondary"
+          onClick={() => {
+            refreshInventory();
+            // Clear all filters and search
+            setSearchQuery('');
+            setPriceSort(null);
+            setPriceRange({ min: '', max: '' });
+            setSelectedCategories([]);
+            setLastModifiedSort(null);
+            setNameSort(null);
+            setIdSort(null);
+          }}
+          leftIcon={<RefreshCw className="w-5 h-5" />}
+          className="w-full sm:w-auto border-green-500 text-green-400 hover:bg-green-900/30 hover:text-green-300 focus:ring-2 focus:ring-green-500"
+          title="Làm mới dữ liệu"
+        >
+          <span className="sm:hidden">Làm mới</span>
+          <span className="hidden sm:inline">Làm mới</span>
         </Button>
       </div>
 
