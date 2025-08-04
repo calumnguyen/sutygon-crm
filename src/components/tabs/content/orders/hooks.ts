@@ -194,12 +194,9 @@ export function useInventoryFetch(dateFrom?: string, dateTo?: string) {
       setInventoryLoading(true);
       setInventoryError(null);
       try {
-        // Build URL with date range parameters if provided
-        let url = '/api/inventory/search?q=&page=1&limit=100';
-        if (dateFrom && dateTo) {
-          url += `&dateFrom=${encodeURIComponent(dateFrom)}&dateTo=${encodeURIComponent(dateTo)}`;
-        } else {
-        }
+        // Load ALL inventory items without date filtering
+        // Date filtering should only affect onHand calculations, not which items are available
+        const url = '/api/inventory/search?q=&page=1&limit=1000'; // Increased limit to get all items
 
         // Use the optimized search API to get all items (empty query)
         const res = await fetch(url);
@@ -216,7 +213,7 @@ export function useInventoryFetch(dateFrom?: string, dateTo?: string) {
       }
     }
     fetchInventory();
-  }, [dateFrom, dateTo]); // Restored dependencies to trigger on date changes
+  }, []); // Remove date dependencies - we want all items loaded regardless of dates
 
   return { inventory, inventoryLoading, inventoryError };
 }
