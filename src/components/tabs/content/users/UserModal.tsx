@@ -31,6 +31,7 @@ export default function UserModal({
   });
   const [error, setError] = useState('');
   const [showEmployeeKeyInput, setShowEmployeeKeyInput] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (mode === 'edit' && userToEdit) {
@@ -55,37 +56,47 @@ export default function UserModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    // Only validate employee key if it's being updated (showEmployeeKeyInput is true)
-    if (showEmployeeKeyInput && !/^\d{6}$/.test(formData.employeeKey)) {
-      setError('Mã nhân viên phải gồm 6 chữ số.');
-      return;
-    }
-
-    // Only check uniqueness if employee key is being updated
-    if (showEmployeeKeyInput && formData.employeeKey) {
-      const res = await fetch(`/api/users/by-key?employeeKey=${formData.employeeKey}`);
-      const data = await res.json();
-      if (data.user && (mode === 'add' || (mode === 'edit' && data.user.id !== userToEdit?.id))) {
-        setError('Mã nhân viên này đã được sử dụng.');
+    try {
+      // Only validate employee key if it's being updated (showEmployeeKeyInput is true)
+      if (showEmployeeKeyInput && !/^\d{6}$/.test(formData.employeeKey)) {
+        setError('Mã nhân viên phải gồm 6 chữ số.');
         return;
       }
+
+      // Only check uniqueness if employee key is being updated
+      if (showEmployeeKeyInput && formData.employeeKey) {
+        const res = await fetch(`/api/users/by-key?employeeKey=${formData.employeeKey}`);
+        const data = await res.json();
+        if (data.user && (mode === 'add' || (mode === 'edit' && data.user.id !== userToEdit?.id))) {
+          setError('Mã nhân viên này đã được sử dụng.');
+          return;
+        }
+      }
+
+      // If not updating employee key in edit mode, use the original key
+      const submitData = {
+        ...formData,
+        employeeKey: showEmployeeKeyInput ? formData.employeeKey : userToEdit?.employeeKey || '',
+      };
+
+      await onSubmit(submitData);
+
+      // Reset form on successful submission
+      setFormData({
+        name: '',
+        role: 'user',
+        status: 'active',
+        employeeKey: '',
+      });
+      setShowEmployeeKeyInput(false);
+    } catch (error) {
+      // Handle any submission errors
+      setError('Có lỗi xảy ra khi lưu thông tin người dùng.');
+    } finally {
+      setIsLoading(false);
     }
-
-    // If not updating employee key in edit mode, use the original key
-    const submitData = {
-      ...formData,
-      employeeKey: showEmployeeKeyInput ? formData.employeeKey : userToEdit?.employeeKey || '',
-    };
-
-    await onSubmit(submitData);
-    setFormData({
-      name: '',
-      role: 'user',
-      status: 'active',
-      employeeKey: '',
-    });
-    setShowEmployeeKeyInput(false);
   };
 
   if (!isOpen) return null;
@@ -121,8 +132,9 @@ export default function UserModal({
               value={formData.name}
               onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
               placeholder="Nhập tên người dùng"
-              className={`${inputBaseClasses} ${inputEnabledClasses}`}
+              className={`${inputBaseClasses} ${isLoading ? inputDisabledClasses : inputEnabledClasses}`}
               required
+              disabled={isLoading}
             />
           </div>
           <div>
@@ -138,9 +150,9 @@ export default function UserModal({
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, role: e.target.value as UserRole }))
               }
-              className={`${inputBaseClasses} ${isRoleEditable ? inputEnabledClasses : inputDisabledClasses}`}
+              className={`${inputBaseClasses} ${isRoleEditable && !isLoading ? inputEnabledClasses : inputDisabledClasses}`}
               required
-              disabled={!isRoleEditable}
+              disabled={!isRoleEditable || isLoading}
             >
               <option value="user">{TRANSLATIONS.users.roles.user}</option>
               <option value="admin">{TRANSLATIONS.users.roles.admin}</option>
@@ -161,9 +173,9 @@ export default function UserModal({
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, status: e.target.value as UserStatus }))
               }
-              className={`${inputBaseClasses} ${isStatusEditable ? inputEnabledClasses : inputDisabledClasses}`}
+              className={`${inputBaseClasses} ${isStatusEditable && !isLoading ? inputEnabledClasses : inputDisabledClasses}`}
               required
-              disabled={!isStatusEditable}
+              disabled={!isStatusEditable || isLoading}
             >
               <option value="active">{TRANSLATIONS.users.status.active}</option>
               <option value="inactive">{TRANSLATIONS.users.status.inactive}</option>
@@ -178,7 +190,12 @@ export default function UserModal({
                 <button
                   type="button"
                   onClick={() => setShowEmployeeKeyInput(!showEmployeeKeyInput)}
-                  className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                  className={`text-sm transition-colors ${
+                    isLoading
+                      ? 'text-gray-500 cursor-not-allowed'
+                      : 'text-blue-400 hover:text-blue-300'
+                  }`}
+                  disabled={isLoading}
                 >
                   {showEmployeeKeyInput ? 'Hủy' : 'Sửa Mã'}
                 </button>
@@ -194,12 +211,13 @@ export default function UserModal({
                   setFormData((prev) => ({ ...prev, employeeKey: val }));
                 }}
                 placeholder={mode === 'edit' ? 'Nhập mã nhân viên mới' : 'Nhập mã nhân viên'}
-                className={`${inputBaseClasses} ${inputEnabledClasses}`}
+                className={`${inputBaseClasses} ${isLoading ? inputDisabledClasses : inputEnabledClasses}`}
                 required={mode === 'add'}
                 maxLength={6}
                 minLength={6}
                 pattern="\d{6}"
                 autoComplete="new-password"
+                disabled={isLoading}
               />
             ) : mode === 'edit' ? (
               <div className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-400">
@@ -208,11 +226,20 @@ export default function UserModal({
             ) : null}
           </div>
           <div className="mt-8 flex justify-end space-x-3">
-            <Button variant="secondary" onClick={onClose} type="button">
+            <Button variant="secondary" onClick={onClose} type="button" disabled={isLoading}>
               {TRANSLATIONS.users.cancel}
             </Button>
-            <Button type="submit" variant="primary">
-              {mode === 'add' ? TRANSLATIONS.users.save : TRANSLATIONS.users.update}
+            <Button type="submit" variant="primary" disabled={isLoading}>
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  {mode === 'add' ? 'Đang lưu...' : 'Đang cập nhật...'}
+                </div>
+              ) : mode === 'add' ? (
+                TRANSLATIONS.users.save
+              ) : (
+                TRANSLATIONS.users.update
+              )}
             </Button>
           </div>
           {error && <div className="text-red-400 text-sm text-center mt-2">{error}</div>}

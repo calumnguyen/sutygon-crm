@@ -1,6 +1,14 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Pencil, Trash2 } from 'lucide-react';
+import {
+  UserPlus,
+  Pencil,
+  Trash2,
+  Shield,
+  User as UserIcon,
+  CheckCircle,
+  XCircle,
+} from 'lucide-react';
 import UserModal from './UserModal';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
@@ -10,6 +18,42 @@ import { TABLE_CONFIG } from '@/config/table';
 import { TRANSLATIONS } from '@/config/translations';
 import { User, UserRole } from '@/types/user';
 import { useUser } from '@/context/UserContext';
+
+// Helper component for role display with icon
+const RoleDisplay = ({ role }: { role: string }) => {
+  if (role === 'admin') {
+    return (
+      <div className="flex items-center gap-2">
+        <Shield className="w-4 h-4 text-blue-400" />
+        <span className="text-blue-300">{TRANSLATIONS.users.roles.admin}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <UserIcon className="w-4 h-4 text-gray-400" />
+      <span className="text-gray-300">{TRANSLATIONS.users.roles.user}</span>
+    </div>
+  );
+};
+
+// Helper component for status display with icon
+const StatusDisplay = ({ status }: { status: string }) => {
+  if (status === 'active') {
+    return (
+      <div className="flex items-center gap-2">
+        <CheckCircle className="w-4 h-4 text-green-400" />
+        <span className="text-green-300">{TRANSLATIONS.users.status.active}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <XCircle className="w-4 h-4 text-red-400" />
+      <span className="text-red-300">{TRANSLATIONS.users.status.inactive}</span>
+    </div>
+  );
+};
 
 export default function UsersContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,6 +94,7 @@ export default function UsersContent() {
       setIsModalOpen(false);
     } catch (error) {
       console.error('Failed to add user:', error);
+      throw error; // Re-throw to let modal handle the error display
     }
   };
 
@@ -62,6 +107,7 @@ export default function UsersContent() {
       setUserToEdit(null);
     } catch (error) {
       console.error('Failed to update user:', error);
+      throw error; // Re-throw to let modal handle the error display
     }
   };
 
@@ -223,11 +269,11 @@ export default function UsersContent() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                     {_user.name}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {TRANSLATIONS.users.roles[_user.role]}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <RoleDisplay role={_user.role} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    {TRANSLATIONS.users.status[_user.status]}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <StatusDisplay status={_user.status} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                     <div className="flex space-x-2">
@@ -270,18 +316,18 @@ export default function UsersContent() {
             <div className="flex justify-between items-start mb-4">
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-white mb-2">{_user.name}</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="grid grid-cols-1 gap-3 text-sm">
                   <div>
-                    <span className="text-gray-400">{TRANSLATIONS.users.table.role}:</span>
-                    <span className="ml-2 text-gray-300">
-                      {TRANSLATIONS.users.roles[_user.role]}
-                    </span>
+                    <div className="text-gray-400 text-xs mb-1">
+                      {TRANSLATIONS.users.table.role}
+                    </div>
+                    <RoleDisplay role={_user.role} />
                   </div>
                   <div>
-                    <span className="text-gray-400">{TRANSLATIONS.users.table.status}:</span>
-                    <span className="ml-2 text-gray-300">
-                      {TRANSLATIONS.users.status[_user.status]}
-                    </span>
+                    <div className="text-gray-400 text-xs mb-1">
+                      {TRANSLATIONS.users.table.status}
+                    </div>
+                    <StatusDisplay status={_user.status} />
                   </div>
                 </div>
               </div>

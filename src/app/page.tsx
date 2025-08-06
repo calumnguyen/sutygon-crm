@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import TabContent from '@/components/tabs/TabContent';
 import { useUser } from '@/context/UserContext';
 import SessionWarningModal from '@/components/common/SessionWarningModal';
+import Lottie from 'lottie-react';
+import loadingAnimation from '../../public/loading.json';
 
 export default function Home() {
   const [checking, setChecking] = useState(true);
@@ -29,10 +31,25 @@ export default function Home() {
 
   if (checking) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="text-center">
-          <div className="text-white text-lg mb-2">Đang xác thực phiên đăng nhập...</div>
-          <div className="text-gray-400 text-sm">Vui lòng chờ trong giây lát</div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 px-4">
+        <div className="text-center max-w-sm w-full">
+          {/* Lottie Animation */}
+          <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 mx-auto mb-6">
+            <Lottie
+              animationData={loadingAnimation}
+              loop={true}
+              autoplay={true}
+              className="w-full h-full"
+            />
+          </div>
+
+          {/* Loading Text */}
+          <div className="space-y-2">
+            <div className="text-white text-lg sm:text-xl font-medium">
+              Đang xác thực phiên đăng nhập...
+            </div>
+            <div className="text-gray-400 text-sm sm:text-base">Vui lòng chờ trong giây lát</div>
+          </div>
         </div>
       </div>
     );
