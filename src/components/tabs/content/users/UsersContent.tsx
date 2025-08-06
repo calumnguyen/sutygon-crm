@@ -164,13 +164,14 @@ export default function UsersContent() {
   // };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold text-white">{TRANSLATIONS.users.title}</h1>
         <Button
           variant="primary"
           onClick={handleAddUserClick}
           leftIcon={<UserPlus className="w-5 h-5" />}
+          className="w-full sm:w-auto"
         >
           {TRANSLATIONS.users.addUser}
         </Button>
@@ -200,58 +201,118 @@ export default function UsersContent() {
         </div>
       </div>
 
-      <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-700">
-          <thead className="bg-gray-700">
-            <tr>
-              {TABLE_CONFIG.users.columns.map((column) => (
-                <th
-                  key={column.key}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
-                >
-                  {column.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-gray-800 divide-y divide-gray-700">
-            {users.map((_user) => (
-              <tr key={_user.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{_user.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  {TRANSLATIONS.users.roles[_user.role]}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  {TRANSLATIONS.users.status[_user.status]}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  <div className="flex space-x-2">
-                    {canEditUser(_user.id) && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        leftIcon={<Pencil className="w-4 h-4" />}
-                        onClick={() => handleEditUser(_user.id.toString())}
-                      >
-                        {TRANSLATIONS.users.table.edit}
-                      </Button>
-                    )}
-                    {canDeleteUser(_user.id) && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        leftIcon={<Trash2 className="w-4 h-4" />}
-                        onClick={() => handleDeleteUser(_user.id.toString())}
-                      >
-                        {TRANSLATIONS.users.table.delete}
-                      </Button>
-                    )}
-                  </div>
-                </td>
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-700">
+            <thead className="bg-gray-700">
+              <tr>
+                {TABLE_CONFIG.users.columns.map((column) => (
+                  <th
+                    key={column.key}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+                  >
+                    {column.label}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-gray-800 divide-y divide-gray-700">
+              {users.map((_user) => (
+                <tr key={_user.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    {_user.name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    {TRANSLATIONS.users.roles[_user.role]}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    {TRANSLATIONS.users.status[_user.status]}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    <div className="flex space-x-2">
+                      {canEditUser(_user.id) && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          leftIcon={<Pencil className="w-4 h-4" />}
+                          onClick={() => handleEditUser(_user.id.toString())}
+                        >
+                          {TRANSLATIONS.users.table.edit}
+                        </Button>
+                      )}
+                      {canDeleteUser(_user.id) && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          leftIcon={<Trash2 className="w-4 h-4" />}
+                          onClick={() => handleDeleteUser(_user.id.toString())}
+                        >
+                          {TRANSLATIONS.users.table.delete}
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {users.map((_user) => (
+          <div
+            key={_user.id}
+            className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white mb-2">{_user.name}</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-400">{TRANSLATIONS.users.table.role}:</span>
+                    <span className="ml-2 text-gray-300">
+                      {TRANSLATIONS.users.roles[_user.role]}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">{TRANSLATIONS.users.table.status}:</span>
+                    <span className="ml-2 text-gray-300">
+                      {TRANSLATIONS.users.status[_user.status]}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-3 border-t border-gray-700">
+              {canEditUser(_user.id) && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<Pencil className="w-4 h-4" />}
+                  onClick={() => handleEditUser(_user.id.toString())}
+                  className="flex-1"
+                >
+                  {TRANSLATIONS.users.table.edit}
+                </Button>
+              )}
+              {canDeleteUser(_user.id) && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<Trash2 className="w-4 h-4" />}
+                  onClick={() => handleDeleteUser(_user.id.toString())}
+                  className="flex-1"
+                >
+                  {TRANSLATIONS.users.table.delete}
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
       <UserModal
