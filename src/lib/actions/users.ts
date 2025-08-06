@@ -9,9 +9,9 @@ import { encryptUserData, decryptUserData } from '@/lib/utils/userEncryption';
 
 export async function getUsers(): Promise<User[]> {
   const dbUsers = await db.select().from(users);
-  
+
   // Decrypt sensitive data for display
-  const decryptedUsers = dbUsers.map(user => {
+  const decryptedUsers = dbUsers.map((user) => {
     const decrypted = decryptUserData(user);
     return {
       id: user.id,
@@ -23,7 +23,7 @@ export async function getUsers(): Promise<User[]> {
       updatedAt: user.updatedAt,
     };
   });
-  
+
   return decryptedUsers;
 }
 
@@ -33,13 +33,13 @@ export async function createUser(
   try {
     // Hash the employee key
     const hashedEmployeeKey = hashValue(userData.employeeKey);
-    
+
     // Encrypt sensitive user data
     const encryptedData = encryptUserData({
       ...userData,
       employeeKey: hashedEmployeeKey, // Use hashed key
     });
-    
+
     const [newUser] = await db
       .insert(users)
       .values({
@@ -51,7 +51,7 @@ export async function createUser(
         updatedAt: new Date(),
       })
       .returning();
-    
+
     // Return the new user with decrypted data and original employee key
     const decryptedUser = decryptUserData(newUser);
     return {
@@ -74,29 +74,46 @@ export async function updateUser(
   userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<User> {
   try {
-    // Hash the employee key
-    const hashedEmployeeKey = hashValue(userData.employeeKey);
-    
-    // Encrypt sensitive user data
+    // Get the current user to check if employee key is changing
+    const currentUser = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!currentUser) {
+      throw new Error('User not found');
+    }
+
+    // Check if employee key is masked (••••••) - means it wasn't changed
+    const isEmployeeKeyMasked = userData.employeeKey === '••••••';
+
+    let hashedEmployeeKey = currentUser.employeeKey; // Keep existing hash by default
+
+    if (!isEmployeeKeyMasked) {
+      // Only hash if a real employee key was provided
+      hashedEmployeeKey = hashValue(userData.employeeKey);
+    }
+
+    // Encrypt sensitive user data (excluding employee key)
     const encryptedData = encryptUserData({
       ...userData,
-      employeeKey: hashedEmployeeKey, // Use hashed key
+      employeeKey: userData.employeeKey, // Pass original for encryption function
     });
-    
+
     const [updatedUser] = await db
       .update(users)
       .set({
         name: encryptedData.name,
-        employeeKey: encryptedData.employeeKey, // This is hashed
+        employeeKey: hashedEmployeeKey, // Use the properly hashed key
         role: encryptedData.role,
         status: encryptedData.status,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId))
       .returning();
-    
+
     // Return the updated user with decrypted data and original employee key
     const decryptedUser = decryptUserData(updatedUser);
+
     return {
       id: updatedUser.id,
       name: decryptedUser.name,
