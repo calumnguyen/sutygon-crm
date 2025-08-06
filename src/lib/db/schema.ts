@@ -38,8 +38,42 @@ export const storeSettings = pgTable('store_settings', {
   id: serial('id').primaryKey(),
   storeCode: varchar('store_code', { length: 255 }).notNull(), // Increased for hashed values
   vatPercentage: decimal('vat_percentage', { precision: 5, scale: 2 }).notNull().default('8.00'), // VAT percentage (default 8%)
+  isOpen: boolean('is_open').notNull().default(false), // Store open/closed status
+  openedBy: integer('opened_by').references(() => users.id), // Who opened the store
+  openedAt: timestamp('opened_at'), // When store was opened
+  closedBy: integer('closed_by').references(() => users.id), // Who closed the store
+  closedAt: timestamp('closed_at'), // When store was closed
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
+
+export const userSessions = pgTable(
+  'user_sessions',
+  {
+    id: serial('id').primaryKey(),
+    sessionToken: varchar('session_token', { length: 255 }).notNull().unique(), // JWT or random token
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    expiresAt: timestamp('expires_at').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    userAgent: text('user_agent'), // Browser/device info
+    ipAddress: varchar('ip_address', { length: 45 }), // IPv4/IPv6 support
+  },
+  (table) => {
+    return {
+      // Index for session token lookups (most common query)
+      sessionTokenIdx: index('user_sessions_session_token_idx').on(table.sessionToken),
+      // Index for user ID lookups (to find all user sessions)
+      userIdIdx: index('user_sessions_user_id_idx').on(table.userId),
+      // Index for active sessions
+      isActiveIdx: index('user_sessions_is_active_idx').on(table.isActive),
+      // Index for expiration cleanup
+      expiresAtIdx: index('user_sessions_expires_at_idx').on(table.expiresAt),
+    };
+  }
+);
 
 export const inventoryItems = pgTable(
   'inventory_items',

@@ -47,11 +47,25 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
     const { name, value } = e.target;
     if (name === 'phone') {
       // Format as user types
-      setForm({ ...form, phone: formatPhoneNumber(value) });
+      const formattedPhone = formatPhoneNumber(value);
+      setForm({ ...form, phone: formattedPhone });
+
+      // Real-time validation for phone number
+      const cleanPhone = formattedPhone.replace(/\D/g, '');
+      if (cleanPhone && !validatePhoneNumber(formattedPhone)) {
+        setError('Số điện thoại phải có 10 hoặc 11 chữ số hợp lệ.');
+      } else if (cleanPhone && existingPhones.includes(cleanPhone)) {
+        setError('Số điện thoại đã tồn tại.');
+      } else {
+        setError('');
+      }
     } else {
       setForm({ ...form, [name]: value });
+      // Clear error when user is making changes to other fields
+      if (error && name === 'name' && value.trim()) {
+        setError('');
+      }
     }
-    setError('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

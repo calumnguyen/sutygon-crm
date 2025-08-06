@@ -1,10 +1,10 @@
 'use client';
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import Logo from '@/components/common/Logo';
 import SearchBar from '@/components/common/SearchBar';
 import SignOutButton from '@/components/common/buttons/SignOutButton';
-import { useRouter } from 'next/navigation';
-import { useApp } from '@/context/AppContext';
+import { useUser } from '@/context/UserContext';
 
 interface HeaderProps {
   onSearch?: (query: string) => void;
@@ -12,7 +12,8 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onSearch }) => {
   const router = useRouter();
-  const appContext = useApp();
+  const { currentUser, logout } = useUser();
+
   return (
     <header className="w-full bg-transparent pt-6">
       <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-2 gap-4">
@@ -27,12 +28,10 @@ const Header: React.FC<HeaderProps> = ({ onSearch }) => {
         </div>
         <div className="order-2 sm:order-3">
           <SignOutButton
+            userName={currentUser?.name}
             onSignOut={() => {
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('storeCode');
-                appContext?.logout();
-                router.replace('/login');
-              }
+              logout();
+              router.replace('/login');
             }}
           />
         </div>

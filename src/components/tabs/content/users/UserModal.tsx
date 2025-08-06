@@ -95,12 +95,8 @@ export default function UserModal({
   const isAdmin = currentUser?.role === 'admin';
   const isRoleEditable = mode === 'add' || (isAdmin && !isEditingSelf);
 
-  // Check if this is the last admin being deactivated
-  const isLastAdmin =
-    mode === 'edit' &&
-    userToEdit &&
-    userToEdit.role === 'admin' &&
-    allUsers.filter((user) => user.role === 'admin' && user.status === 'active').length === 1;
+  // Prevent admin from changing their own status
+  const isStatusEditable = mode === 'add' || !isEditingSelf;
 
   const inputBaseClasses =
     'mt-1 block w-full rounded-lg border text-gray-200 placeholder-gray-500 focus:outline-none transition px-4 py-2';
@@ -153,9 +149,9 @@ export default function UserModal({
           <div>
             <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1">
               {TRANSLATIONS.users.table.status}
-              {isLastAdmin && (
+              {!isStatusEditable && isEditingSelf && (
                 <span className="ml-2 text-xs text-orange-400">
-                  (Không thể deactivate admin cuối cùng)
+                  (Không thể thay đổi trạng thái của chính mình)
                 </span>
               )}
             </label>
@@ -165,9 +161,9 @@ export default function UserModal({
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, status: e.target.value as UserStatus }))
               }
-              className={`${inputBaseClasses} ${isLastAdmin ? inputDisabledClasses : inputEnabledClasses}`}
+              className={`${inputBaseClasses} ${isStatusEditable ? inputEnabledClasses : inputDisabledClasses}`}
               required
-              disabled={isLastAdmin || false}
+              disabled={!isStatusEditable}
             >
               <option value="active">{TRANSLATIONS.users.status.active}</option>
               <option value="inactive">{TRANSLATIONS.users.status.inactive}</option>

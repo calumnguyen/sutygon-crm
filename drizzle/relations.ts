@@ -1,5 +1,17 @@
 import { relations } from "drizzle-orm/relations";
-import { inventoryItems, inventorySizes, orders, orderItems, orderNotes, customers, inventoryTags, tags } from "./schema";
+import { inventoryItems, inventorySizes, orders, orderItems, orderNotes, customers, inventoryTags, tags, users } from "./schema";
+import { userSessions } from "../src/lib/db/schema";
+
+export const usersRelations = relations(users, ({many}) => ({
+	userSessions: many(userSessions),
+}));
+
+export const userSessionsRelations = relations(userSessions, ({one}) => ({
+	user: one(users, {
+		fields: [userSessions.userId],
+		references: [users.id]
+	}),
+}));
 
 export const inventorySizesRelations = relations(inventorySizes, ({one}) => ({
 	inventoryItem: one(inventoryItems, {

@@ -32,7 +32,7 @@ export default function CustomerContent() {
     customerId: null,
   });
   const [pendingAction, setPendingAction] = useState<{
-    type: 'add' | 'edit' | 'delete' | null;
+    type: 'edit' | 'delete' | null;
     customerId: number | null;
   }>({ type: null, customerId: null });
 
@@ -79,14 +79,11 @@ export default function CustomerContent() {
   };
 
   const handleAddCustomerClick = () => {
-    setPendingAction({ type: 'add', customerId: null });
-    setIdentityModal({ open: true, customerId: null });
+    setIsModalOpen(true);
   };
 
-  const handleIdentitySuccess = (customer: { id: number }) => {
-    if (pendingAction.type === 'add') {
-      setIsModalOpen(true);
-    } else if (pendingAction.type === 'edit' && pendingAction.customerId !== null) {
+  const handleIdentitySuccess = () => {
+    if (pendingAction.type === 'edit' && pendingAction.customerId !== null) {
       const customerToEdit = customers.find(
         (_customer) => _customer.id === pendingAction.customerId
       );

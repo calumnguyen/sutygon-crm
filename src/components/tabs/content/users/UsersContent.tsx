@@ -3,17 +3,17 @@ import React, { useEffect, useState } from 'react';
 import { UserPlus, Pencil, Trash2 } from 'lucide-react';
 import UserModal from './UserModal';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
+import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
 import { createUser, getUsers, deleteUser, updateUser } from '@/lib/actions/users';
 import Button from '@/components/common/dropdowns/Button';
 import { TABLE_CONFIG } from '@/config/table';
 import { TRANSLATIONS } from '@/config/translations';
 import { User, UserRole } from '@/types/user';
-import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
+import { useUser } from '@/context/UserContext';
 
 export default function UsersContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
@@ -27,6 +27,8 @@ export default function UsersContent() {
     userId: number | null;
   }>({ type: null, userId: null });
 
+  const { currentUser } = useUser();
+
   // Fetch users on mount
   useEffect(() => {
     async function fetchUsers() {
@@ -34,19 +36,6 @@ export default function UsersContent() {
       setUsers(users);
     }
     fetchUsers();
-  }, []);
-
-  // Mock current user for demo - replace with actual auth logic
-  useEffect(() => {
-    setCurrentUser({
-      id: 1,
-      name: 'Calum',
-      role: 'admin' as UserRole,
-      status: 'active',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      employeeKey: '123456',
-    });
   }, []);
 
   useEffect(() => {
@@ -131,34 +120,32 @@ export default function UsersContent() {
   const canDeleteUser = (userId: number) => {
     if (!currentUser) return false;
     if (currentUser.role !== 'admin') return false;
-    
-    // Check if this is the last admin
-    const adminUsers = users.filter(user => user.role === 'admin' && user.status === 'active');
-    const userToDelete = users.find(user => user.id === userId);
-    
-    if (adminUsers.length === 1 && userToDelete?.role === 'admin') {
-      return false; // Cannot delete the last admin
+
+    // Prevent admin from deleting themselves
+    if (currentUser.id === userId) {
+      return false; // Cannot delete yourself
     }
-    
+
     return true;
   };
 
-  const canEditUser = () => {
+  const canEditUser = (userId: number) => {
     if (!currentUser) return false;
-    return true; // Allow all users to edit
+    if (currentUser.role !== 'admin') return false;
+
+    // Allow editing others, but prevent editing yourself
+    // (since you can't change your own status anyway)
+    return true; // Allow all edits - the modal will handle restrictions
   };
 
   const canDeactivateUser = (userId: number) => {
     if (!currentUser) return false;
-    
-    // Check if this is the last admin
-    const adminUsers = users.filter(user => user.role === 'admin' && user.status === 'active');
-    const userToDeactivate = users.find(user => user.id === userId);
-    
-    if (adminUsers.length === 1 && userToDeactivate?.role === 'admin') {
-      return false; // Cannot deactivate the last admin
+
+    // Prevent admin from deactivating themselves
+    if (currentUser.id === userId) {
+      return false; // Cannot deactivate yourself
     }
-    
+
     return true;
   };
 
@@ -194,16 +181,19 @@ export default function UsersContent() {
         <div className="flex items-start">
           <div className="flex-shrink-0">
             <svg className="h-5 w-5 text-blue-300" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              <path
+                fillRule="evenodd"
+                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                clipRule="evenodd"
+              />
             </svg>
           </div>
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-blue-200">
-              Thông Báo Bảo Mật
-            </h3>
+            <h3 className="text-sm font-medium text-blue-200">Thông Báo Bảo Mật</h3>
             <div className="mt-2 text-sm text-blue-300">
               <p>
-                Vì lý do bảo mật, mã nhân viên không thể hiển thị. Nếu quên mã, vui lòng liên hệ quản lý để reset.
+                Vì lý do bảo mật, mã nhân viên không thể hiển thị. Nếu quên mã, vui lòng liên hệ
+                quản lý để reset.
               </p>
             </div>
           </div>
@@ -236,7 +226,7 @@ export default function UsersContent() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                   <div className="flex space-x-2">
-                    {canEditUser() && (
+                    {canEditUser(_user.id) && (
                       <Button
                         variant="secondary"
                         size="sm"
@@ -292,6 +282,7 @@ export default function UsersContent() {
         onClose={() => setIdentityModal({ open: false, userId: null })}
         onSuccess={handleIdentitySuccess}
         requiredRole="admin"
+        requireSameUser={true}
       />
     </div>
   );

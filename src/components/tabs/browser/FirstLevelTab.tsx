@@ -2,6 +2,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { FirstLevelTab, TabOption } from '@/types/tabTypes';
 import TabDropdown from '@/components/common/dropdowns/TabDropdown';
+import { useUser } from '@/context/UserContext';
+import { getTabOptionsForRole } from '@/constants/tabs';
 
 interface FirstLevelTabProps {
   tab: FirstLevelTab;
@@ -73,6 +75,12 @@ export default function FirstLevelTabComponent({
 }: FirstLevelTabProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { userRole } = useUser();
+
+  // Get dynamic role-based options for default tabs
+  const roleBasedOptions = isDefaultTab ? getTabOptionsForRole(userRole) : null;
+  const dropdownOptions =
+    roleBasedOptions && roleBasedOptions.length > 0 ? roleBasedOptions : tab.options;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -111,7 +119,7 @@ export default function FirstLevelTabComponent({
     >
       <div className="flex items-center space-x-2">
         <span>{isDefaultTab ? tab.selectedOption?.label || tab.label : tab.label}</span>
-        {tab.options && tab.options.length > 0 && !tab.label.startsWith('Search:') && (
+        {dropdownOptions && dropdownOptions.length > 0 && !tab.label.startsWith('Search:') && (
           <button onClick={handleDropdownToggle} className="p-1 hover:bg-gray-600 rounded">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -136,12 +144,12 @@ export default function FirstLevelTabComponent({
           </svg>
         </button>
       )}
-      {isDropdownOpen && tab.options && dropdownRef.current && (
+      {isDropdownOpen && dropdownOptions && dropdownRef.current && (
         <TabDropdown
           isOpen={isDropdownOpen}
           onClose={() => setIsDropdownOpen(false)}
           onSelect={onDropdownSelect || (() => {})}
-          options={tab.options}
+          options={dropdownOptions}
           parentRef={dropdownRef}
         />
       )}

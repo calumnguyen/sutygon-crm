@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import Button from '@/components/common/dropdowns/Button';
+import { useUser } from '@/context/UserContext';
 
 const DOT_STYLE =
   'w-4 h-4 mx-1 rounded-full border border-gray-500 bg-gray-800 flex items-center justify-center transition-all duration-200';
@@ -28,6 +29,7 @@ interface IdentityConfirmModalProps {
     status: string;
   }) => void;
   requiredRole?: 'admin' | 'any';
+  requireSameUser?: boolean; // New prop to require same user verification
 }
 
 const IdentityConfirmModal: React.FC<IdentityConfirmModalProps> = ({
@@ -35,11 +37,13 @@ const IdentityConfirmModal: React.FC<IdentityConfirmModalProps> = ({
   onClose,
   onSuccess,
   requiredRole = 'any',
+  requireSameUser = false, // Default to false for backward compatibility
 }) => {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { currentUser } = useUser();
 
   useEffect(() => {
     if (open) {
@@ -53,7 +57,17 @@ const IdentityConfirmModal: React.FC<IdentityConfirmModalProps> = ({
     const keyToCheck = value ?? input;
     setError('');
     setIsLoading(true);
+
     try {
+      // If requireSameUser is true, first check if entered code matches current user
+      if (requireSameUser && currentUser) {
+        if (keyToCheck !== currentUser.employeeKey) {
+          setError('Mã nhân viên không khớp với người dùng hiện tại');
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const res = await fetch(`/api/users/by-key?employeeKey=${keyToCheck}`);
       const data = await res.json();
       if (!data.user) {
@@ -71,6 +85,7 @@ const IdentityConfirmModal: React.FC<IdentityConfirmModalProps> = ({
         setIsLoading(false);
         return;
       }
+
       setIsLoading(false);
       onSuccess(data.user);
       onClose();
@@ -116,7 +131,7 @@ const IdentityConfirmModal: React.FC<IdentityConfirmModalProps> = ({
       <div className="bg-gray-900 rounded-xl p-8 w-full max-w-sm shadow-2xl border border-gray-700 relative">
         <h2 className="text-2xl font-bold text-white mb-4 text-center">Xác Nhận Danh Tính</h2>
         <p className="text-gray-300 mb-4 text-center">Nhập Mã Nhân Viên để xác nhận</p>
-        
+
         {/* Hidden input for keyboard support */}
         <div className="relative flex flex-col items-center w-full mb-4">
           <AnimatedDots value={input} length={6} />
@@ -176,7 +191,7 @@ const IdentityConfirmModal: React.FC<IdentityConfirmModalProps> = ({
         </div>
 
         {error && <div className="text-red-400 text-sm text-center mb-4">{error}</div>}
-        
+
         <div className="flex justify-end space-x-3">
           <Button variant="secondary" type="button" onClick={onClose} disabled={isLoading}>
             Hủy

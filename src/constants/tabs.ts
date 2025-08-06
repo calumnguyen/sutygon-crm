@@ -1,6 +1,35 @@
 import type { TabOption } from '@/types/tabTypes';
 import { createTabId } from '@/types/tabTypes';
 
+// Define role-based tab option
+interface RoleBasedTabOption extends TabOption {
+  requiredRole?: 'admin' | 'user';
+}
+
+/**
+ * All available tab options with role requirements
+ */
+export const ALL_TAB_OPTIONS: RoleBasedTabOption[] = [
+  { id: createTabId('home'), label: 'Trang Chủ' },
+  { id: createTabId('orders'), label: 'Đơn Hàng' },
+  { id: createTabId('customers'), label: 'Khách Hàng' },
+  { id: createTabId('inventory'), label: 'Kho' },
+  { id: createTabId('users'), label: 'Nhân Viên', requiredRole: 'admin' },
+  { id: createTabId('store-settings'), label: 'Cài Đặt Cửa Hàng', requiredRole: 'admin' },
+];
+
+/**
+ * Get tab options filtered by user role
+ */
+export function getTabOptionsForRole(userRole: string | null): TabOption[] {
+  if (!userRole) return [];
+
+  return ALL_TAB_OPTIONS.filter((option) => {
+    if (!option.requiredRole) return true; // No role requirement = accessible to all
+    return option.requiredRole === userRole.toLowerCase();
+  });
+}
+
 /**
  * Default options for the first-level tab dropdown.
  * These options are used when no custom options are provided.
