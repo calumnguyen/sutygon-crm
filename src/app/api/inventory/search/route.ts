@@ -1,36 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import {
-  inventoryItems,
-  inventorySizes,
-  inventoryTags,
-  tags,
-  orderItems,
-  orders,
-} from '@/lib/db/schema';
-import { inArray, desc, isNotNull, and, or, lte, gte, eq } from 'drizzle-orm';
+import { inventoryItems, inventorySizes, orderItems, orders } from '@/lib/db/schema';
+import { desc, and, isNotNull, lte, gte, or, eq, inArray } from 'drizzle-orm';
 import {
   decryptInventoryData,
   decryptInventorySizeData,
-  decryptTagData,
   decryptField,
 } from '@/lib/utils/inventoryEncryption';
-// import { monitorDatabaseQuery } from '@/lib/utils/performance';
 
-// Helper: get formatted ID (e.g., AD-000001)
-function getFormattedId(category: string, categoryCounter: number) {
-  let code = (category || 'XX')
-    .split(' ')
-    .map((w: string) => w[0])
-    .join('');
-  // Replace Đ/đ with D/d, then remove diacritics
-  code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
-  code = code
+// Helper function for Vietnamese text normalization
+function normalizeVietnamese(text: string): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
     .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/\u0300-\u036f/g, '');
-  code = code.toUpperCase().slice(0, 2);
-  return `${code}-${String(categoryCounter).padStart(6, '0')}`;
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd');
 }
 
 export async function GET(request: NextRequest) {
@@ -43,37 +29,32 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
 
-    console.log('Inventory search API called with:', { dateFrom, dateTo });
+    console.log('Inventory search API called with:', { query, page, limit, dateFrom, dateTo });
 
     const offset = (page - 1) * limit;
 
-    // Get all items first since we need to decrypt to search
-    const allItems = await db.select().from(inventoryItems).orderBy(desc(inventoryItems.createdAt));
+    // Add timeout protection for large datasets
+    let hasTimedOut = false;
+    const searchTimeout = setTimeout(() => {
+      hasTimedOut = true;
+    }, 3000); // 3 second timeout for faster feedback
 
-    if (!allItems.length) {
-      return NextResponse.json({
-        items: [],
-        total: 0,
-        page,
-        totalPages: 0,
-        hasMore: false,
-      });
-    }
+    // Use extremely small batches for maximum speed
+    const BATCH_SIZE = 3; // Tiny batches for maximum speed
+    const MAX_ITEMS_TO_SEARCH = 20; // Very small limit for speed
+    const targetResults = Math.max(offset + limit, 5); // Minimal buffer for speed
 
-    // Get all sizes for these items
-    const itemIds = allItems.map((item) => item.id);
-    const sizes = await db
-      .select()
-      .from(inventorySizes)
-      .where(inArray(inventorySizes.itemId, itemIds));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allResults: any[] = [];
+    let processedCount = 0;
+    let currentBatchOffset = 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let overlappingOrderItems: any[] = [];
 
-    // Get order items that overlap with the date range
-    let overlappingOrderItems = [];
+    // Get overlapping order items once if date range is specified
     if (dateFrom && dateTo) {
       const fromDate = new Date(dateFrom);
       const toDate = new Date(dateTo);
-
-      console.log('Date range for overlapping orders:', { fromDate, toDate });
 
       overlappingOrderItems = await db
         .select({
@@ -87,231 +68,150 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             isNotNull(orderItems.inventoryItemId),
-            // Check if order dates overlap with the requested date range
-            or(
-              // Order starts before our range ends AND order ends after our range starts
-              and(lte(orders.orderDate, toDate), gte(orders.expectedReturnDate, fromDate))
-            )
+            or(and(lte(orders.orderDate, toDate), gte(orders.expectedReturnDate, fromDate)))
           )
         );
-
-      console.log('Overlapping order items found:', overlappingOrderItems.length);
-      console.log('Overlapping items:', overlappingOrderItems);
-
-      // Also check if there are any orders at all
-      const allOrders = await db.select().from(orders);
-      console.log('Total orders in database:', allOrders.length);
-      if (allOrders.length > 0) {
-        console.log(
-          'All order dates:',
-          allOrders.map((o) => ({
-            id: o.id,
-            orderDate: o.orderDate,
-            expectedReturnDate: o.expectedReturnDate,
-            status: o.status,
-          }))
-        );
-      }
-
-      // Check specifically for order 64
-      const order64 = allOrders.find((o) => o.id === 64);
-      if (order64) {
-        console.log('Order 64 found:', {
-          id: order64.id,
-          orderDate: order64.orderDate,
-          expectedReturnDate: order64.expectedReturnDate,
-          status: order64.status,
-        });
-
-        // Check if it should overlap
-        const orderStart = new Date(order64.orderDate);
-        const orderEnd = new Date(order64.expectedReturnDate);
-        const startsBeforeEnd = orderStart <= toDate;
-        const endsAfterStart = orderEnd >= fromDate;
-        const overlaps = startsBeforeEnd && endsAfterStart;
-
-        console.log('Order 64 overlap check:', {
-          orderStart,
-          orderEnd,
-          fromDate,
-          toDate,
-          startsBeforeEnd,
-          endsAfterStart,
-          overlaps,
-        });
-      }
-    } else {
-      // If no date range, get all order items
-      overlappingOrderItems = await db
-        .select({
-          inventoryItemId: orderItems.inventoryItemId,
-          size: orderItems.size,
-          quantity: orderItems.quantity,
-          orderId: orderItems.orderId,
-        })
-        .from(orderItems)
-        .where(isNotNull(orderItems.inventoryItemId));
-
-      console.log('All order items found (no date range):', overlappingOrderItems.length);
     }
 
-    // Get all tags for these items
-    const invTags = await db
-      .select()
-      .from(inventoryTags)
-      .where(inArray(inventoryTags.itemId, itemIds));
+    // Process items in batches with early termination
+    while (
+      allResults.length < targetResults &&
+      processedCount < MAX_ITEMS_TO_SEARCH &&
+      !hasTimedOut
+    ) {
+      const batchItems = await db
+        .select()
+        .from(inventoryItems)
+        .orderBy(desc(inventoryItems.createdAt))
+        .limit(BATCH_SIZE)
+        .offset(currentBatchOffset);
 
-    // Get tag names
-    const tagIds = invTags.map((t) => t.tagId);
-    const allTags = tagIds.length
-      ? await db.select().from(tags).where(inArray(tags.id, tagIds))
-      : [];
+      if (!batchItems.length) break;
 
-    // Build result with decryption and filtering
-    const allResults = allItems.map((item) => {
-      const decryptedItem = decryptInventoryData(item);
+      // Get sizes for this batch
+      const batchItemIds = batchItems.map((item) => item.id);
+      const batchSizes = await db
+        .select()
+        .from(inventorySizes)
+        .where(inArray(inventorySizes.itemId, batchItemIds));
 
-      const itemSizes = sizes
-        .filter((s) => s.itemId === item.id)
-        .map((s) => {
-          const decryptedSize = decryptInventorySizeData(s);
+      // Process each item in the batch
+      for (const item of batchItems) {
+        // Decrypt the item
+        const decryptedItem = decryptInventoryData(item);
 
-          // Calculate available stock by subtracting overlapping orders
-          const overlappingItems = overlappingOrderItems.filter(
-            (oi) => oi.inventoryItemId === item.id
-          );
+        // Early filtering - if we have a search query, check if it matches before doing expensive size processing
+        if (query) {
+          const searchQuery = query.toLowerCase().trim();
 
-          // Find items with the same size
-          const sameSizeItems = overlappingItems.filter((oi) => {
-            const normalize = (str: string) => str.replace(/[-_ ]/g, '').toLowerCase();
+          // Quick match check
+          const normalizedQuery = normalizeVietnamese(searchQuery);
+          const normalizedName = normalizeVietnamese(decryptedItem.name);
+          const normalizedCategory = normalizeVietnamese(decryptedItem.category);
 
-            // Decrypt the order item size if it's encrypted
-            let orderItemSize = oi.size;
-            if (oi.size.includes(':')) {
-              try {
-                orderItemSize = decryptField(oi.size);
-              } catch {
-                orderItemSize = oi.size; // Use original if decryption fails
+          const queryWords = normalizedQuery.split(/\s+/).filter((word) => word.length > 0);
+          const nameMatch = queryWords.some((word) => normalizedName.includes(word));
+          const categoryMatch = queryWords.some((word) => normalizedCategory.includes(word));
+          const exactNameMatch = decryptedItem.name.toLowerCase().includes(searchQuery);
+          const exactCategoryMatch = decryptedItem.category.toLowerCase().includes(searchQuery);
+
+          // If no match found, skip this item entirely
+          if (!(nameMatch || categoryMatch || exactNameMatch || exactCategoryMatch)) {
+            continue;
+          }
+        }
+
+        // Apply category filter early
+        if (category && decryptedItem.category.toLowerCase() !== category.toLowerCase()) {
+          continue;
+        }
+
+        // Process sizes for this item (now we know it matches the search criteria)
+        const itemSizes = batchSizes
+          .filter((s) => s.itemId === item.id)
+          .map((s) => {
+            const decryptedSize = decryptInventorySizeData(s);
+
+            // Calculate available stock
+            const overlappingItems = overlappingOrderItems.filter(
+              (oi) => oi.inventoryItemId === item.id
+            );
+
+            const sameSizeItems = overlappingItems.filter((oi) => {
+              const normalize = (str: string) => str.replace(/[-_ ]/g, '').toLowerCase();
+
+              let orderItemSize = oi.size;
+              if (oi.size.includes(':')) {
+                try {
+                  orderItemSize = decryptField(oi.size);
+                } catch {
+                  orderItemSize = oi.size;
+                }
               }
-            }
 
-            const normalizedOrderSize = normalize(orderItemSize);
-            const normalizedInventorySize = normalize(decryptedSize.title);
+              const normalizedOrderSize = normalize(orderItemSize);
+              const normalizedInventorySize = normalize(decryptedSize.title);
 
-            return normalizedOrderSize === normalizedInventorySize;
+              return normalizedOrderSize === normalizedInventorySize;
+            });
+
+            const totalReserved = sameSizeItems.reduce((sum, item) => sum + item.quantity, 0);
+            const onHand = parseInt(decryptedSize.onHand.toString(), 10);
+            const available = Math.max(0, onHand - totalReserved);
+
+            return {
+              id: decryptedSize.id,
+              title: decryptedSize.title,
+              onHand,
+              reserved: totalReserved,
+              available,
+            };
           });
 
-          // Calculate total reserved quantity for this size
-          const totalReserved = sameSizeItems.reduce((sum, item) => sum + item.quantity, 0);
-
-          // Calculate available stock (onHand - reserved)
-          const onHand = parseInt(decryptedSize.onHand.toString(), 10);
-          const availableStock = Math.max(0, onHand - totalReserved);
-
-          return {
-            title: decryptedSize.title,
-            quantity: decryptedSize.quantity,
-            onHand: availableStock.toString(), // Return available stock instead of raw onHand
-            price: decryptedSize.price,
-          };
+        allResults.push({
+          ...decryptedItem,
+          sizes: itemSizes,
         });
 
-      const itemTagIds = invTags.filter((t) => t.itemId === item.id).map((t) => t.tagId);
+        // Early termination if we have enough results
+        if (allResults.length >= targetResults) {
+          break;
+        }
+      }
 
-      const itemTags = allTags
-        .filter((t) => itemTagIds.includes(t.id))
-        .map((t) => {
-          const decryptedTag = decryptTagData(t);
-          return decryptedTag.name;
-        });
+      processedCount += batchItems.length;
+      currentBatchOffset += BATCH_SIZE;
 
-      return {
-        id: item.id,
-        formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
-        name: decryptedItem.name,
-        category: decryptedItem.category,
-        imageUrl: item.imageUrl,
-        tags: itemTags,
-        sizes: itemSizes,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-      };
-    });
+      // Break if we have enough results
+      if (allResults.length >= targetResults) {
+        break;
+      }
+    }
 
-    // Filter results based on search query
-    let filteredResults = allResults;
+    // Clear timeout first
+    clearTimeout(searchTimeout);
 
-    if (query.trim()) {
-      const searchQuery = query.toLowerCase();
-      const idPattern = query.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-
-      filteredResults = allResults.filter((item) => {
-        // Search by formatted ID (exact match or partial)
-        const itemId = item.formattedId.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-        const idMatch =
-          itemId.includes(idPattern) || item.formattedId.toLowerCase().includes(searchQuery);
-
-        // Normalize Vietnamese text for better matching
-        const normalizeVietnamese = (str: string) => {
-          return str
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-            .replace(/[đ]/g, 'd') // Replace đ with d
-            .replace(/[Đ]/g, 'D') // Replace Đ with D
-            .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
-            .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
-            .replace(/[ìíịỉĩ]/g, 'i')
-            .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
-            .replace(/[ùúụủũưừứựửữ]/g, 'u')
-            .replace(/[ỳýỵỷỹ]/g, 'y');
-        };
-
-        const normalizedQuery = normalizeVietnamese(searchQuery);
-        const normalizedName = normalizeVietnamese(item.name);
-        const normalizedCategory = normalizeVietnamese(item.category);
-
-        // Check if any words in the query are found in the name or category
-        const queryWords = normalizedQuery.split(/\s+/).filter((word) => word.length > 0);
-        const nameMatch = queryWords.some((word) => normalizedName.includes(word));
-        const categoryMatch = queryWords.some((word) => normalizedCategory.includes(word));
-
-        // Original exact matching for backward compatibility
-        const exactNameMatch = item.name.toLowerCase().includes(searchQuery);
-        const exactCategoryMatch = item.category.toLowerCase().includes(searchQuery);
-
-        // Search by tags - check if any word matches any tag
-        const tagMatch = item.tags.some((tag) => {
-          const normalizedTag = normalizeVietnamese(tag);
-          return queryWords.some((word) => normalizedTag.includes(word));
-        });
-
-        if (
-          idMatch ||
-          nameMatch ||
-          categoryMatch ||
-          exactNameMatch ||
-          exactCategoryMatch ||
-          tagMatch
-        )
-          return true;
-
-        return false;
+    // Check if search timed out
+    if (hasTimedOut) {
+      return NextResponse.json({
+        items: [],
+        total: 0,
+        page,
+        totalPages: 0,
+        hasMore: false,
+        error:
+          'Search timed out - too many items to process. Please try a more specific search term.',
+        searchNote:
+          'Search was limited due to performance. Try using more specific Vietnamese terms.',
       });
     }
 
-    if (category) {
-      filteredResults = filteredResults.filter(
-        (item) => item.category.toLowerCase() === category.toLowerCase()
-      );
-    }
-
-    // Apply pagination
-    const total = filteredResults.length;
+    // Apply pagination to results
+    const total = allResults.length;
     const totalPages = Math.ceil(total / limit);
     const startIndex = offset;
     const endIndex = startIndex + limit;
-    const paginatedResults = filteredResults.slice(startIndex, endIndex);
+    const paginatedResults = allResults.slice(startIndex, endIndex);
 
     return NextResponse.json({
       items: paginatedResults,
@@ -319,6 +219,10 @@ export async function GET(request: NextRequest) {
       page,
       totalPages,
       hasMore: page < totalPages,
+      searchNote:
+        processedCount >= MAX_ITEMS_TO_SEARCH
+          ? `Search limited to ${MAX_ITEMS_TO_SEARCH} most recent items for performance. Use more specific terms for better results.`
+          : undefined,
     });
   } catch (error) {
     console.error('Error in inventory search:', error);

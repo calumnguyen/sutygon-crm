@@ -28,7 +28,7 @@ export function useInventorySearch() {
 
       try {
         const response = await fetch(
-          `/api/inventory/search?q=${encodeURIComponent(searchQuery)}&page=${searchPage}&limit=20`
+          `/api/inventory/search-elastic?q=${encodeURIComponent(searchQuery)}&page=${searchPage}&limit=20`
         );
 
         if (!response.ok) {
@@ -37,15 +37,24 @@ export function useInventorySearch() {
 
         const data = await response.json();
 
-        if (page === 1) {
-          setSearchResults(data.items);
-        } else {
-          setSearchResults((prev) => [...prev, ...data.items]);
+        // Check if API returned an error (like timeout)
+        if (data.error) {
+          setSearchError(data.error);
+          setSearchResults([]);
+          setHasMore(false);
+          setTotal(0);
+          return;
         }
 
-        setHasMore(data.hasMore);
-        setTotal(data.total);
-        setCurrentPage(data.page);
+        if (page === 1) {
+          setSearchResults(data.items || []);
+        } else {
+          setSearchResults((prev) => [...prev, ...(data.items || [])]);
+        }
+
+        setHasMore(data.hasMore || false);
+        setTotal(data.total || 0);
+        setCurrentPage(data.page || 1);
       } catch (error) {
         console.error('Search error:', error);
         setSearchError('Có lỗi khi tìm kiếm sản phẩm');

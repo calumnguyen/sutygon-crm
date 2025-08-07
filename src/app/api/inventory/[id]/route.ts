@@ -7,6 +7,7 @@ import {
   encryptInventorySizeData,
   encryptTagData,
 } from '@/lib/utils/inventoryEncryption';
+import { inventorySync } from '@/lib/elasticsearch/sync';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -77,6 +78,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId, tagId })));
     }
 
+    // Sync to Elasticsearch (async, don't wait)
+    inventorySync.syncItemUpdate(itemId).catch((error) => {
+      console.error('Elasticsearch sync failed for updated item:', error);
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Update inventory error:', error);
@@ -101,6 +107,11 @@ export async function DELETE(
 
     // Delete the inventory item
     await db.delete(inventoryItems).where(eq(inventoryItems.id, itemId));
+
+    // Sync to Elasticsearch (async, don't wait)
+    inventorySync.syncItemDelete(itemId).catch((error) => {
+      console.error('Elasticsearch sync failed for deleted item:', error);
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

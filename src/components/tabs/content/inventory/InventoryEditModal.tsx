@@ -143,7 +143,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
         tags: item.tags,
         tagsInput: item.tags.join(', '),
         photoFile: null,
-        sizes: item.sizes.map((size) => ({
+        sizes: (item.sizes || []).map((size) => ({
           title: size.title,
           quantity: size.quantity.toString(),
           onHand: size.onHand.toString(),

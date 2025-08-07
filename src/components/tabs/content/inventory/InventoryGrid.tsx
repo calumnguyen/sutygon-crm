@@ -81,7 +81,7 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
                 <span className="font-semibold">Giá</span>
               </div>
               <div className="flex flex-col gap-1">
-                {item.sizes.map((size) => (
+                {(item.sizes || []).map((size) => (
                   <div
                     key={size.title}
                     className="grid grid-cols-4 text-xs text-gray-200 min-w-max"

@@ -310,6 +310,12 @@ const InventoryContent: React.FC = () => {
       </div>
 
       <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+        {searchError && (
+          <div className="bg-red-900/50 border border-red-600 rounded-lg p-4 mb-4 mx-4 mt-4">
+            <div className="text-red-300 text-sm font-medium">Lỗi tìm kiếm:</div>
+            <div className="text-red-200 text-sm mt-1">{searchError}</div>
+          </div>
+        )}
         {displayLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-blue-400 text-lg">Đang tải dữ liệu kho...</div>

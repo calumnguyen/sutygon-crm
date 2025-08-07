@@ -55,7 +55,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                   <div className="space-y-1">
                     <div className="text-sm text-gray-400">Tổng số:</div>
                     <div className="flex gap-4 text-sm">
-                      {item.sizes.map((size) => (
+                      {(item.sizes || []).map((size) => (
                         <span key={size.title}>
                           {size.title}: {size.quantity}
                         </span>
@@ -63,7 +63,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     </div>
                     <div className="text-sm text-gray-400 mt-2">Còn lại:</div>
                     <div className="flex gap-4 text-sm">
-                      {item.sizes.map((size) => (
+                      {(item.sizes || []).map((size) => (
                         <span key={size.title}>
                           {size.title}: {size.onHand}
                         </span>
@@ -89,7 +89,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1">
-                    {item.sizes.map((size) => (
+                    {(item.sizes || []).map((size) => (
                       <div
                         key={size.title}
                         className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0"
@@ -167,7 +167,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
             <div className="mb-3">
               <div className="text-sm text-gray-400 mb-2">Tồn kho:</div>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                {item.sizes.map((size) => (
+                {(item.sizes || []).map((size) => (
                   <div key={size.title} className="bg-gray-800 rounded p-2">
                     <div className="font-medium text-gray-200">{size.title}</div>
                     <div className="text-xs text-gray-400">

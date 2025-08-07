@@ -196,7 +196,7 @@ export function useInventoryFetch(dateFrom?: string, dateTo?: string) {
       try {
         // Load ALL inventory items without date filtering
         // Date filtering should only affect onHand calculations, not which items are available
-        const url = '/api/inventory/search?q=&page=1&limit=1000'; // Increased limit to get all items
+        const url = '/api/inventory/search-elastic?q=&page=1&limit=1000'; // Increased limit to get all items
 
         // Use the optimized search API to get all items (empty query)
         const res = await fetch(url);

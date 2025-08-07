@@ -16,6 +16,7 @@ import {
   encryptTagData,
   decryptTagData,
 } from '@/lib/utils/inventoryEncryption';
+import { inventorySync } from '@/lib/elasticsearch/sync';
 
 // Define a minimal InventoryItem type for this context
 // interface InventoryItemForId {
@@ -267,6 +268,11 @@ export async function POST(req: NextRequest) {
   const itemTags = allTags.map((t) => {
     const decryptedTag = decryptTagData(t);
     return decryptedTag.name;
+  });
+
+  // Sync to Elasticsearch (async, don't wait)
+  inventorySync.syncItemCreate(item.id).catch((error) => {
+    console.error('Elasticsearch sync failed for new item:', error);
   });
 
   const result = {
