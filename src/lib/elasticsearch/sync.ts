@@ -15,7 +15,7 @@ export interface SyncInventoryItem {
   formattedId: string;
   name: string;
   category: string;
-  imageUrl: string | null;
+  imageUrl?: string | null; // Optional - excluded from Elasticsearch due to size limits
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -198,13 +198,13 @@ class InventorySync {
       const categoryPrefix = decryptedItem.category.substring(0, 2).toUpperCase();
       const formattedId = `${categoryPrefix}-${item.categoryCounter.toString().padStart(6, '0')}`;
 
-      // Build document
+      // Build document (excluding imageUrl to avoid Elasticsearch size limits)
       const doc: SyncInventoryItem = {
         id: item.id,
         formattedId: formattedId,
         name: decryptedItem.name,
         category: decryptedItem.category,
-        imageUrl: item.imageUrl,
+        // imageUrl: item.imageUrl, // Excluded - too large for Elasticsearch
         tags: decryptedTags,
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
