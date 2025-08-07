@@ -105,6 +105,34 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
     onNext();
   };
 
+  // Enhanced click handler for iOS compatibility
+  const handleSubmitClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Double-check form validation before proceeding
+    if (isUploading || !form.name.trim() || !form.category.trim()) {
+      return;
+    }
+
+    // Use setTimeout to ensure event processing completes
+    setTimeout(() => {
+      handleNext();
+    }, 0);
+  };
+
+  // Touch event handler for iOS devices
+  const handleSubmitTouch = (e: React.TouchEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+
+    // Double-check form validation before proceeding
+    if (isUploading || !form.name.trim() || !form.category.trim()) {
+      return;
+    }
+
+    handleNext();
+  };
+
   const tags = parseTags(form.tagsInput);
 
   // Handle tag click for holding/unholding in lightning mode
@@ -354,9 +382,19 @@ const AddItemStep1: React.FC<AddItemStep1Props> = ({
       {/* Navigation */}
       <div className="flex justify-end pt-4">
         <button
-          onClick={onNext}
+          type="button"
+          onClick={handleSubmitClick}
+          onTouchEnd={handleSubmitTouch}
           disabled={isUploading || !form.name.trim() || !form.category.trim()}
-          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation select-none"
+          style={{
+            WebkitTapHighlightColor: 'transparent',
+            WebkitTouchCallout: 'none',
+            WebkitUserSelect: 'none',
+            touchAction: 'manipulation',
+            minHeight: '44px', // iOS recommended minimum touch target
+            minWidth: '44px',
+          }}
         >
           {isUploading ? 'Đang tải...' : 'Tiếp theo'}
         </button>

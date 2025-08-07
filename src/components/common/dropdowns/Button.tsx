@@ -43,12 +43,59 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       lg: 'px-6 py-3 text-lg',
     };
 
+    // Enhanced click handler for iOS compatibility
+    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+      if (disabled || isLoading) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // Call original onClick if provided
+      if (props.onClick) {
+        // Use setTimeout to ensure event processing completes on iOS
+        setTimeout(() => {
+          props.onClick?.(e);
+        }, 0);
+      }
+    };
+
+    // Touch event handler for iOS devices
+    const handleTouchEnd = (e: React.TouchEvent<HTMLButtonElement>) => {
+      if (disabled || isLoading) {
+        e.preventDefault();
+        return;
+      }
+
+      // Trigger a proper click event for touch devices
+      if (props.onClick) {
+        // Create a proper synthetic mouse event
+        e.currentTarget.click();
+      }
+    };
+
     return (
       <button
         ref={ref}
-        className={twMerge(baseStyles, variants[variant], sizes[size], className)}
+        className={twMerge(
+          baseStyles,
+          variants[variant],
+          sizes[size],
+          'touch-manipulation select-none',
+          className
+        )}
+        style={{
+          WebkitTapHighlightColor: 'transparent',
+          WebkitTouchCallout: 'none',
+          WebkitUserSelect: 'none',
+          touchAction: 'manipulation',
+          minHeight: '44px', // iOS recommended minimum touch target
+          ...props.style,
+        }}
         disabled={disabled || isLoading}
         {...props}
+        onClick={handleClick}
+        onTouchEnd={handleTouchEnd}
       >
         {isLoading && (
           <svg
