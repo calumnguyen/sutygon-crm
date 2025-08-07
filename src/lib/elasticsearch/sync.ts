@@ -194,9 +194,23 @@ class InventorySync {
       const decryptedSizes = sizes.map((size) => decryptInventorySizeData(size));
       const decryptedTags = itemTags.map((tag) => decryptTagData({ name: tag.tagName }).name);
 
-      // Generate formatted ID
-      const categoryPrefix = decryptedItem.category.substring(0, 2).toUpperCase();
-      const formattedId = `${categoryPrefix}-${item.categoryCounter.toString().padStart(6, '0')}`;
+      // Generate formatted ID using same logic as API routes
+      function getFormattedId(category: string, categoryCounter: number) {
+        let code = (category || 'XX')
+          .split(' ')
+          .map((w: string) => w[0])
+          .join('');
+        // Replace Đ/đ with D/d, then remove diacritics
+        code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
+        code = code
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
+          .replace(/\u0300-\u036f/g, '');
+        code = code.toUpperCase().slice(0, 2);
+        return `${code}-${String(categoryCounter).padStart(6, '0')}`;
+      }
+
+      const formattedId = getFormattedId(decryptedItem.category, item.categoryCounter);
 
       // Build document (excluding imageUrl to avoid Elasticsearch size limits)
       const doc: SyncInventoryItem = {

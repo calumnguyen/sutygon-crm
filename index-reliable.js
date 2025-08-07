@@ -194,9 +194,23 @@ async function indexInventoryReliable() {
               .map(t => decryptField(t.tag_name))
               .filter(tag => tag && tag.trim());
 
-            // Generate formatted ID
-            const categoryPrefix = decryptedCategory.substring(0, 2).toUpperCase();
-            const formattedId = `${categoryPrefix}-${item.category_counter.toString().padStart(6, '0')}`;
+            // Generate formatted ID using same logic as API routes
+            function getFormattedId(category, categoryCounter) {
+              let code = (category || 'XX')
+                .split(' ')
+                .map(w => w[0])
+                .join('');
+              // Replace Đ/đ with D/d, then remove diacritics
+              code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
+              code = code
+                .normalize('NFD')
+                .replace(/\p{Diacritic}/gu, '')
+                .replace(/\u0300-\u036f/g, '');
+              code = code.toUpperCase().slice(0, 2);
+              return `${code}-${String(categoryCounter).padStart(6, '0')}`;
+            }
+            
+            const formattedId = getFormattedId(decryptedCategory, item.category_counter);
 
             // Create document with ALL data (excluding imageUrl to avoid size limit)
             const doc = {

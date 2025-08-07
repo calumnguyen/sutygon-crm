@@ -351,7 +351,7 @@ export function useOrderStep3ItemsLogic(
   async function fetchItemById(id: string) {
     const normId = id.replace(/-/g, '').toUpperCase();
 
-    // Use client-side search for better performance
+    // First check client-side cache for performance
     const exactMatch = inventory.find((item) => {
       const itemId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
       return itemId.startsWith(normId);
@@ -359,13 +359,43 @@ export function useOrderStep3ItemsLogic(
 
     if (exactMatch) {
       return {
-        id: exactMatch.formattedId || exactMatch.id,
+        id: exactMatch.formattedId ? exactMatch.formattedId : String(exactMatch.id),
         name: exactMatch.name,
         sizes: exactMatch.sizes.map((s: { title: string; price: number }) => ({
           size: s.title,
           price: s.price,
         })),
       };
+    }
+
+    // If not found in client cache, use Elasticsearch API
+    try {
+      const url = `/api/inventory/search-elastic?q=${encodeURIComponent(id)}&mode=auto&limit=5`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      const items = data.items || [];
+
+      // Find exact match by comparing normalized IDs
+      for (const item of items) {
+        const itemId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
+        const searchId = id.replace(/-/g, '').toUpperCase();
+
+        // Check for exact match or if item ID starts with search ID
+        if (itemId === searchId || itemId.startsWith(searchId)) {
+          return {
+            id: item.formattedId ? item.formattedId : String(item.id),
+            name: item.name,
+            sizes: item.sizes.map((s: { title: string; price: number }) => ({
+              size: s.title,
+              price: s.price,
+            })),
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Elasticsearch fetch error:', error);
     }
 
     return null;
@@ -556,7 +586,7 @@ export function useOrderStep3ItemsLogic(
       const onlySize = item.sizes[0];
       addItemToOrder(
         {
-          id: item.formattedId || item.id,
+          id: item.formattedId || String(item.id),
           name: item.name,
           sizes: item.sizes.map((s) => ({ size: s.title, price: s.price })),
         },
@@ -565,7 +595,7 @@ export function useOrderStep3ItemsLogic(
       );
     } else {
       setPendingItem({
-        id: item.formattedId || item.id,
+        id: item.formattedId || String(item.id),
         name: item.name,
         sizes: item.sizes.map((s) => ({ size: s.title, price: s.price })),
       });

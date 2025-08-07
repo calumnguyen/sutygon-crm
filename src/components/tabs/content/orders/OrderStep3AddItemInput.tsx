@@ -8,6 +8,7 @@ interface OrderStep3AddItemInputProps {
   onAdd: () => void;
   error: string;
   loading: boolean;
+  onBrowse?: () => void;
   renderCustomButton?: React.ReactNode;
 }
 
@@ -18,6 +19,7 @@ const OrderStep3AddItemInput: React.FC<OrderStep3AddItemInputProps> = ({
   onAdd,
   error,
   loading,
+  onBrowse,
   renderCustomButton,
 }) => (
   <div className="bg-gray-900 rounded-lg p-4 shadow-lg border border-gray-700 flex flex-col items-center w-full">

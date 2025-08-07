@@ -207,7 +207,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
       }
 
       onSave({
-        id: parseInt(item.id, 10),
+        id: typeof item.id === 'string' ? parseInt(item.id, 10) : item.id,
         name: form.name,
         category: form.category,
         tags,
@@ -224,7 +224,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
 
   const handleDelete = () => {
     if (!item) return;
-    onDelete(parseInt(item.id, 10));
+    onDelete(typeof item.id === 'string' ? parseInt(item.id, 10) : item.id);
     setShowDeleteConfirm(false);
   };
 

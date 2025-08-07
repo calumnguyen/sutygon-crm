@@ -16,7 +16,7 @@ export interface AddItemFormState {
 }
 
 export interface InventoryItem {
-  id: string;
+  id: string | number;
   formattedId?: string;
   name: string;
   category: string;

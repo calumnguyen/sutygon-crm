@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const category = searchParams.get('category') || '';
+    const mode = searchParams.get('mode') || 'auto'; // 'exact', 'fuzzy', 'broad', 'auto'
 
     console.log('Elasticsearch search API called with:', { query, page, limit, category });
 
@@ -52,11 +53,10 @@ export async function GET(request: NextRequest) {
       track_total_hits: true, // Important for large datasets
     };
 
-    // Build the query based on search parameters
+    // Build the query based on search parameters with enterprise-grade precision
     const must: Record<string, unknown>[] = [];
     const should: Record<string, unknown>[] = [];
 
-    // Handle search query with precise matching
     if (query.trim()) {
       const searchQuery = query.trim();
       const queryWords = searchQuery
@@ -64,76 +64,167 @@ export async function GET(request: NextRequest) {
         .split(/\s+/)
         .filter((word) => word.length > 0);
 
-      // Strategy 1: Exact phrase matches (highest priority)
-      should.push(
-        {
-          multi_match: {
-            query: searchQuery,
-            fields: ['name.keyword^20', 'tags.keyword^15', 'category.keyword^10'],
-            type: 'phrase',
-          },
-        },
-        {
-          multi_match: {
-            query: searchQuery,
-            fields: ['name^15', 'tags^10', 'category^8'],
-            type: 'phrase_prefix',
-          },
-        }
+      console.log(
+        `Building search for: "${searchQuery}" (${queryWords.length} words) in mode: ${mode}`
       );
 
-      // Strategy 2: All words must appear (for multi-word searches)
-      if (queryWords.length > 1) {
-        const wordQueries = queryWords.map((word) => ({
-          multi_match: {
-            query: word,
-            fields: ['name^8', 'tags^6', 'category^4'],
-            type: 'best_fields',
-            fuzziness: '1', // Only 1 character difference allowed
-            minimum_should_match: '1',
-          },
-        }));
+      // ENTERPRISE STRATEGY: Tiered Search Precision Based on Mode
 
+      // TIER 0: PRODUCT ID MATCHES (Highest Priority - Boost 25-30)
+      // Handle variations like "AD000831" vs "AD-000831"
+      const isLikelyProductId = /^[A-Za-z]{1,3}[-]?[0-9]{4,6}$/i.test(searchQuery);
+      if (isLikelyProductId) {
+        // Add exact formattedId match
         should.push({
-          bool: {
-            must: wordQueries,
-            boost: 10,
+          term: {
+            formattedId: {
+              value: searchQuery,
+              boost: 30,
+            },
+          },
+        });
+
+        // Add dash variations - if query has no dash, try with dash
+        if (!searchQuery.includes('-')) {
+          const withDash = searchQuery.replace(/([A-Za-z]+)([0-9]+)/, '$1-$2');
+          should.push({
+            term: {
+              formattedId: {
+                value: withDash,
+                boost: 28,
+              },
+            },
+          });
+        }
+
+        // Add no-dash variations - if query has dash, try without dash
+        if (searchQuery.includes('-')) {
+          const withoutDash = searchQuery.replace(/-/g, '');
+          should.push({
+            term: {
+              formattedId: {
+                value: withoutDash,
+                boost: 28,
+              },
+            },
+          });
+        }
+
+        // Add wildcard search for partial ID matches
+        should.push({
+          wildcard: {
+            formattedId: {
+              value: `*${searchQuery}*`,
+              boost: 25,
+            },
           },
         });
       }
 
-      // Strategy 3: Single word or looser matching (lower priority)
+      // TIER 1: EXACT MATCHES (Highest Priority - Boost 20-15)
+      // Perfect for product codes, exact terms, brand names
+      should.push(
+        {
+          term: {
+            'name.keyword': {
+              value: searchQuery,
+              boost: 20,
+            },
+          },
+        },
+        {
+          term: {
+            'tags.keyword': {
+              value: searchQuery,
+              boost: 15,
+            },
+          },
+        },
+        {
+          term: {
+            'category.keyword': {
+              value: searchQuery,
+              boost: 10,
+            },
+          },
+        }
+      );
+
+      // TIER 2: PHRASE MATCHES (High Priority - Boost 12-8)
+      // Perfect for multi-word searches like "áo dài cưới"
+      if (queryWords.length > 1) {
+        should.push({
+          match_phrase: {
+            name: {
+              query: searchQuery,
+              boost: 12,
+            },
+          },
+        });
+        should.push({
+          match_phrase: {
+            tags: {
+              query: searchQuery,
+              boost: 10,
+            },
+          },
+        });
+      }
+
+      // TIER 3: CONTROLLED FUZZY SEARCH (Medium Priority - Boost 6-4)
+      // Handle typos but adjust based on search mode
+      let fuzziness = '0'; // Default: exact matching
+
+      if (mode === 'exact') {
+        fuzziness = '0'; // No typo tolerance
+      } else if (mode === 'fuzzy') {
+        fuzziness = '2'; // High typo tolerance
+      } else if (mode === 'broad') {
+        fuzziness = 'AUTO'; // Maximum flexibility
+      } else {
+        // mode === 'auto'
+        fuzziness = queryWords.length === 1 && searchQuery.length <= 4 ? '0' : '1';
+      }
+
       should.push({
         multi_match: {
           query: searchQuery,
           fields: ['name^6', 'name.search^5', 'tags^5', 'tags.search^4', 'category^3'],
           type: 'best_fields',
-          fuzziness: '1', // Reduced from AUTO to be more strict
+          fuzziness: fuzziness,
           analyzer: 'vietnamese_analyzer',
         },
       });
 
-      // Strategy 4: Normalized Vietnamese search (for accent variations)
+      // TIER 4: VIETNAMESE ACCENT NORMALIZATION (Lower Priority - Boost 3-2)
+      // Only when significantly different from original
       const normalizedQuery = normalizeVietnamese(searchQuery);
-      if (normalizedQuery !== searchQuery) {
+      if (normalizedQuery !== searchQuery && normalizedQuery.length >= 3) {
         should.push({
           multi_match: {
             query: normalizedQuery,
-            fields: ['name^4', 'tags^3', 'category^2'],
+            fields: ['name^3', 'tags^2', 'category^1'],
             type: 'best_fields',
-            fuzziness: '1',
+            fuzziness: '0', // No fuzziness on normalized text
           },
         });
       }
 
-      // Only use wildcard for single words or very short queries
-      if (queryWords.length === 1 && searchQuery.length >= 3) {
+      // TIER 5: PARTIAL MATCHES (Lowest Priority - Boost 2-1)
+      // Adjust wildcard usage based on mode
+      const shouldUseWildcard =
+        mode === 'broad' ||
+        (mode === 'fuzzy' && searchQuery.length >= 3) ||
+        (mode === 'auto' && searchQuery.length >= 4) ||
+        (mode === 'exact' && false); // No wildcards in exact mode
+
+      if (shouldUseWildcard) {
         should.push(
           {
             wildcard: {
               'name.keyword': {
                 value: `*${searchQuery}*`,
-                boost: 2,
+                boost: mode === 'broad' ? 3 : 2,
               },
             },
           },
@@ -141,7 +232,7 @@ export async function GET(request: NextRequest) {
             wildcard: {
               'tags.keyword': {
                 value: `*${searchQuery}*`,
-                boost: 2,
+                boost: mode === 'broad' ? 2 : 1,
               },
             },
           }
@@ -158,32 +249,46 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Build final query with better relevance scoring
-    if (must.length > 0 || should.length > 0) {
-      let minimumShouldMatch = 0;
+    // ENTERPRISE PRECISION CONTROL
+    let minimumShouldMatch = 0;
+    let minScore = 0.1;
 
-      // For search queries, require more precise matching
-      if (should.length > 0 && must.length === 0 && query.trim()) {
-        const queryWords = query
-          .trim()
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((word) => word.length > 0);
-        if (queryWords.length > 1) {
-          // For multi-word searches, require higher matching threshold
-          if (queryWords.length >= 3) {
-            // For 3+ word searches, require at least 3 should clauses
-            minimumShouldMatch = Math.max(3, Math.ceil(should.length * 0.6));
-          } else {
-            // For 2 word searches, require at least 2 should clauses
-            minimumShouldMatch = Math.max(2, Math.ceil(should.length * 0.5));
-          }
+    if (should.length > 0 && must.length === 0 && query.trim()) {
+      const queryWords = query
+        .trim()
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((word) => word.length > 0);
+
+      // Mode-based precision control
+      if (mode === 'exact') {
+        minScore = queryWords.length === 1 ? 5.0 : 3.0; // Very strict
+        minimumShouldMatch = Math.max(1, Math.ceil(should.length * 0.8));
+      } else if (mode === 'fuzzy') {
+        minScore = 0.5; // More lenient
+        minimumShouldMatch = Math.max(1, Math.ceil(should.length * 0.2));
+      } else if (mode === 'broad') {
+        minScore = 0.1; // Very lenient
+        minimumShouldMatch = 0;
+      } else {
+        // mode === 'auto'
+        if (queryWords.length === 1) {
+          // Single word searches: Require higher relevance to avoid false positives
+          minScore = query.trim().length <= 4 ? 2.0 : 1.0; // Strict for short words like "Gấm"
+        } else if (queryWords.length === 2) {
+          // Two word searches: Require some precision
+          minimumShouldMatch = Math.max(1, Math.ceil(should.length * 0.3));
+          minScore = 1.0;
         } else {
-          // For single word searches, at least 1 good match
-          minimumShouldMatch = 1;
+          // Multi-word searches: Require good coverage
+          minimumShouldMatch = Math.max(2, Math.ceil(should.length * 0.4));
+          minScore = 0.5;
         }
       }
+    }
 
+    // Build final query with enterprise precision controls
+    if (must.length > 0 || should.length > 0) {
       searchBody.query = {
         bool: {
           must: must.length > 0 ? must : undefined,
@@ -192,18 +297,12 @@ export async function GET(request: NextRequest) {
         },
       };
 
-      // Add minimum score threshold for search queries to filter out irrelevant results
+      // Apply enterprise-grade minimum score thresholds
       if (query.trim()) {
-        const queryWords = query
-          .trim()
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((word) => word.length > 0);
-        if (queryWords.length > 1) {
-          searchBody.min_score = 1.0; // Higher threshold for multi-word searches
-        } else {
-          searchBody.min_score = 0.5; // Standard threshold for single words
-        }
+        searchBody.min_score = minScore;
+        console.log(
+          `Applied precision controls: min_score=${minScore}, minimum_should_match=${minimumShouldMatch}`
+        );
       }
     } else {
       // No search query, return all items

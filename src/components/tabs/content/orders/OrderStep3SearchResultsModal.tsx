@@ -6,6 +6,7 @@ interface OrderStep3SearchResultsModalProps {
   items: InventoryItem[];
   totalPages: number;
   currentPage: number;
+  loading?: boolean;
   onClose: () => void;
   onItemClick: (item: InventoryItem) => void;
   onPrevPage: () => void;
@@ -17,6 +18,7 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
   items,
   totalPages,
   currentPage,
+  loading = false,
   onClose,
   onItemClick,
   onPrevPage,
@@ -38,35 +40,48 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
         </button>
         <div className="text-xl font-bold text-blue-400 mb-4">Kết quả tìm kiếm</div>
         <div className="max-h-[60vh] overflow-y-auto">
-          {items.map((item) => (
-            <button
-              key={item.id}
-              className="w-full p-4 bg-gray-800 hover:bg-gray-700 rounded-lg mb-2 text-left transition-colors"
-              onClick={() => onItemClick(item)}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-white">{item.name}</div>
-                  <div className="text-sm text-gray-400 mt-1">
-                    <span className="font-mono text-blue-300">{item.formattedId}</span>
-                    {item.tags.length > 0 && (
-                      <span className="ml-2">
-                        {item.tags.map((tag: string) => (
-                          <span
-                            key={tag}
-                            className="bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded-full mr-1"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="text-sm text-gray-400">{item.sizes.length} size</div>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="flex items-center space-x-2 text-blue-400">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
+                <span>Đang tìm kiếm...</span>
               </div>
-            </button>
-          ))}
+            </div>
+          ) : items.length === 0 ? (
+            <div className="flex items-center justify-center py-8 text-gray-400">
+              Không tìm thấy sản phẩm nào
+            </div>
+          ) : (
+            items.map((item) => (
+              <button
+                key={item.id}
+                className="w-full p-4 bg-gray-800 hover:bg-gray-700 rounded-lg mb-2 text-left transition-colors"
+                onClick={() => onItemClick(item)}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold text-white">{item.name}</div>
+                    <div className="text-sm text-gray-400 mt-1">
+                      <span className="font-mono text-blue-300">{item.formattedId}</span>
+                      {item.tags.length > 0 && (
+                        <span className="ml-2">
+                          {item.tags.map((tag: string) => (
+                            <span
+                              key={tag}
+                              className="bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded-full mr-1"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-400">{item.sizes.length} size</div>
+                </div>
+              </button>
+            ))
+          )}
         </div>
         {totalPages > 1 && (
           <div className="flex justify-center items-center gap-2 mt-4 pt-4 border-t border-gray-700">

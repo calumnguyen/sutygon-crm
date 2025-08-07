@@ -81,9 +81,23 @@ class InventoryIndexer {
             const itemSizes = sizes.filter((size) => size.itemId === item.id);
             const decryptedSizes = itemSizes.map((size) => decryptInventorySizeData(size));
 
-            // Generate formatted ID based on category and counter
-            const categoryPrefix = decryptedItem.category.substring(0, 2).toUpperCase();
-            const formattedId = `${categoryPrefix}-${item.categoryCounter.toString().padStart(6, '0')}`;
+            // Generate formatted ID using same logic as API routes
+            function getFormattedId(category: string, categoryCounter: number) {
+              let code = (category || 'XX')
+                .split(' ')
+                .map((w: string) => w[0])
+                .join('');
+              // Replace Đ/đ with D/d, then remove diacritics
+              code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
+              code = code
+                .normalize('NFD')
+                .replace(/\p{Diacritic}/gu, '')
+                .replace(/\u0300-\u036f/g, '');
+              code = code.toUpperCase().slice(0, 2);
+              return `${code}-${String(categoryCounter).padStart(6, '0')}`;
+            }
+
+            const formattedId = getFormattedId(decryptedItem.category, item.categoryCounter);
 
             // Create search document
             const searchDoc: IndexedInventoryItem = {
@@ -156,9 +170,23 @@ class InventoryIndexer {
       const decryptedItem = decryptInventoryData(item);
       const decryptedSizes = sizes.map((size) => decryptInventorySizeData(size));
 
-      // Generate formatted ID based on category and counter
-      const categoryPrefix = decryptedItem.category.substring(0, 2).toUpperCase();
-      const formattedId = `${categoryPrefix}-${item.categoryCounter.toString().padStart(6, '0')}`;
+      // Generate formatted ID using same logic as API routes
+      function getFormattedId(category: string, categoryCounter: number) {
+        let code = (category || 'XX')
+          .split(' ')
+          .map((w: string) => w[0])
+          .join('');
+        // Replace Đ/đ with D/d, then remove diacritics
+        code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
+        code = code
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
+          .replace(/\u0300-\u036f/g, '');
+        code = code.toUpperCase().slice(0, 2);
+        return `${code}-${String(categoryCounter).padStart(6, '0')}`;
+      }
+
+      const formattedId = getFormattedId(decryptedItem.category, item.categoryCounter);
 
       const searchDoc: IndexedInventoryItem = {
         id: item.id,
