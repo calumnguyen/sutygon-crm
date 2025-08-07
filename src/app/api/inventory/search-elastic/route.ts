@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import elasticsearchService from '@/lib/elasticsearch';
 import { db } from '@/lib/db';
-import { inventoryItems } from '@/lib/db/schema';
-import { inArray } from 'drizzle-orm';
+import { inventoryItems, inventoryTags, tags } from '@/lib/db/schema';
+import { inArray, eq } from 'drizzle-orm';
+import { decryptTagData } from '@/lib/utils/inventoryEncryption';
 
 // Helper function for Vietnamese text normalization
 function normalizeVietnamese(text: string): string {
@@ -266,10 +267,13 @@ export async function GET(request: NextRequest) {
       })
       .filter((id) => !isNaN(id));
 
-    // Fetch imageUrls from database
+    // Fetch imageUrls and tags from database
     let imageUrlMap: Record<number, string | null> = {};
+    let tagsMap: Record<number, string[]> = {};
+
     if (itemIds.length > 0) {
       try {
+        // Fetch imageUrls
         const itemsWithImages = await db
           .select({ id: inventoryItems.id, imageUrl: inventoryItems.imageUrl })
           .from(inventoryItems)
@@ -282,9 +286,32 @@ export async function GET(request: NextRequest) {
           },
           {} as Record<number, string | null>
         );
+
+        // Fetch tags for all items
+        const itemsWithTags = await db
+          .select({
+            itemId: inventoryTags.itemId,
+            tagName: tags.name,
+          })
+          .from(inventoryTags)
+          .innerJoin(tags, eq(inventoryTags.tagId, tags.id))
+          .where(inArray(inventoryTags.itemId, itemIds));
+
+        // Group tags by item ID and decrypt them
+        tagsMap = itemsWithTags.reduce(
+          (acc, item) => {
+            const decryptedTagName = decryptTagData({ name: item.tagName }).name;
+            if (!acc[item.itemId]) {
+              acc[item.itemId] = [];
+            }
+            acc[item.itemId].push(decryptedTagName);
+            return acc;
+          },
+          {} as Record<number, string[]>
+        );
       } catch (dbError) {
-        console.error('Failed to fetch imageUrls from database:', dbError);
-        // Continue without images rather than failing the entire search
+        console.error('Failed to fetch imageUrls and tags from database:', dbError);
+        // Continue without images/tags rather than failing the entire search
       }
     }
 
@@ -299,7 +326,10 @@ export async function GET(request: NextRequest) {
         name: source.name,
         category: source.category,
         imageUrl: source.imageUrl || imageUrlMap[itemId] || null, // Prefer from search index, fallback to database
-        tags: Array.isArray(source.tags) ? source.tags : [], // Ensure tags is always an array
+        tags:
+          Array.isArray(source.tags) && source.tags.length > 0
+            ? source.tags
+            : tagsMap[itemId] || [], // Prefer from search index, fallback to database
         sizes: source.sizes || [],
         createdAt: source.createdAt,
         updatedAt: source.updatedAt,
