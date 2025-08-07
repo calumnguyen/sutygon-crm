@@ -113,6 +113,7 @@ async function indexInventoryOptimized() {
                 keyword: { type: 'keyword' }
               }
             },
+            imageUrl: { type: 'keyword' },
             tags: {
               type: 'text',
               analyzer: 'vietnamese_analyzer',
@@ -223,6 +224,7 @@ async function indexInventoryOptimized() {
             formattedId: formattedId,
             name: decryptedName,
             category: decryptedCategory,
+            imageUrl: item.image_url,
             tags: itemTags, // Now properly includes actual tags
             createdAt: item.created_at,
             updatedAt: item.updated_at,

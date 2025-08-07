@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import elasticsearchService from '@/lib/elasticsearch';
+import { db } from '@/lib/db';
+import { inventoryItems } from '@/lib/db/schema';
+import { inArray } from 'drizzle-orm';
 
 // Helper function for Vietnamese text normalization
 function normalizeVietnamese(text: string): string {
@@ -254,15 +257,48 @@ export async function GET(request: NextRequest) {
         ? (esResponse.hits.total as { value: number }).value
         : (esResponse.hits?.total as number) || 0;
 
+    // Extract item IDs from search results to fetch imageUrls from database
+    const itemIds = hits
+      .map((hit: unknown) => {
+        const hitRecord = hit as Record<string, unknown>;
+        const source = hitRecord._source as Record<string, unknown>;
+        return Number(source.id);
+      })
+      .filter((id) => !isNaN(id));
+
+    // Fetch imageUrls from database
+    let imageUrlMap: Record<number, string | null> = {};
+    if (itemIds.length > 0) {
+      try {
+        const itemsWithImages = await db
+          .select({ id: inventoryItems.id, imageUrl: inventoryItems.imageUrl })
+          .from(inventoryItems)
+          .where(inArray(inventoryItems.id, itemIds));
+
+        imageUrlMap = itemsWithImages.reduce(
+          (acc, item) => {
+            acc[item.id] = item.imageUrl;
+            return acc;
+          },
+          {} as Record<number, string | null>
+        );
+      } catch (dbError) {
+        console.error('Failed to fetch imageUrls from database:', dbError);
+        // Continue without images rather than failing the entire search
+      }
+    }
+
     const items = hits.map((hit: unknown) => {
       const hitRecord = hit as Record<string, unknown>;
       const source = hitRecord._source as Record<string, unknown>;
+      const itemId = Number(source.id);
+
       const result: Record<string, unknown> = {
         id: source.id,
         formattedId: source.formattedId,
         name: source.name,
         category: source.category,
-        imageUrl: null, // Not stored in search index
+        imageUrl: source.imageUrl || imageUrlMap[itemId] || null, // Prefer from search index, fallback to database
         tags: Array.isArray(source.tags) ? source.tags : [], // Ensure tags is always an array
         sizes: source.sizes || [],
         createdAt: source.createdAt,

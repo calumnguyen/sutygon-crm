@@ -15,6 +15,7 @@ export interface SyncInventoryItem {
   formattedId: string;
   name: string;
   category: string;
+  imageUrl: string | null;
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -203,6 +204,7 @@ class InventorySync {
         formattedId: formattedId,
         name: decryptedItem.name,
         category: decryptedItem.category,
+        imageUrl: item.imageUrl,
         tags: decryptedTags,
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
