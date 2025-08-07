@@ -11,6 +11,8 @@ import OrdersContent from '@/components/tabs/content/orders/OrdersContent';
 import OrdersNewContent from '@/components/tabs/content/orders/OrdersNewContent';
 import InventoryContent from '@/components/tabs/content/inventory/InventoryContent';
 import StoreSettingsContent from '@/components/tabs/content/store-settings/StoreSettingsContent';
+import ReportsContent from '@/components/tabs/content/reports/ReportsContent';
+import InventoryAddingReport from '@/components/tabs/content/reports/InventoryAddingReport';
 
 const contentComponents = {
   home: HomeContent,
@@ -19,6 +21,7 @@ const contentComponents = {
   orders: OrdersContent,
   inventory: InventoryContent,
   'store-settings': StoreSettingsContent,
+  reports: ReportsContent,
 };
 
 const TabContent: React.FC = () => {
@@ -68,10 +71,16 @@ const TabContent: React.FC = () => {
           detectedContent =
             TAB_CONTENT_MAPPING[activeFirstLevelTab.selectedOption.id] ||
             activeFirstLevelTab.selectedOption.id;
-          isOnAdminContent = detectedContent === 'users' || detectedContent === 'store-settings';
+          isOnAdminContent =
+            detectedContent === 'users' ||
+            detectedContent === 'store-settings' ||
+            detectedContent === 'reports';
         } else {
           detectedContent = TAB_CONTENT_MAPPING[activeFirstLevelTab.id] || activeFirstLevelTab.id;
-          isOnAdminContent = detectedContent === 'users' || detectedContent === 'store-settings';
+          isOnAdminContent =
+            detectedContent === 'users' ||
+            detectedContent === 'store-settings' ||
+            detectedContent === 'reports';
         }
 
         console.log('Admin content check:', {
@@ -122,6 +131,29 @@ const TabContent: React.FC = () => {
           );
         }
 
+        // Special case for report tabs
+        if (tab.id.startsWith('report-')) {
+          const reportId = tab.id.replace('report-', '');
+          let ReportComponent = ReportsContent; // Default fallback
+
+          // Map specific reports to their components
+          if (reportId === 'inventory-adding-per-head-count-2025') {
+            ReportComponent = InventoryAddingReport;
+          }
+
+          return (
+            <div
+              key={tab.id}
+              style={{
+                display: isActive ? 'block' : 'none',
+                height: '100%',
+              }}
+            >
+              <ReportComponent />
+            </div>
+          );
+        }
+
         // Get content based on selected option (for dropdown tabs) or tab ID
         let contentKey = 'home'; // default fallback
 
@@ -132,7 +164,10 @@ const TabContent: React.FC = () => {
         }
 
         // Block admin-only content for non-admin users
-        if (userRole !== 'admin' && (contentKey === 'users' || contentKey === 'store-settings')) {
+        if (
+          userRole !== 'admin' &&
+          (contentKey === 'users' || contentKey === 'store-settings' || contentKey === 'reports')
+        ) {
           contentKey = 'home';
         }
 

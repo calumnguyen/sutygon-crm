@@ -16,6 +16,7 @@ export const ALL_TAB_OPTIONS: RoleBasedTabOption[] = [
   { id: createTabId('inventory'), label: 'Kho' },
   { id: createTabId('users'), label: 'Nhân Viên', requiredRole: 'admin' },
   { id: createTabId('store-settings'), label: 'Cài Đặt Cửa Hàng', requiredRole: 'admin' },
+  { id: createTabId('reports'), label: 'Báo Cáo', requiredRole: 'admin' },
 ];
 
 /**
@@ -76,4 +77,5 @@ export const TAB_CONTENT_MAPPING: Record<string, string> = {
   orders: 'orders',
   inventory: 'inventory',
   'store-password': 'store-password',
+  reports: 'reports',
 };

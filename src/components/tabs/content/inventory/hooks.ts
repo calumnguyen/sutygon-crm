@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { InventoryItem, AddItemFormState } from '@/types/inventory';
+import { useUser } from '@/context/UserContext';
 
 // Optimized search hook with debouncing and server-side search
 export function useInventorySearch() {
@@ -270,6 +271,7 @@ export function useInventoryModals(
   refreshInventory: () => void,
   setInventory?: React.Dispatch<React.SetStateAction<InventoryItem[]>>
 ) {
+  const { currentUser } = useUser();
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -377,6 +379,7 @@ export function useInventoryModals(
           imageUrl,
           tags,
           sizes,
+          addedBy: currentUser?.id, // Include current user ID
         }),
       });
 

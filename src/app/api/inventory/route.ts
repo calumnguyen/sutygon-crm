@@ -149,11 +149,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  // Expect: { name, category, imageUrl, tags: string[], sizes: [{title, quantity, onHand, price}] }
-  const { name, category, imageUrl, tags: tagNames, sizes } = body;
+  // Expect: { name, category, imageUrl, tags: string[], sizes: [{title, quantity, onHand, price}], addedBy?: number }
+  const { name, category, imageUrl, tags: tagNames, sizes, addedBy } = body;
 
   // Debug log
   console.log('DEBUG: Received imageUrl in POST /api/inventory', imageUrl);
+  console.log('DEBUG: Received addedBy user ID:', addedBy);
+
+  // Use the provided user ID and current time if user is provided
+  const currentUserId = addedBy || null;
+  const currentTime = currentUserId ? new Date() : null;
 
   // Encrypt the category for counter lookup
   const encryptedCategory = encryptInventoryData({ name: '', category }).category;
@@ -189,7 +194,7 @@ export async function POST(req: NextRequest) {
     imageUrl,
   });
 
-  // Insert item with encrypted data
+  // Insert item with encrypted data and tracking info
   const [item] = await db
     .insert(inventoryItems)
     .values({
@@ -197,6 +202,8 @@ export async function POST(req: NextRequest) {
       category: encryptedInventoryData.category,
       categoryCounter: categoryCounter,
       imageUrl,
+      addedBy: currentUserId,
+      addedAt: currentTime,
     })
     .returning();
 

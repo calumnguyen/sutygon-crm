@@ -83,6 +83,8 @@ export const inventoryItems = pgTable(
     category: text('category').notNull(), // This will store encrypted category
     categoryCounter: integer('category_counter').notNull(),
     imageUrl: text('image_url'),
+    addedBy: integer('added_by').references(() => users.id),
+    addedAt: timestamp('added_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
