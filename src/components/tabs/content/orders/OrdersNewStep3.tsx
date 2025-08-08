@@ -72,7 +72,6 @@ const OrdersNewStep3 = ({
 
   // Simulate fetching item from DB (replace with real API call)
   async function fetchItemById(id: string) {
-    // Normalize: remove hyphens for matching
     const normId = id.replace(/-/g, '').toUpperCase();
     for (const item of MOCK_ITEMS) {
       const baseId = item.id.replace(/-/g, '').toUpperCase();
@@ -83,9 +82,7 @@ const OrdersNewStep3 = ({
     return null;
   }
 
-  // Parse input for ID and optional size
   function parseInputId(input: string) {
-    // Accept: AD-000001, AD000001, AD-000001-S, AD000001S, etc.
     const match = input
       .trim()
       .toUpperCase()
@@ -102,19 +99,16 @@ const OrdersNewStep3 = ({
     if (!itemIdInput.trim()) return;
     setAdding(true);
     const { id: inputId, size: inputSize } = parseInputId(itemIdInput.trim());
-    // Find item by base ID
     const item = await fetchItemById(itemIdInput.trim());
     setAdding(false);
     if (!item) {
       setAddError('Không tìm thấy sản phẩm với mã này');
       return;
     }
-    // If size is specified, check if valid
-    let selectedSize = undefined;
+    let selectedSize = undefined as ItemSize | undefined;
     if (inputSize) {
       selectedSize = item.sizes.find((s) => s.size.toUpperCase() === inputSize.toUpperCase());
       if (!selectedSize) {
-        // Invalid size, show modal
         setPendingItem(item);
         setSizeOptions(item.sizes);
         setShowSizeModal(true);
@@ -123,36 +117,24 @@ const OrdersNewStep3 = ({
       }
     }
     if (!inputSize || !selectedSize) {
-      // No size specified, show modal
       setPendingItem(item);
       setSizeOptions(item.sizes);
       setShowSizeModal(true);
       setItemIdInput('');
       return;
     }
-    // Add item with selected size
     addItemToOrder(item, selectedSize.size, selectedSize.price);
     setItemIdInput('');
   };
 
   function addItemToOrder(item: (typeof MOCK_ITEMS)[number], size: string, price: number) {
     setOrderItems((prev) => {
-      // If already added (same id+size), increase quantity by 1 only
       const key = `${item.id}-${size}`;
       const idx = prev.findIndex((i) => i.id === key);
       if (idx !== -1) {
         return prev.map((i, iIdx) => (iIdx === idx ? { ...i, quantity: i.quantity + 1 } : i));
       }
-      return [
-        ...prev,
-        {
-          id: key,
-          name: item.name,
-          size,
-          quantity: 1,
-          price,
-        },
-      ];
+      return [...prev, { id: key, name: item.name, size, quantity: 1, price }];
     });
   }
 
@@ -192,17 +174,14 @@ const OrdersNewStep3 = ({
     setItemToDelete(null);
   };
 
-  // Helper: subtotal of regular items
   const subtotal = orderItems
     .filter((i) => !i.isExtension)
     .reduce((sum, item) => sum + item.quantity * item.price, 0);
-  // Helper: extension price (live)
   const extensionPrice =
     feeType === 'vnd'
       ? Number(extraFee) || 0
       : Math.round(subtotal * ((Number(percent) || 0) / 100));
 
-  // When modal opens, prefill fields if extension item exists
   React.useEffect(() => {
     if (showReturnDateModal) {
       const ext = orderItems.find((i) => i.isExtension);
@@ -220,7 +199,6 @@ const OrdersNewStep3 = ({
     }
   }, [showReturnDateModal, orderItems]);
 
-  // Update extension item price live if feeType is percent
   React.useEffect(() => {
     const ext = orderItems.find((i) => i.isExtension);
     if (ext && ext.feeType === 'percent') {
@@ -234,7 +212,6 @@ const OrdersNewStep3 = ({
     }
   }, [subtotal, percent]);
 
-  // Helper: get current ERD (with extension if present)
   function getCurrentERD() {
     let baseDate: Date;
     try {
@@ -244,16 +221,11 @@ const OrdersNewStep3 = ({
     }
     const extension = orderItems.find((i) => i.isExtension);
     const totalRentalDays = 3 + (extension && extension.extraDays ? extension.extraDays : 0);
-    // For rental period calculation: rent on day 1, return on day 3 = 3 days rental (add 2 days)
     const erdDate = addDays(baseDate, totalRentalDays - 1);
     const erdDateStr = format(erdDate, 'dd/MM/yyyy');
-    return {
-      date: erdDateStr,
-      day: getDayLabel(erdDateStr),
-    };
+    return { date: erdDateStr, day: getDayLabel(erdDateStr) };
   }
 
-  // Add or update extension item
   function handleAddExtension() {
     setErdError('');
     if (!extraDays || extraDays < 1) {
@@ -269,7 +241,6 @@ const OrdersNewStep3 = ({
       return;
     }
     setOrderItems((prev) => {
-      // Remove any existing extension item
       const filtered = prev.filter((i) => !i.isExtension);
       return [
         ...filtered,
@@ -294,33 +265,14 @@ const OrdersNewStep3 = ({
 
   const handleProceedToCheckout = async () => {
     try {
-      console.log('Proceeding to step 4 - order will be created after payment...');
-
-      // Calculate total and deposit
       const total = orderItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-      const depositValue = 0; // Default to 0 for now, can be updated in step 4
-
-      // Calculate expected return date (base: 3 days + any extension days)
+      const depositValue = 0;
       const orderDate = new Date(date.split('/').reverse().join('-'));
       const extensionItem = orderItems.find((item) => item.isExtension);
       const extraDays = extensionItem?.extraDays || 0;
-      const totalRentalDays = 3 + extraDays; // Total rental period (3 base days + extensions)
-
-      // For rental period calculation:
-      // - Rent on day 1, return on day 3 = 3 days rental (add 2 days to start date)
-      // - So we add (totalRentalDays - 1) to the order date
+      const totalRentalDays = 3 + extraDays;
       const expectedReturnDate = new Date(orderDate);
       expectedReturnDate.setDate(orderDate.getDate() + (totalRentalDays - 1));
-
-      console.log(`Order date: ${orderDate.toLocaleDateString('vi-VN')}`);
-      console.log(`Extension days: ${extraDays}`);
-      console.log(`Total rental days: ${totalRentalDays}`);
-      console.log(`Expected return date: ${expectedReturnDate.toLocaleDateString('vi-VN')}`);
-      console.log(
-        `Calculation: ${orderDate.toLocaleDateString('vi-VN')} + ${totalRentalDays - 1} days = ${expectedReturnDate.toLocaleDateString('vi-VN')}`
-      );
-
-      // Store order data in memory for step 4 (no database save yet)
       const orderData = {
         customerId: customer.id,
         orderDate: orderDate,
@@ -339,33 +291,25 @@ const OrdersNewStep3 = ({
           percent: item.percent || null,
           isCustom: item.isCustom || false,
         })),
-        notes: notes.map((note) => ({
-          itemId: note.itemId,
-          text: note.text,
-          done: note.done,
-        })),
+        notes: notes.map((note) => ({ itemId: note.itemId, text: note.text, done: note.done })),
       };
-
-      console.log('Order data (stored in memory):', JSON.stringify(orderData, null, 2));
-
-      // Store order data in memory for step 4
-      // We'll need to pass this data to step 4
-      // For now, we'll use a global variable or context
-      // TODO: Implement proper state management for order data
-
-      // Proceed to step 4 (no database save yet)
       setCurrentStep(3);
     } catch (error) {
-      console.error('Error preparing order data:', error);
       alert('Có lỗi xảy ra khi chuẩn bị đơn hàng. Vui lòng thử lại.');
     }
   };
 
   return (
-    <div className="flex min-h-[200px] items-start gap-6 transition-all duration-500 justify-start w-full bg-transparent">
-      {/* Step 3+ layout: left/right split */}
-      {/* Left section: Customer info, rent date, return date, and summary boxes */}
-      <div className="w-[320px] max-w-[420px] sticky top-6 z-10 h-fit">
+    <>
+      {/* Mobile layout: focus on adding items first */}
+      <div className="lg:hidden flex flex-col gap-4 w-full">
+        <OrdersStep3ItemsSection
+          orderItems={orderItems}
+          setOrderItems={setOrderItems}
+          onItemClick={(item) => setSelectedItemId(item.id)}
+          selectedItemId={selectedItemId}
+          date={date}
+        />
         <OrdersStep3InfoSection
           customer={customer}
           date={date}
@@ -377,19 +321,6 @@ const OrdersNewStep3 = ({
           erdDay={getCurrentERD().day}
           onProceedToCheckout={handleProceedToCheckout}
         />
-      </div>
-      {/* Right section: Add items to order */}
-      <div className="flex-1 min-w-0">
-        <OrdersStep3ItemsSection
-          orderItems={orderItems}
-          setOrderItems={setOrderItems}
-          onItemClick={(item) => setSelectedItemId(item.id)}
-          selectedItemId={selectedItemId}
-          date={date}
-        />
-      </div>
-      {/* Rightmost section: Alteration */}
-      <div className="w-[260px] max-w-[320px] sticky top-6 z-10 h-fit">
         <OrdersStep3AlterationSection
           orderItems={orderItems}
           selectedItemId={selectedItemId}
@@ -398,6 +329,42 @@ const OrdersNewStep3 = ({
           setNotes={setNotes}
         />
       </div>
+
+      {/* Desktop layout: keep current 3-column design */}
+      <div className="hidden lg:flex min-h-[200px] items-start gap-6 transition-all duration-500 justify-start w-full bg-transparent">
+        <div className="w-[320px] max-w-[420px] sticky top-6 z-10 h-fit">
+          <OrdersStep3InfoSection
+            customer={customer}
+            date={date}
+            setDate={setDate}
+            setCurrentStep={setCurrentStep}
+            onShowReturnDateModal={() => setShowReturnDateModal(true)}
+            orderItems={orderItems}
+            erdDate={getCurrentERD().date}
+            erdDay={getCurrentERD().day}
+            onProceedToCheckout={handleProceedToCheckout}
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <OrdersStep3ItemsSection
+            orderItems={orderItems}
+            setOrderItems={setOrderItems}
+            onItemClick={(item) => setSelectedItemId(item.id)}
+            selectedItemId={selectedItemId}
+            date={date}
+          />
+        </div>
+        <div className="w-[260px] max-w-[320px] sticky top-6 z-10 h-fit">
+          <OrdersStep3AlterationSection
+            orderItems={orderItems}
+            selectedItemId={selectedItemId}
+            setSelectedItemId={setSelectedItemId}
+            notes={notes}
+            setNotes={setNotes}
+          />
+        </div>
+      </div>
+
       {/* Update Return Date Modal */}
       {showReturnDateModal && (
         <div
@@ -488,6 +455,7 @@ const OrdersNewStep3 = ({
           </div>
         </div>
       )}
+
       {/* Size selection modal */}
       {showSizeModal && (
         <div
@@ -520,6 +488,7 @@ const OrdersNewStep3 = ({
           </div>
         </div>
       )}
+
       {/* Delete item confirmation modal */}
       {showDeleteModal && itemToDelete && (
         <div
@@ -559,7 +528,7 @@ const OrdersNewStep3 = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 

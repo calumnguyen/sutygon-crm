@@ -53,7 +53,9 @@ export function useOrderNewFlow() {
   };
 
   const handlePhoneEnter = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && phone) {
+    // Handle both Enter key and mobile keyboard "done" action
+    if ((e.key === 'Enter' || e.key === 'Done') && phone) {
+      e.preventDefault(); // Prevent any default form submission
       setSearching(true);
       setSearched(false);
       setCustomer(null);

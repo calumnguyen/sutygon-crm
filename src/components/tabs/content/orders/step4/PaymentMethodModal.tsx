@@ -39,25 +39,21 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
 }) => {
   // Local state to track payment completion
   const [localPaymentComplete, setLocalPaymentComplete] = React.useState(false);
-  
+
   // Update local state when props change
   React.useEffect(() => {
     setLocalPaymentComplete(paymentComplete);
   }, [paymentComplete]);
-  
+
   // Also calculate payment completion locally as backup
   React.useEffect(() => {
-    const requiredAmount = isPartialPayment && partialAmount 
-      ? parseInt(partialAmount) || 0
-      : totalPay;
-    
+    const requiredAmount =
+      isPartialPayment && partialAmount ? parseInt(partialAmount) || 0 : totalPay;
+
     const isComplete = paidAmount >= requiredAmount && paidAmount > 0;
     setLocalPaymentComplete(isComplete);
   }, [paidAmount, totalPay, isPartialPayment, partialAmount]);
 
-  
-
-  
   if (!show) return null;
   return (
     <div
@@ -81,7 +77,7 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
             <div className="text-xl font-bold text-pink-400 mb-6">
               {isPartialPayment ? 'Thanh Toán Một Phần' : 'Chọn Phương Thức Thanh Toán'}
             </div>
-            
+
             {isPartialPayment && (
               <div className="w-full max-w-md mb-6">
                 <label className="block text-gray-300 text-sm mb-2">
@@ -109,40 +105,51 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                     💡 Số tiền bằng tổng đơn hàng - sẽ thanh toán toàn bộ
                   </div>
                 )}
-                {isPartialPayment && (
+                {isPartialPayment &&
                   (!partialAmount ? (
                     <div className="bg-red-600 text-white text-sm rounded-lg p-2 mt-2">
                       ❌ Vui lòng nhập số tiền tạm ứng
                     </div>
-                  ) : (parseInt(partialAmount) <= 0 || parseInt(partialAmount) > totalPay) ? (
+                  ) : parseInt(partialAmount) <= 0 || parseInt(partialAmount) > totalPay ? (
                     <div className="bg-red-600 text-white text-sm rounded-lg p-2 mt-2">
-                      ❌ Số tiền phải lớn hơn 0 và không vượt quá {totalPay.toLocaleString('vi-VN')} đ
+                      ❌ Số tiền phải lớn hơn 0 và không vượt quá {totalPay.toLocaleString('vi-VN')}{' '}
+                      đ
                     </div>
-                  ) : null)
-                )}
+                  ) : null)}
               </div>
             )}
-            
+
             <div className="text-base text-gray-300 mb-6 text-center">
               Số tiền cần thanh toán:{' '}
               <span className="text-green-400 font-bold">
-                {isPartialPayment && partialAmount 
-                  ? (parseInt(partialAmount) || 0).toLocaleString('vi-VN') 
-                  : totalPay.toLocaleString('vi-VN')} đ
+                {isPartialPayment && partialAmount
+                  ? (parseInt(partialAmount) || 0).toLocaleString('vi-VN')
+                  : totalPay.toLocaleString('vi-VN')}{' '}
+                đ
               </span>
             </div>
             <div className="w-full flex flex-col gap-3">
               <button
                 className="w-full py-3 px-4 rounded-lg bg-pink-600 hover:bg-pink-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold text-lg shadow-lg transition-colors"
                 onClick={() => onSelectMethod('cash')}
-                disabled={isPartialPayment && (!partialAmount || parseInt(partialAmount) <= 0 || parseInt(partialAmount) > totalPay)}
+                disabled={
+                  isPartialPayment &&
+                  (!partialAmount ||
+                    parseInt(partialAmount) <= 0 ||
+                    parseInt(partialAmount) > totalPay)
+                }
               >
                 Thanh Toán Bằng Tiền Mặt
               </button>
               <button
                 className="w-full py-3 px-4 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-medium text-base transition-colors"
                 onClick={() => onSelectMethod('qr')}
-                disabled={isPartialPayment && (!partialAmount || parseInt(partialAmount) <= 0 || parseInt(partialAmount) > totalPay)}
+                disabled={
+                  isPartialPayment &&
+                  (!partialAmount ||
+                    parseInt(partialAmount) <= 0 ||
+                    parseInt(partialAmount) > totalPay)
+                }
               >
                 Chuyển Khoản QR
               </button>
@@ -161,9 +168,10 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                     {isPartialPayment ? 'Số tiền tạm ứng:' : 'Số tiền cần thanh toán:'}
                   </span>
                   <span className="text-green-400 font-bold">
-                    {isPartialPayment && partialAmount 
-                      ? (parseInt(partialAmount) || 0).toLocaleString('vi-VN') 
-                      : totalPay.toLocaleString('vi-VN')} đ
+                    {isPartialPayment && partialAmount
+                      ? (parseInt(partialAmount) || 0).toLocaleString('vi-VN')
+                      : totalPay.toLocaleString('vi-VN')}{' '}
+                    đ
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -177,18 +185,22 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                     <span className="text-gray-300">Số tiền còn lại:</span>
                     <span
                       className={`font-bold ${
-                        (isPartialPayment && partialAmount 
-                          ? (parseInt(partialAmount) || 0) 
-                          : totalPay) - paidAmount > 0 
-                        ? 'text-red-400' 
-                        : 'text-green-400'
+                        (isPartialPayment && partialAmount
+                          ? parseInt(partialAmount) || 0
+                          : totalPay) -
+                          paidAmount >
+                        0
+                          ? 'text-red-400'
+                          : 'text-green-400'
                       }`}
                     >
-                      {Math.max(0, 
-                        (isPartialPayment && partialAmount 
-                          ? (parseInt(partialAmount) || 0) 
+                      {Math.max(
+                        0,
+                        (isPartialPayment && partialAmount
+                          ? parseInt(partialAmount) || 0
                           : totalPay) - paidAmount
-                      ).toLocaleString('vi-VN')} đ
+                      ).toLocaleString('vi-VN')}{' '}
+                      đ
                     </span>
                   </div>
                 </div>
@@ -256,12 +268,17 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                   </button>
                 </div>
                 <button
+                  type="button"
+                  className={`w-full py-3 rounded-lg text-white font-bold transition-colors ${
+                    localPaymentComplete
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'bg-gray-600 cursor-not-allowed'
+                  }`}
                   onClick={onConfirmPayment}
                   disabled={!localPaymentComplete}
-                  className={`w-full py-3 rounded-lg text-white font-bold text-lg transition-colors ${localPaymentComplete ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 cursor-not-allowed'}`}
                   key={`confirm-button-${localPaymentComplete}-${paidAmount}`}
                 >
-                  Xác Nhận Thanh Toán {localPaymentComplete ? '(Enabled)' : '(Disabled)'}
+                  Xác Nhận Thanh Toán
                 </button>
               </div>
             </div>

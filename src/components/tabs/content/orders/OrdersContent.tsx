@@ -30,29 +30,33 @@ const OrdersContent: React.FC = () => {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">Quản Lý Đơn Hàng</h1>
-        <div className="flex gap-3">
-          <Button 
-            variant="secondary" 
-            onClick={handleRefresh} 
-            leftIcon={<RefreshCw className="w-5 h-5" />}
+    <div className="p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight">Quản Lý Đơn Hàng</h1>
+        <div className="w-full sm:w-auto flex items-stretch sm:items-center gap-2 sm:gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRefresh}
+            leftIcon={<RefreshCw className="w-4 h-4" />}
             disabled={loading}
+            className="shrink-0"
           >
-            Làm mới
+            <span className="hidden sm:inline">Làm mới</span>
           </Button>
-          <Button 
-            variant="primary" 
-            onClick={handleAddOrder} 
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={handleAddOrder}
             leftIcon={<Plus className="w-5 h-5" />}
+            className="w-full sm:w-auto"
           >
             Thêm đơn hàng mới
           </Button>
         </div>
       </div>
-      
-      <OrdersTable 
+
+      <OrdersTable
         orders={orders}
         loading={loading}
         error={error}

@@ -31,28 +31,29 @@ const OrdersStep3InfoSection: React.FC<OrdersStep3InfoSectionProps> = ({
   const totalPrice = orderItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
 
   return (
-    <div className="flex flex-col w-1/3 min-w-[320px] max-w-[420px] bg-gray-800 rounded-lg shadow-lg p-4 gap-4">
+    <div className="flex flex-col w-full lg:w-1/3 lg:min-w-[320px] lg:max-w-[420px] bg-gray-800 rounded-lg shadow-lg p-3 sm:p-4 gap-3 sm:gap-4">
       {/* Customer Box */}
       <div
-        className="bg-gray-900 rounded-lg p-4 shadow-lg border border-gray-700 flex flex-col items-center cursor-pointer hover:bg-gray-800 transition-colors animate-fade-in-move"
+        className="bg-gray-900 rounded-lg p-3 sm:p-4 shadow-lg border border-gray-700 flex flex-col items-center cursor-pointer hover:bg-gray-800 transition-colors animate-fade-in-move"
         title="Chỉnh sửa khách hàng"
         onClick={() => setCurrentStep(0)}
       >
-        <div className="text-lg font-bold text-blue-400 mb-1">Khách hàng</div>
-        <div className="text-white text-base mb-1">
-          Tên: <span className="font-semibold">{customer.name}</span>
+        <div className="text-base sm:text-lg font-bold text-blue-400 mb-1">Khách hàng</div>
+        <div className="text-white text-sm sm:text-base mb-1">
+          Tên: <span className="font-semibold break-words">{customer.name}</span>
         </div>
         {customer.company && (
-          <div className="text-gray-300 text-sm mb-1">
-            Công ty: <span className="font-semibold">{customer.company}</span>
+          <div className="text-gray-300 text-xs sm:text-sm mb-1">
+            Công ty: <span className="font-semibold break-words">{customer.company}</span>
           </div>
         )}
-        <div className="text-gray-300 text-sm">
-          Số điện thoại: <span className="font-mono">{formatPhoneNumber(customer.phone)}</span>
+        <div className="text-gray-300 text-xs sm:text-sm">
+          Số điện thoại:{' '}
+          <span className="font-mono break-all">{formatPhoneNumber(customer.phone)}</span>
         </div>
       </div>
       {/* Rent/Return Date Row */}
-      <div className="flex flex-row gap-2 w-full animate-fade-in-move">
+      <div className="flex flex-col sm:flex-row gap-2 w-full animate-fade-in-move">
         <div
           className="bg-gray-900 rounded-lg p-3 shadow-lg border border-gray-700 flex-1 flex flex-col items-center cursor-pointer hover:bg-gray-800 transition-colors"
           title="Chỉnh sửa ngày thuê"
@@ -86,9 +87,11 @@ const OrdersStep3InfoSection: React.FC<OrdersStep3InfoSectionProps> = ({
         {/* Tổng Sản Phẩm Box */}
         <div className="flex-1 animate-fade-in-move">
           <div className="p-[2px] rounded-xl bg-gradient-to-tr from-pink-500 via-yellow-400 to-pink-500 shadow-neon">
-            <div className="bg-gray-900 rounded-xl px-4 py-6 flex flex-col items-center min-w-[90px] min-h-[70px]">
+            <div className="bg-gray-900 rounded-xl px-3 sm:px-4 py-4 sm:py-6 flex flex-col items-center min-w-[90px] min-h-[70px]">
               <div className="text-xs font-bold text-pink-400 mb-1">Tổng Sản Phẩm</div>
-              <div className="text-xl font-extrabold text-white mb-0.5">{totalQuantity}</div>
+              <div className="text-lg sm:text-xl font-extrabold text-white mb-0.5">
+                {totalQuantity}
+              </div>
               <div className="text-xs text-gray-400">sản phẩm</div>
             </div>
           </div>
@@ -96,9 +99,9 @@ const OrdersStep3InfoSection: React.FC<OrdersStep3InfoSectionProps> = ({
         {/* Tổng Hoá Đơn Box */}
         <div className="flex-1 animate-fade-in-move">
           <div className="p-[2px] rounded-xl bg-gradient-to-tr from-blue-500 via-green-400 to-blue-500 shadow-neon">
-            <div className="bg-gray-900 rounded-xl px-4 py-6 flex flex-col items-center min-w-[90px] min-h-[70px]">
+            <div className="bg-gray-900 rounded-xl px-3 sm:px-4 py-4 sm:py-6 flex flex-col items-center min-w-[90px] min-h-[70px]">
               <div className="text-xs font-bold text-blue-400 mb-1">Tổng Hoá Đơn</div>
-              <div className="text-xl font-extrabold text-white mb-0.5">
+              <div className="text-lg sm:text-xl font-extrabold text-white mb-0.5">
                 {totalPrice.toLocaleString('vi-VN')}
               </div>
               <div className="text-xs text-gray-400">Việt Nam Đồng</div>
@@ -108,7 +111,7 @@ const OrdersStep3InfoSection: React.FC<OrdersStep3InfoSectionProps> = ({
       </div>
       {orderItems.some((item) => !item.isExtension) && onProceedToCheckout && (
         <button
-          className="mt-4 w-full py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white text-lg font-bold shadow-lg transition-colors"
+          className="mt-3 sm:mt-4 w-full py-2.5 sm:py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white text-base sm:text-lg font-bold shadow-lg transition-colors"
           type="button"
           onClick={onProceedToCheckout}
         >

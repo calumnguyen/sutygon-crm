@@ -176,7 +176,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
 
   const fetchOverlappingOrders = async (inventoryItemId: number, size: string) => {
     try {
-      if (!dateFrom || !dateTo) return [];
+      if (!dateFrom || !dateTo) return [] as OverlappingOrder[];
 
       const response = await fetch(
         `/api/orders/overlapping?inventoryItemId=${inventoryItemId}&size=${encodeURIComponent(size)}&dateFrom=${encodeURIComponent(dateFrom)}&dateTo=${encodeURIComponent(dateTo)}`
@@ -188,7 +188,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
     } catch (error) {
       console.error('Error fetching overlapping orders:', error);
     }
-    return [];
+    return [] as OverlappingOrder[];
   };
 
   const handleShowImpact = async (item: OrderItem) => {
@@ -209,11 +209,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
 
     // Fetch data in background
     const overlappingOrders = await fetchOverlappingOrders(item.inventoryItemId, item.size);
-    setImpactModal((prev) => ({
-      ...prev,
-      overlappingOrders,
-      isLoading: false,
-    }));
+    setImpactModal((prev) => ({ ...prev, overlappingOrders, isLoading: false }));
   };
 
   return (
@@ -226,19 +222,19 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
             return (
               <div
                 key={customKey}
-                className={`flex items-center justify-between py-3 gap-4 cursor-pointer rounded ${isSelected ? 'bg-gray-800' : 'bg-gray-900'}`}
+                className={`grid grid-cols-2 sm:flex sm:items-center sm:justify-between gap-2 sm:gap-4 py-3 cursor-pointer rounded ${isSelected ? 'bg-gray-800' : 'bg-gray-900'}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onItemClick({ ...item, id: customKey });
                 }}
               >
-                <div className="flex-1">
-                  <div className="font-semibold text-white">{item.name}</div>
+                <div className="col-span-2 sm:flex-1">
+                  <div className="font-semibold text-white break-words">{item.name}</div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs text-gray-400">Tùy chỉnh</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 justify-self-end">
                   <button
                     type="button"
                     className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
@@ -266,51 +262,50 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                   </button>
                   <span className="text-sm text-gray-400">x</span>
                 </div>
-                <div className="font-bold text-green-400 min-w-[90px] text-right">
+                <div className="font-bold text-green-400 text-right sm:min-w-[90px]">
                   {item.price.toLocaleString('vi-VN')}₫
                 </div>
               </div>
             );
           }
 
-          let inv = null;
+          let inv = null as InventoryItem | null;
           if (item.inventoryItemId && typeof item.inventoryItemId === 'number') {
-            // Use the linked inventory item ID
-            inv = inventory.find(
-              (invItem) => invItem.id.toString() === item.inventoryItemId!.toString()
-            );
+            inv =
+              inventory.find(
+                (invItem) => invItem.id.toString() === item.inventoryItemId!.toString()
+              ) || null;
           } else {
-            // Fall back to old logic for backward compatibility
             const invId = item.id.replace('-' + item.size, '');
-            inv = inventory.find(
-              (invItem) => (invItem.formattedId || invItem.id) === invId || invItem.id === invId
-            );
+            inv =
+              inventory.find(
+                (invItem) => (invItem.formattedId || invItem.id) === invId || invItem.id === invId
+              ) || null;
           }
           const normalize = (str: string) => str.replace(/[-_ ]/g, '').toLowerCase();
           const invSize = inv?.sizes.find((s) => normalize(s.title) === normalize(item.size));
-          // The API already calculates available stock (onHand - reserved), so use it directly
           const availableStock = invSize ? parseInt(invSize.onHand.toString(), 10) : 0;
           const showWarning = item.quantity > availableStock;
           const isSelected = selectedItemId === item.id;
           return (
             <div
               key={`${item.id}-${index}`}
-              className={`flex items-center justify-between py-3 gap-4 cursor-pointer rounded ${isSelected ? 'bg-gray-800' : 'bg-gray-900'}`}
+              className={`grid grid-cols-2 sm:flex sm:items-center sm:justify-between gap-2 sm:gap-4 py-3 cursor-pointer rounded ${isSelected ? 'bg-gray-800' : 'bg-gray-900'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onItemClick(item);
               }}
             >
-              <div className="flex-1">
-                <div className="font-semibold text-white">{item.name}</div>
-                <div className="flex items-center gap-2 mt-1 pr-4">
-                  <span className="text-xs font-mono text-blue-300 bg-gray-800 rounded px-2 py-0.5">
+              <div className="col-span-2 sm:flex-1">
+                <div className="font-semibold text-white break-words">{item.name}</div>
+                <div className="flex items-center gap-2 mt-1 pr-2">
+                  <span className="text-xs font-mono text-blue-300 bg-gray-800 rounded px-2 py-0.5 break-all">
                     {item.id}
                   </span>
                   <span className="text-xs text-gray-400">
                     Size: <span className="font-bold">{item.size}</span>
                   </span>
-                  <span className="text-xs text-gray-400 ml-3 flex items-center gap-1">
+                  <span className="text-xs text-gray-400 ml-2 flex items-center gap-1">
                     Tồn kho: <span className="font-bold text-yellow-300">{availableStock}</span>
                     <button
                       type="button"
@@ -318,7 +313,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                         e.stopPropagation();
                         handleShowImpact(item);
                       }}
-                      className="w-4 h-4 rounded-full bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold flex items-center justify-center transition-colors ml-2"
+                      className="w-4 h-4 rounded-full bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold flex items-center justify-center transition-colors ml-1"
                       title="Xem tác động đến tồn kho"
                     >
                       ?
@@ -333,7 +328,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-self-end">
                 <button
                   type="button"
                   className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
@@ -361,7 +356,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                 </button>
                 <span className="text-sm text-gray-400">x</span>
               </div>
-              <div className="font-bold text-green-400 min-w-[90px] text-right">
+              <div className="font-bold text-green-400 text-right sm:min-w-[90px]">
                 {item.price.toLocaleString('vi-VN')}₫
               </div>
             </div>

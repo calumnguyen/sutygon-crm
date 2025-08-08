@@ -76,10 +76,12 @@ const OrdersStep3AlterationSection: React.FC<OrdersStep3AlterationSectionProps> 
   }, [orderItems]);
 
   return (
-    <div className="flex-shrink-0 basis-[260px] max-w-[320px] bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 min-h-[400px] flex flex-col items-center">
-      <div className="text-xl font-bold text-yellow-400 mb-4">Chỉnh sửa / Ghi chú</div>
+    <div className="flex-shrink-0 w-full lg:basis-[260px] lg:max-w-[320px] bg-gray-800 rounded-lg p-4 sm:p-6 shadow-lg border border-gray-700 min-h-[320px] lg:min-h-[400px] flex flex-col items-center">
+      <div className="text-lg sm:text-xl font-bold text-yellow-400 mb-3 sm:mb-4">
+        Chỉnh sửa / Ghi chú
+      </div>
       {selectedItemId && (
-        <div className="text-xs text-gray-400 mb-2 -mt-2 text-center">
+        <div className="text-xs text-gray-400 mb-2 -mt-2 text-center break-all">
           {getItemName(selectedItemId)}
         </div>
       )}
@@ -113,15 +115,15 @@ const OrdersStep3AlterationSection: React.FC<OrdersStep3AlterationSectionProps> 
           />
         )}
         <div
-          className="relative bg-gray-900 rounded-lg p-6 w-full max-w-xs mx-auto flex flex-col items-center border border-gray-700"
+          className="relative bg-gray-900 rounded-lg p-6 w-full max-w-xs mx-4 sm:mx-auto flex flex-col items-center border border-gray-700"
           onClick={(e) => e.stopPropagation()}
         >
           <Dialog.Title className="text-lg font-bold text-yellow-400 mb-2">
             Thêm ghi chú
           </Dialog.Title>
-          <input
-            type="text"
-            className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white mb-4"
+          <textarea
+            rows={3}
+            className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-600 text-white mb-4 resize-y"
             value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
             placeholder={
@@ -170,7 +172,9 @@ const OrdersStep3AlterationSection: React.FC<OrdersStep3AlterationSectionProps> 
                 className="accent-green-500 w-4 h-4"
               />
               <div className="flex-1">
-                <div className="text-xs text-gray-400 mb-0.5">{getItemName(note.itemId)}</div>
+                <div className="text-xs text-gray-400 mb-0.5 break-all">
+                  {getItemName(note.itemId)}
+                </div>
                 <div
                   className={`text-sm ${note.done ? 'line-through text-green-400' : 'text-white'}`}
                 >

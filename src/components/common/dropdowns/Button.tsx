@@ -35,15 +35,15 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white focus:ring-gray-500',
       danger:
         'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white focus:ring-red-500',
-    };
+    } as const;
 
     const sizes = {
       sm: 'px-3 py-1.5 text-sm',
       md: 'px-4 py-2 text-base',
       lg: 'px-6 py-3 text-lg',
-    };
+    } as const;
 
-    // Enhanced click handler for iOS compatibility
+    // Click handler
     const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
       if (disabled || isLoading) {
         e.preventDefault();
@@ -51,26 +51,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         return;
       }
 
-      // Call original onClick if provided
       if (props.onClick) {
         // Use setTimeout to ensure event processing completes on iOS
         setTimeout(() => {
           props.onClick?.(e);
         }, 0);
-      }
-    };
-
-    // Touch event handler for iOS devices
-    const handleTouchEnd = (e: React.TouchEvent<HTMLButtonElement>) => {
-      if (disabled || isLoading) {
-        e.preventDefault();
-        return;
-      }
-
-      // Trigger a proper click event for touch devices
-      if (props.onClick) {
-        // Create a proper synthetic mouse event
-        e.currentTarget.click();
       }
     };
 
@@ -89,13 +74,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           WebkitTouchCallout: 'none',
           WebkitUserSelect: 'none',
           touchAction: 'manipulation',
-          minHeight: '44px', // iOS recommended minimum touch target
+          minHeight: '44px',
           ...props.style,
         }}
         disabled={disabled || isLoading}
         {...props}
         onClick={handleClick}
-        onTouchEnd={handleTouchEnd}
       >
         {isLoading && (
           <svg

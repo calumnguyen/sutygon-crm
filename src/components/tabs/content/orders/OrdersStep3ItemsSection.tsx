@@ -91,7 +91,7 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
   }
 
   return (
-    <div className="flex-1 bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 min-h-[400px] flex flex-col gap-4">
+    <div className="flex-1 bg-gray-800 rounded-lg p-4 sm:p-6 shadow-lg border border-gray-700 min-h-[400px] flex flex-col gap-3 sm:gap-4">
       <OrderStep3AddItemInput
         value={logic.itemIdInput}
         onChange={logic.handleInputChange}
@@ -149,8 +149,8 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
       {/* Special Extension Item Section */}
       {extensionItem && (
         <div className="bg-gray-900 rounded-lg p-4 shadow-inner border border-gray-700 mt-2 w-full">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1">
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-4">
+            <div className="flex-1 min-w-[180px]">
               <div className="font-semibold text-white">{extensionItem.name}</div>
             </div>
             <div className="flex items-center gap-2">

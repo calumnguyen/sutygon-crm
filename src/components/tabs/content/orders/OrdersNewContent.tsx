@@ -132,7 +132,7 @@ const OrdersNewContent: React.FC<{ tabId: string }> = ({ tabId }) => {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 lg:p-6">
       {showSuccessBanner && (
         <div className="mb-6 px-6 py-4 rounded-lg bg-green-600 text-white text-lg font-semibold shadow-lg flex items-center justify-center border border-green-400">
           <div className="text-center">
@@ -143,16 +143,18 @@ const OrdersNewContent: React.FC<{ tabId: string }> = ({ tabId }) => {
           </div>
         </div>
       )}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">Thêm Đơn Mới</h1>
+      <div className="flex justify-between items-center mb-4 lg:mb-6">
+        <h1 className="text-xl lg:text-2xl font-bold text-white">Thêm Đơn Mới</h1>
       </div>
-      <div className="mb-4 text-gray-400 text-sm flex items-center gap-2">
+      <div className="mb-4 text-gray-400 text-xs lg:text-sm flex flex-wrap items-center gap-1 lg:gap-2">
         {steps.map((step, idx) => (
           <React.Fragment key={step}>
-            <span className={idx === currentStep ? 'text-blue-400 font-semibold' : 'text-gray-400'}>
+            <span
+              className={`${idx === currentStep ? 'text-blue-400 font-semibold' : 'text-gray-400'} whitespace-nowrap`}
+            >
               {step}
             </span>
-            {idx < steps.length - 1 && <span className="mx-1">&gt;</span>}
+            {idx < steps.length - 1 && <span className="mx-1 text-gray-500">&gt;</span>}
           </React.Fragment>
         ))}
       </div>
@@ -179,55 +181,92 @@ const OrdersNewContent: React.FC<{ tabId: string }> = ({ tabId }) => {
           setCreatedOrderId={setCreatedOrderId}
         />
       ) : (
-        <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden min-h-[200px] flex items-center gap-8 transition-all duration-500 justify-center">
-          {/* Step 1 & 2: original search and date picking UI (no compact rent date box) */}
-          <>
-            <div
-              className={`flex flex-col items-center gap-6 transition-all duration-500 ${currentStep === 1 ? 'translate-x-[-120px] opacity-80' : ''}`}
-              style={{ minWidth: 340 }}
-            >
-              <span className="text-lg text-white font-semibold transition-all duration-300">
-                {currentStep === 0 ? 'Nhập số điện thoại khách hàng' : 'Chọn ngày thuê đồ'}
-              </span>
-              {currentStep === 0 ? (
+        <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden min-h-[200px] flex flex-col lg:flex-row items-center gap-4 lg:gap-8 transition-all duration-500 justify-center p-4 lg:p-8">
+          {/* Step 1 & 2: Mobile-responsive search and date picking UI */}
+          <div
+            className={`flex flex-col items-center gap-4 lg:gap-6 transition-all duration-500 w-full lg:w-auto ${
+              currentStep === 1 ? 'lg:translate-x-[-120px] opacity-80' : ''
+            }`}
+            style={{ minWidth: 'auto', maxWidth: '100%' }}
+          >
+            <span className="text-base lg:text-lg text-white font-semibold transition-all duration-300 text-center px-2">
+              {currentStep === 0 ? 'Nhập số điện thoại khách hàng' : 'Chọn ngày thuê đồ'}
+            </span>
+            {currentStep === 0 ? (
+              <div className="w-full max-w-md flex flex-col sm:flex-row gap-2">
                 <input
-                  type="text"
+                  type="tel"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   value={formatPhoneNumber(phone)}
                   onChange={handlePhoneInput}
                   onKeyDown={handlePhoneEnter}
+                  onBlur={() => {
+                    // Auto-search when input loses focus on mobile (helpful for mobile users)
+                    if (phone && !searched && !searching) {
+                      handlePhoneEnter({
+                        key: 'Enter',
+                        preventDefault: () => {},
+                      } as React.KeyboardEvent<HTMLInputElement>);
+                    }
+                  }}
                   placeholder="Nhập số điện thoại"
-                  className="w-full max-w-md text-2xl px-6 py-4 rounded-lg bg-gray-900 border-2 border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 text-center text-white placeholder-gray-500"
+                  className="flex-1 text-xl lg:text-2xl px-4 lg:px-6 py-3 lg:py-4 rounded-lg bg-gray-900 border-2 border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 text-center text-white placeholder-gray-500"
                   disabled={searching}
+                  autoComplete="tel"
+                  enterKeyHint="search"
                 />
-              ) : (
-                <div className="flex items-center gap-2 w-full max-w-md relative">
-                  <input
-                    type="text"
-                    value={date}
-                    onChange={handleDateInput}
-                    placeholder="DD/MM/YYYY"
-                    maxLength={10}
-                    className={`w-full text-2xl px-6 py-4 rounded-lg bg-gray-900 border-2 ${
-                      date.length === 10
-                        ? validateDate(date)
-                          ? 'border-green-500'
-                          : 'border-red-500'
-                        : 'border-blue-500'
-                    } focus:outline-none focus:ring-2 focus:ring-blue-400 text-center text-white placeholder-gray-500`}
-                  />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (phone && !searching) {
+                      handlePhoneEnter({
+                        key: 'Enter',
+                        preventDefault: () => {},
+                      } as React.KeyboardEvent<HTMLInputElement>);
+                    }
+                  }}
+                  disabled={!phone || searching}
+                  className="px-4 py-3 lg:py-4 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium transition-colors whitespace-nowrap"
+                >
+                  {searching ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span className="hidden sm:inline">Tìm...</span>
+                    </div>
+                  ) : (
+                    <span>Tìm</span>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full max-w-md relative">
+                <input
+                  type="text"
+                  value={date}
+                  onChange={handleDateInput}
+                  placeholder="DD/MM/YYYY"
+                  maxLength={10}
+                  className={`w-full text-xl lg:text-2xl px-4 lg:px-6 py-3 lg:py-4 rounded-lg bg-gray-900 border-2 ${
+                    date.length === 10
+                      ? validateDate(date)
+                        ? 'border-green-500'
+                        : 'border-red-500'
+                      : 'border-blue-500'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-400 text-center text-white placeholder-gray-500`}
+                />
+                <div className="flex gap-2 w-full sm:w-auto">
                   <button
-                    className="p-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                    className="flex-1 sm:flex-none p-3 lg:p-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
                     title="Chọn ngày"
                     type="button"
                     onClick={() => setShowCalendarModal(true)}
                   >
-                    <Calendar className="w-6 h-6" />
+                    <Calendar className="w-5 h-5 lg:w-6 lg:h-6 mx-auto" />
                   </button>
                   <button
                     type="button"
-                    className="ml-2 px-3 py-2 rounded bg-gray-700 hover:bg-blue-600 text-white text-xs font-medium transition-colors"
+                    className="flex-1 sm:flex-none px-3 py-2 rounded bg-gray-700 hover:bg-blue-600 text-white text-xs font-medium transition-colors"
                     onClick={() => {
                       const today = new Date();
                       setDate(formatDateString(today));
@@ -236,56 +275,59 @@ const OrdersNewContent: React.FC<{ tabId: string }> = ({ tabId }) => {
                     Hôm nay
                   </button>
                 </div>
-              )}
-            </div>
-            {searched && customer && (
+              </div>
+            )}
+          </div>
+          {searched && customer && (
+            <div
+              className={`flex flex-col items-center gap-4 w-full lg:min-w-[320px] lg:max-w-[400px] transition-all duration-500 ${
+                currentStep === 0 ? 'animate-fade-in' : 'lg:translate-x-[120px]'
+              }`}
+            >
               <div
-                className={`flex flex-col items-center gap-4 min-w-[320px] transition-all duration-500 ${
-                  currentStep === 0 ? 'animate-fade-in' : 'translate-x-[120px]'
+                className={`bg-gray-900 rounded-lg p-4 lg:p-6 shadow-lg border border-gray-700 w-full ${
+                  currentStep === 0 ? 'cursor-pointer hover:bg-gray-800 transition-colors' : ''
                 }`}
+                onClick={currentStep === 0 ? handleCustomerSelect : undefined}
               >
-                <div
-                  className={`bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full ${
-                    currentStep === 0 ? 'cursor-pointer hover:bg-gray-800 transition-colors' : ''
-                  }`}
-                  onClick={currentStep === 0 ? handleCustomerSelect : undefined}
+                <div className="text-lg lg:text-xl font-bold text-blue-400 mb-2">Khách hàng</div>
+                <div className="text-white text-base lg:text-lg mb-1">
+                  Tên: <span className="font-semibold break-words">{customer.name}</span>
+                </div>
+                {customer.company && (
+                  <div className="text-gray-300 text-sm lg:text-base mb-1">
+                    Công ty: <span className="font-semibold break-words">{customer.company}</span>
+                  </div>
+                )}
+                <div className="text-gray-300 text-sm lg:text-base">
+                  Số điện thoại:{' '}
+                  <span className="font-mono break-all">{formatPhoneNumber(customer.phone)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {searched && !customer && currentStep === 0 && (
+            <div className="flex flex-col items-center gap-4 w-full lg:min-w-[320px] lg:max-w-[400px] animate-fade-in">
+              <div className="bg-gray-900 rounded-lg p-4 lg:p-6 shadow-lg border border-gray-700 w-full flex flex-col items-center">
+                <div className="text-lg lg:text-xl font-bold text-red-400 mb-2 text-center">
+                  Không tìm thấy khách hàng.
+                </div>
+                <div className="text-white text-sm lg:text-base mb-4 text-center">
+                  Thêm khách hàng mới cho số{' '}
+                  <span className="font-mono text-blue-400 break-all">
+                    {formatPhoneNumber(phone)}
+                  </span>
+                  ?
+                </div>
+                <button
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 lg:px-6 py-2 lg:py-3 rounded-lg transition text-base lg:text-lg w-full sm:w-auto"
+                  onClick={handleOpenAddModal}
                 >
-                  <div className="text-xl font-bold text-blue-400 mb-2">Khách hàng</div>
-                  <div className="text-white text-lg mb-1">
-                    Tên: <span className="font-semibold">{customer.name}</span>
-                  </div>
-                  {customer.company && (
-                    <div className="text-gray-300 text-base mb-1">
-                      Công ty: <span className="font-semibold">{customer.company}</span>
-                    </div>
-                  )}
-                  <div className="text-gray-300 text-base">
-                    Số điện thoại:{' '}
-                    <span className="font-mono">{formatPhoneNumber(customer.phone)}</span>
-                  </div>
-                </div>
+                  Thêm khách hàng này ngay
+                </button>
               </div>
-            )}
-            {searched && !customer && currentStep === 0 && (
-              <div className="flex flex-col items-center gap-4 min-w-[320px] animate-fade-in">
-                <div className="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 w-full flex flex-col items-center">
-                  <div className="text-xl font-bold text-red-400 mb-2">
-                    Không tìm thấy khách hàng.
-                  </div>
-                  <div className="text-white text-base mb-4">
-                    Thêm khách hàng mới cho số{' '}
-                    <span className="font-mono text-blue-400">{formatPhoneNumber(phone)}</span>?
-                  </div>
-                  <button
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition text-lg"
-                    onClick={handleOpenAddModal}
-                  >
-                    Thêm khách hàng này ngay
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
+            </div>
+          )}
         </div>
       )}
       {/* Add Customer Modal */}
