@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Button from '@/components/common/dropdowns/Button';
-import { Loader2, Trash2, Camera, Upload, X } from 'lucide-react';
+import { Trash2, Camera, Upload, X } from 'lucide-react';
 import Webcam from 'react-webcam';
 import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { parseTags } from './InventoryUtils';
@@ -599,12 +599,9 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
             type="button"
             className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
             disabled={isSaving || isDeleting}
+            isLoading={isDeleting}
+            leftIcon={!isDeleting ? <Trash2 className="w-4 h-4" /> : undefined}
           >
-            {isDeleting ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <Trash2 className="w-4 h-4 mr-2" />
-            )}
             {isDeleting ? 'Đang xoá...' : 'Xoá'}
           </Button>
 
@@ -647,6 +644,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
             <Button
               variant="primary"
               type="button"
+              isLoading={isSaving}
               disabled={
                 form.sizes.length < 1 ||
                 form.sizes.some((s) => !s.title.trim() || !s.quantity || !s.price) ||
@@ -656,7 +654,6 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
               onClick={handleSave}
               className="w-full sm:w-auto"
             >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
           )}
@@ -686,12 +683,9 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
                 onClick={handleDelete}
                 className="flex-1 bg-red-600 hover:bg-red-700"
                 disabled={isDeleting}
+                isLoading={isDeleting}
+                leftIcon={!isDeleting ? <Trash2 className="w-4 h-4" /> : undefined}
               >
-                {isDeleting ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <Trash2 className="w-4 h-4 mr-2" />
-                )}
                 {isDeleting ? 'Đang xoá...' : 'Xoá sản phẩm'}
               </Button>
             </div>
