@@ -305,12 +305,12 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
           const availableStock = invSize ? parseInt(invSize.onHand.toString(), 10) : 0;
           const showWarning = item.quantity > availableStock;
           const isSelected = selectedItemId === item.id;
-          const imageUrl =
-            inv &&
-            'imageUrl' in inv &&
-            typeof (inv as InventoryItem & { imageUrl?: string }).imageUrl === 'string'
-              ? ((inv as InventoryItem & { imageUrl?: string }).imageUrl as string)
-              : '/no-image.png';
+          const imageUrl = ((): string => {
+            const fromItem = (item as unknown as { imageUrl?: string | null }).imageUrl;
+            if (fromItem) return fromItem;
+            const fromInv = inv && (inv as unknown as { imageUrl?: string }).imageUrl;
+            return fromInv || '/no-image.png';
+          })();
           const invDisplayId = String(inv?.formattedId || inv?.id || item.id);
           return (
             <div

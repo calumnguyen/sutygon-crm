@@ -499,7 +499,8 @@ export function useOrderStep3ItemsLogic(
   function addItemToOrder(
     item: { id: string; name: string; sizes: ItemSize[] },
     sizeTitle: string,
-    price: number
+    price: number,
+    imageUrl?: string
   ) {
     setOrderItems((prev: OrderItem[]) => {
       const key = `${item.id}-${sizeTitle}`;
@@ -518,6 +519,11 @@ export function useOrderStep3ItemsLogic(
               ...i,
               quantity: newQty,
               inventoryItemId: typeof inv?.id === 'number' ? inv.id : i.inventoryItemId,
+              imageUrl:
+                (inv && (inv as unknown as { imageUrl?: string }).imageUrl) ||
+                i.imageUrl ||
+                imageUrl ||
+                null,
               isCustom: !inv,
               warning: newQty > onHand ? 'Cảnh báo: vượt quá số lượng tồn kho' : undefined,
             };
@@ -540,6 +546,10 @@ export function useOrderStep3ItemsLogic(
           quantity: 1,
           price,
           inventoryItemId: typeof inventoryItem?.id === 'number' ? inventoryItem.id : null,
+          imageUrl:
+            (inventoryItem && (inventoryItem as unknown as { imageUrl?: string }).imageUrl) ||
+            imageUrl ||
+            null,
           isCustom: !inventoryItem, // Only custom if no inventory item found
           warning: 1 > onHand ? 'Cảnh báo: vượt quá số lượng tồn kho' : undefined,
         },
@@ -611,7 +621,8 @@ export function useOrderStep3ItemsLogic(
           sizes: item.sizes.map((s) => ({ size: s.title, price: s.price })),
         },
         onlySize.title,
-        onlySize.price
+        onlySize.price,
+        item.imageUrl
       );
     } else {
       setPendingItem({

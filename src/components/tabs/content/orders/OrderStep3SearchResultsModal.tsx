@@ -81,9 +81,9 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
                       <div className="font-semibold text-white truncate">{item.name}</div>
                       <div className="text-sm text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-blue-300">{item.formattedId}</span>
-                        {item.tags.slice(0, 4).map((tag: string) => (
+                        {item.tags.slice(0, 4).map((tag: string, idx: number) => (
                           <span
-                            key={tag}
+                            key={`${item.id}-${tag}-${idx}`}
                             className="px-2 py-0.5 rounded bg-gray-700 text-gray-200 text-xs"
                           >
                             {tag}
@@ -161,9 +161,9 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
               <div className="w-full text-center mt-3 text-xs text-gray-300">
                 <div className="font-mono text-blue-300">{previewItem.formattedId}</div>
                 <div className="mt-2 flex flex-wrap gap-2 justify-center">
-                  {previewItem.tags?.map((tag) => (
+                  {previewItem.tags?.map((tag, idx) => (
                     <span
-                      key={tag}
+                      key={`${previewItem.id}-${tag}-${idx}`}
                       className="px-2 py-0.5 rounded bg-gray-800 text-gray-200 text-xs"
                     >
                       {tag}

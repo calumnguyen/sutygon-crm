@@ -12,6 +12,7 @@ export interface OrderItem {
   quantity: number;
   price: number;
   inventoryItemId?: number | null;
+  imageUrl?: string | null;
   isExtension?: boolean;
   extraDays?: number;
   feeType?: 'vnd' | 'percent';
