@@ -20,7 +20,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch }) => {
         <div className="flex items-center">
           <Logo />
           <h1 className="ml-2 sm:ml-8 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600 font-bold text-xl sm:text-2xl font-sans">
-            Sutygon CRM
+            SUTYGON CRM
           </h1>
         </div>
         <div className="flex-1 w-full sm:max-w-2xl sm:mx-4 order-3 sm:order-2">

@@ -99,7 +99,7 @@ export default function LoginPage() {
       <div className="relative z-10 flex flex-col items-center w-full max-w-sm px-6 py-10 bg-gray-900/80 rounded-2xl shadow-2xl border border-gray-700 backdrop-blur-md">
         <Logo />
         <h1 className="text-2xl sm:text-3xl font-bold mt-6 mb-2 text-center bg-gradient-to-r from-blue-400 to-pink-500 bg-clip-text text-transparent drop-shadow">
-          Sutygon CRM
+          SUTYGON CRM
         </h1>
         <h2 className="text-lg sm:text-xl font-semibold mb-6 text-center text-white/90">
           Xin Chào Bạn
