@@ -168,9 +168,6 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
       return;
     }
 
-    // Set loading state immediately
-    setIsSaving(true);
-
     try {
       const tags = form.tagsInput
         .split(',')
@@ -217,8 +214,6 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
     } catch (error) {
       console.error('Save error:', error);
       alert('Có lỗi xảy ra khi lưu thay đổi. Vui lòng thử lại.');
-    } finally {
-      setIsSaving(false);
     }
   };
 
