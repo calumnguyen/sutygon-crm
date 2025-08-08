@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { inventoryItems, inventorySizes, inventoryTags, tags } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import {
   encryptInventoryData,
   encryptInventorySizeData,
@@ -120,56 +120,35 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         tagIds.push(tag.id);
       }
 
-      // Insert into inventory_tags with conflict resolution
+      // Insert into inventory_tags using PostgreSQL UPSERT to handle conflicts gracefully
       if (tagIds.length > 0) {
-        // Use multiple attempts with different strategies to handle race conditions
-        let insertSuccess = false;
-        let attempts = 0;
-        const maxAttempts = 3;
+        try {
+          // Use raw SQL for ON CONFLICT DO NOTHING since Drizzle doesn't fully support it yet
+          const values = tagIds.map((tagId) => `(${itemId}, ${tagId})`).join(', ');
+          const insertQuery = `
+            INSERT INTO inventory_tags (item_id, tag_id) 
+            VALUES ${values} 
+            ON CONFLICT (item_id, tag_id) DO NOTHING
+          `;
 
-        while (!insertSuccess && attempts < maxAttempts) {
-          attempts++;
-          try {
-            // Try to insert the tags
-            await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId, tagId })));
-            insertSuccess = true;
-          } catch (error: unknown) {
-            if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-              console.log(
-                `Race condition detected for inventory_tags (attempt ${attempts}), handling...`
-              );
+          await db.execute(sql.raw(insertQuery));
+          console.log(
+            `[Inventory Update] Successfully upserted ${tagIds.length} tags for item ${itemId}`
+          );
+        } catch (error: unknown) {
+          // Fallback to the old delete-insert method if the raw SQL approach fails
+          console.log(
+            '[Inventory Update] UPSERT failed, falling back to delete-insert approach...'
+          );
 
-              if (attempts < maxAttempts) {
-                // Delete all existing tags for this item and retry
-                await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
+          // Delete existing tags for this item
+          await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
 
-                // Add a small delay to reduce race condition likelihood
-                await new Promise((resolve) => setTimeout(resolve, 50 * attempts));
-              } else {
-                // Final attempt: verify what tags already exist and only insert missing ones
-                console.log(
-                  'Final attempt: checking existing tags and inserting only missing ones...'
-                );
-
-                const existingTags = await db
-                  .select()
-                  .from(inventoryTags)
-                  .where(eq(inventoryTags.itemId, itemId));
-
-                const existingTagIds = existingTags.map((t) => t.tagId);
-                const missingTagIds = tagIds.filter((tagId) => !existingTagIds.includes(tagId));
-
-                if (missingTagIds.length > 0) {
-                  await db
-                    .insert(inventoryTags)
-                    .values(missingTagIds.map((tagId) => ({ itemId, tagId })));
-                }
-                insertSuccess = true;
-              }
-            } else {
-              throw error; // Re-throw other errors
-            }
-          }
+          // Re-insert the tags
+          await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId, tagId })));
+          console.log(
+            `[Inventory Update] Fallback: Successfully inserted ${tagIds.length} tags for item ${itemId}`
+          );
         }
       }
     }

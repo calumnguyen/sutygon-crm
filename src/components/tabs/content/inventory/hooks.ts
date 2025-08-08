@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { InventoryItem, AddItemFormState } from '@/types/inventory';
 import { useUser } from '@/context/UserContext';
 
@@ -280,6 +280,9 @@ export function useInventoryModals(
   const [isDeleting, setIsDeleting] = useState(false);
   const [form, setForm] = useState<AddItemFormState>(initialForm);
 
+  // Request deduplication - prevent multiple simultaneous save requests
+  const saveRequestInProgress = useRef<Set<number>>(new Set());
+
   // Lightning mode state
   const [lightningMode, setLightningMode] = useState(false);
   const [heldTags, setHeldTags] = useState<string[]>([]);
@@ -459,8 +462,19 @@ export function useInventoryModals(
     sizes: Array<{ title: string; quantity: number; onHand: number; price: number }>;
     imageUrl?: string;
   }) => {
+    // Prevent multiple simultaneous requests for the same item
+    if (saveRequestInProgress.current.has(updatedItem.id)) {
+      console.log(
+        `[Client] Request already in progress for item ${updatedItem.id}, ignoring duplicate`
+      );
+      return;
+    }
+
     try {
       setIsSaving(true);
+      saveRequestInProgress.current.add(updatedItem.id);
+
+      console.log(`[Client] Starting save request for item ${updatedItem.id}`);
 
       const response = await fetch(`/api/inventory/${updatedItem.id}`, {
         method: 'PUT',
@@ -480,6 +494,7 @@ export function useInventoryModals(
         throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
 
+      console.log(`[Client] Successfully saved item ${updatedItem.id}`);
       refreshInventory();
       setEditModalOpen(false);
       setSelectedItem(null);
@@ -488,6 +503,7 @@ export function useInventoryModals(
       alert(`Lỗi khi lưu thay đổi: ${error}`);
     } finally {
       setIsSaving(false);
+      saveRequestInProgress.current.delete(updatedItem.id);
     }
   };
 
