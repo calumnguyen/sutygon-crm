@@ -117,7 +117,7 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
         items={logic.currentItems}
         totalPages={logic.totalPages}
         currentPage={logic.currentPage}
-        loading={inventoryLoading}
+        loading={logic.searching}
         onClose={() => logic.setShowSearchResults(false)}
         onItemClick={logic.handleSearchResultClick}
         onPrevPage={() => logic.setCurrentPage((p) => Math.max(1, p - 1))}
