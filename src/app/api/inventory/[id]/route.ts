@@ -19,6 +19,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const body = await request.json();
     const { name, category, tags: tagNames, sizes, imageUrl } = body;
+    console.log(
+      `[Inventory Update] Starting update for item ${itemId} with ${tagNames?.length || 0} tags`
+    );
 
     // Encrypt inventory data before storing
     const encryptedInventoryData = encryptInventoryData({
@@ -58,20 +61,33 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       );
 
-      try {
-        await db.insert(inventorySizes).values(encryptedSizes);
-      } catch (error: unknown) {
-        // If duplicate key error (race condition), delete old sizes again and retry
-        if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-          console.log('Race condition detected for inventory_sizes, cleaning up and retrying...');
+      // Insert sizes with robust race condition handling
+      let sizesInsertSuccess = false;
+      let sizesAttempts = 0;
+      const maxSizesAttempts = 2;
 
-          // Delete old inventory_sizes again (another request might have added some)
-          await db.delete(inventorySizes).where(eq(inventorySizes.itemId, itemId));
-
-          // Retry the insert
+      while (!sizesInsertSuccess && sizesAttempts < maxSizesAttempts) {
+        sizesAttempts++;
+        try {
           await db.insert(inventorySizes).values(encryptedSizes);
-        } else {
-          throw error; // Re-throw other errors
+          sizesInsertSuccess = true;
+        } catch (error: unknown) {
+          if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+            console.log(
+              `Race condition detected for inventory_sizes (attempt ${sizesAttempts}), cleaning up and retrying...`
+            );
+
+            // Delete old inventory_sizes again (another request might have added some)
+            await db.delete(inventorySizes).where(eq(inventorySizes.itemId, itemId));
+
+            if (sizesAttempts >= maxSizesAttempts) {
+              // Final attempt
+              await db.insert(inventorySizes).values(encryptedSizes);
+              sizesInsertSuccess = true;
+            }
+          } else {
+            throw error; // Re-throw other errors
+          }
         }
       }
     }
@@ -106,20 +122,53 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       // Insert into inventory_tags with conflict resolution
       if (tagIds.length > 0) {
-        try {
-          await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId, tagId })));
-        } catch (error: unknown) {
-          // If duplicate key error (race condition), delete old ones again and retry
-          if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-            console.log('Race condition detected for inventory_tags, cleaning up and retrying...');
+        // Use multiple attempts with different strategies to handle race conditions
+        let insertSuccess = false;
+        let attempts = 0;
+        const maxAttempts = 3;
 
-            // Delete old inventory_tags again (another request might have added some)
-            await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
-
-            // Retry the insert
+        while (!insertSuccess && attempts < maxAttempts) {
+          attempts++;
+          try {
+            // Try to insert the tags
             await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId, tagId })));
-          } else {
-            throw error; // Re-throw other errors
+            insertSuccess = true;
+          } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+              console.log(
+                `Race condition detected for inventory_tags (attempt ${attempts}), handling...`
+              );
+
+              if (attempts < maxAttempts) {
+                // Delete all existing tags for this item and retry
+                await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
+
+                // Add a small delay to reduce race condition likelihood
+                await new Promise((resolve) => setTimeout(resolve, 50 * attempts));
+              } else {
+                // Final attempt: verify what tags already exist and only insert missing ones
+                console.log(
+                  'Final attempt: checking existing tags and inserting only missing ones...'
+                );
+
+                const existingTags = await db
+                  .select()
+                  .from(inventoryTags)
+                  .where(eq(inventoryTags.itemId, itemId));
+
+                const existingTagIds = existingTags.map((t) => t.tagId);
+                const missingTagIds = tagIds.filter((tagId) => !existingTagIds.includes(tagId));
+
+                if (missingTagIds.length > 0) {
+                  await db
+                    .insert(inventoryTags)
+                    .values(missingTagIds.map((tagId) => ({ itemId, tagId })));
+                }
+                insertSuccess = true;
+              }
+            } else {
+              throw error; // Re-throw other errors
+            }
           }
         }
       }
@@ -130,6 +179,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       console.error('Elasticsearch sync failed for updated item:', error);
     });
 
+    console.log(`[Inventory Update] Successfully updated item ${itemId}`);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Update inventory error:', error);
