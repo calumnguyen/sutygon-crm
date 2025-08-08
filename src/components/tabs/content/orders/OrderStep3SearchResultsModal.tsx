@@ -44,15 +44,8 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
           ×
         </button>
         <div className="text-xl font-bold text-blue-400 mb-4">Kết quả tìm kiếm</div>
-        <div className="max-h-[60vh] overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="flex items-center space-x-2 text-blue-400">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
-                <span>Đang tìm kiếm...</span>
-              </div>
-            </div>
-          ) : items.length === 0 ? (
+        <div className="relative max-h-[60vh] overflow-y-auto">
+          {items.length === 0 ? (
             <div className="flex items-center justify-center py-8 text-gray-400">
               Không tìm thấy sản phẩm nào
             </div>
@@ -106,6 +99,14 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
               </div>
             ))
           )}
+          {loading && (
+            <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+              <div className="flex items-center space-x-2 text-blue-400">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
+                <span>Đang tải...</span>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center justify-between mt-4">
           <button
@@ -144,7 +145,7 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
               >
                 ×
               </button>
-              <div className="text-lg sm:text-xl font-bold text-white mb-3 text-center truncate w-full">
+              <div className="text-lg sm:text-xl font-bold text-white mb-3 text-center w-full break-words">
                 {previewItem.name}
               </div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -159,7 +160,16 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
               />
               <div className="w-full text-center mt-3 text-xs text-gray-300">
                 <div className="font-mono text-blue-300">{previewItem.formattedId}</div>
-                <div className="mt-1">{previewItem.category}</div>
+                <div className="mt-2 flex flex-wrap gap-2 justify-center">
+                  {previewItem.tags?.map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-2 py-0.5 rounded bg-gray-800 text-gray-200 text-xs"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
