@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { InventoryItem } from '@/types/inventory';
 
 interface OrderStep3SearchResultsModalProps {
@@ -24,9 +24,14 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
   onPrevPage,
   onNextPage,
 }) => {
+  const [previewItem, setPreviewItem] = useState<InventoryItem | null>(null);
+
   if (!show) return null;
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
       <div
         className="bg-gray-900 rounded-xl p-6 w-full max-w-2xl shadow-2xl border border-gray-700 relative"
         onClick={(e) => e.stopPropagation()}
@@ -53,55 +58,110 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
             </div>
           ) : (
             items.map((item) => (
-              <button
+              <div
                 key={item.id}
                 className="w-full p-4 bg-gray-800 hover:bg-gray-700 rounded-lg mb-2 text-left transition-colors"
-                onClick={() => onItemClick(item)}
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-white">{item.name}</div>
-                    <div className="text-sm text-gray-400 mt-1">
-                      <span className="font-mono text-blue-300">{item.formattedId}</span>
-                      {item.tags.length > 0 && (
-                        <span className="ml-2">
-                          {item.tags.map((tag: string) => (
-                            <span
-                              key={tag}
-                              className="bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded-full mr-1"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </span>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      type="button"
+                      className="w-14 h-14 rounded-md overflow-hidden bg-gray-700 flex items-center justify-center shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewItem(item);
+                      }}
+                      title="Xem ảnh lớn"
+                    >
+                      {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-gray-400 text-xs">No Image</div>
                       )}
-                    </div>
+                    </button>
+                    <button className="min-w-0 text-left" onClick={() => onItemClick(item)}>
+                      <div className="font-semibold text-white truncate">{item.name}</div>
+                      <div className="text-sm text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-blue-300">{item.formattedId}</span>
+                        {item.tags.slice(0, 4).map((tag: string) => (
+                          <span
+                            key={tag}
+                            className="px-2 py-0.5 rounded bg-gray-700 text-gray-200 text-xs"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </button>
                   </div>
-                  <div className="text-sm text-gray-400">{item.sizes.length} size</div>
+                  <div className="text-gray-400 whitespace-nowrap">
+                    {item.sizes?.length || 0} size
+                  </div>
                 </div>
-              </button>
+              </div>
             ))
           )}
         </div>
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-2 mt-4 pt-4 border-t border-gray-700">
-            <button
-              className="px-3 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={onPrevPage}
-              disabled={currentPage === 1}
+        <div className="flex items-center justify-between mt-4">
+          <button
+            className="px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm disabled:opacity-50"
+            onClick={onPrevPage}
+            disabled={currentPage <= 1}
+          >
+            Trang trước
+          </button>
+          <div className="text-gray-300 text-sm">
+            Trang {currentPage} / {totalPages}
+          </div>
+          <button
+            className="px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm disabled:opacity-50"
+            onClick={onNextPage}
+            disabled={currentPage >= totalPages}
+          >
+            Trang sau
+          </button>
+        </div>
+
+        {/* Preview Modal */}
+        {previewItem && (
+          <div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+            onClick={() => setPreviewItem(null)}
+          >
+            <div
+              className="bg-gray-900 rounded-xl p-4 sm:p-6 w-full max-w-lg shadow-2xl border border-gray-700 flex flex-col items-center max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
             >
-              Trước
-            </button>
-            <span className="text-gray-400">
-              Trang {currentPage} / {totalPages}
-            </span>
-            <button
-              className="px-3 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={onNextPage}
-              disabled={currentPage === totalPages}
-            >
-              Sau
-            </button>
+              <button
+                className="self-end text-gray-400 hover:text-white text-2xl"
+                onClick={() => setPreviewItem(null)}
+                aria-label="Đóng"
+              >
+                ×
+              </button>
+              <div className="text-lg sm:text-xl font-bold text-white mb-3 text-center truncate w-full">
+                {previewItem.name}
+              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewItem.imageUrl || '/no-image.png'}
+                alt={previewItem.name}
+                className="w-full h-80 object-contain rounded-lg bg-gray-700 border border-gray-800"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/no-image.png';
+                }}
+              />
+              <div className="w-full text-center mt-3 text-xs text-gray-300">
+                <div className="font-mono text-blue-300">{previewItem.formattedId}</div>
+                <div className="mt-1">{previewItem.category}</div>
+              </div>
+            </div>
           </div>
         )}
       </div>

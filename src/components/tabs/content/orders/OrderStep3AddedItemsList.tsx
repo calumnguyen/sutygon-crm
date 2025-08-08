@@ -158,6 +158,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
     originalOnHand: 0,
     isLoading: false,
   });
+  const [preview, setPreview] = useState<{ url: string; title: string; id?: string } | null>(null);
 
   const fetchOriginalOnHand = async (inventoryItemId: number, size: string) => {
     try {
@@ -194,10 +195,8 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
   const handleShowImpact = async (item: OrderItem) => {
     if (!item.inventoryItemId) return;
 
-    // Get original on-hand quantity from database (not calculated)
     const originalOnHand = await fetchOriginalOnHand(item.inventoryItemId, item.size);
 
-    // Open modal immediately
     setImpactModal({
       isOpen: true,
       overlappingOrders: [],
@@ -207,7 +206,6 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
       isLoading: true,
     });
 
-    // Fetch data in background
     const overlappingOrders = await fetchOverlappingOrders(item.inventoryItemId, item.size);
     setImpactModal((prev) => ({ ...prev, overlappingOrders, isLoading: false }));
   };
@@ -222,54 +220,74 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
             return (
               <div
                 key={customKey}
-                className={`grid grid-cols-2 sm:flex sm:items-center sm:justify-between gap-2 sm:gap-4 py-3 cursor-pointer rounded ${isSelected ? 'bg-gray-800' : 'bg-gray-900'}`}
+                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 py-3 cursor-pointer rounded ${isSelected ? 'bg-gray-800' : 'bg-gray-900'}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onItemClick({ ...item, id: customKey });
                 }}
               >
-                <div className="col-span-2 sm:flex-1">
-                  <div className="font-semibold text-white break-words">{item.name}</div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-gray-400">Tùy chỉnh</span>
+                <div className="flex items-start gap-3 min-w-0 w-full sm:flex-1">
+                  <button
+                    type="button"
+                    className="w-12 h-12 rounded-md bg-gray-700 overflow-hidden shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPreview({ url: '/no-image.png', title: item.name, id: customKey });
+                    }}
+                    title="Xem ảnh lớn"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={'/no-image.png'}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-white truncate">{item.name}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-400">Tùy chỉnh</span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 justify-self-end">
-                  <button
-                    type="button"
-                    className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onQuantityChange(customKey, -1);
-                    }}
-                    aria-label="Giảm số lượng"
-                  >
-                    <span className="text-lg">-</span>
-                  </button>
-                  <span className="w-8 text-center font-bold text-white select-none">
-                    {item.quantity}
-                  </span>
-                  <button
-                    type="button"
-                    className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onQuantityChange(customKey, 1);
-                    }}
-                    aria-label="Tăng số lượng"
-                  >
-                    <span className="text-lg">+</span>
-                  </button>
-                  <span className="text-sm text-gray-400">x</span>
-                </div>
-                <div className="font-bold text-green-400 text-right sm:min-w-[90px]">
-                  {item.price.toLocaleString('vi-VN')}₫
+                <div className="mt-2 sm:mt-0 w-full sm:w-auto flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onQuantityChange(customKey, -1);
+                      }}
+                      aria-label="Giảm số lượng"
+                    >
+                      <span className="text-lg">-</span>
+                    </button>
+                    <span className="w-8 text-center font-bold text-white select-none">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onQuantityChange(customKey, 1);
+                      }}
+                      aria-label="Tăng số lượng"
+                    >
+                      <span className="text-lg">+</span>
+                    </button>
+                    <span className="text-sm text-gray-400">x</span>
+                  </div>
+                  <div className="font-bold text-green-400 text-right sm:min-w-[90px]">
+                    {item.price.toLocaleString('vi-VN')}₫
+                  </div>
                 </div>
               </div>
             );
           }
 
-          let inv = null as InventoryItem | null;
+          let inv: InventoryItem | null = null;
           if (item.inventoryItemId && typeof item.inventoryItemId === 'number') {
             inv =
               inventory.find(
@@ -287,6 +305,13 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
           const availableStock = invSize ? parseInt(invSize.onHand.toString(), 10) : 0;
           const showWarning = item.quantity > availableStock;
           const isSelected = selectedItemId === item.id;
+          const imageUrl =
+            inv &&
+            'imageUrl' in inv &&
+            typeof (inv as InventoryItem & { imageUrl?: string }).imageUrl === 'string'
+              ? ((inv as InventoryItem & { imageUrl?: string }).imageUrl as string)
+              : '/no-image.png';
+          const invDisplayId = String(inv?.formattedId || inv?.id || item.id);
           return (
             <div
               key={`${item.id}-${index}`}
@@ -296,68 +321,84 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                 onItemClick(item);
               }}
             >
-              <div className="col-span-2 sm:flex-1">
-                <div className="font-semibold text-white break-words">{item.name}</div>
-                <div className="flex items-center gap-2 mt-1 pr-2">
-                  <span className="text-xs font-mono text-blue-300 bg-gray-800 rounded px-2 py-0.5 break-all">
-                    {item.id}
-                  </span>
-                  <span className="text-xs text-gray-400">
-                    Size: <span className="font-bold">{item.size}</span>
-                  </span>
-                  <span className="text-xs text-gray-400 ml-2 flex items-center gap-1">
-                    Tồn kho: <span className="font-bold text-yellow-300">{availableStock}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleShowImpact(item);
-                      }}
-                      className="w-4 h-4 rounded-full bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold flex items-center justify-center transition-colors ml-1"
-                      title="Xem tác động đến tồn kho"
-                    >
-                      ?
-                    </button>
-                  </span>
-                </div>
-                {showWarning && (
-                  <div className="mt-1">
-                    <span className="text-xs font-bold text-red-500 bg-red-100 bg-opacity-10 px-2 py-0.5 rounded">
-                      Cảnh báo: vượt quá số lượng tồn kho
+              <div className="col-span-2 sm:flex-1 flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  className="w-12 h-12 rounded overflow-hidden bg-gray-700 shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPreview({ url: imageUrl, title: item.name, id: invDisplayId });
+                  }}
+                  title="Xem ảnh lớn"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                </button>
+                <div className="min-w-0">
+                  <div className="font-semibold text-white break-words">{item.name}</div>
+                  <div className="flex items-center gap-2 mt-1 pr-2">
+                    <span className="text-xs font-mono text-blue-300 bg-gray-800 rounded px-2 py-0.5 break-all">
+                      {item.id}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      Size: <span className="font-bold">{item.size}</span>
+                    </span>
+                    <span className="text-xs text-gray-400 ml-2 flex items-center gap-1">
+                      Tồn kho: <span className="font-bold text-yellow-300">{availableStock}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleShowImpact(item);
+                        }}
+                        className="w-4 h-4 rounded-full bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold flex items-center justify-center transition-colors ml-1"
+                        title="Xem tác động đến tồn kho"
+                      >
+                        ?
+                      </button>
                     </span>
                   </div>
-                )}
+                  {showWarning && (
+                    <div className="mt-1">
+                      <span className="text-xs font-bold text-red-500 bg-red-100 bg-opacity-10 px-2 py-0.5 rounded">
+                        Cảnh báo: vượt quá số lượng tồn kho
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2 justify-self-end">
-                <button
-                  type="button"
-                  className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onQuantityChange(item.id, -1);
-                  }}
-                  aria-label="Giảm số lượng"
-                >
-                  <span className="text-lg">-</span>
-                </button>
-                <span className="w-8 text-center font-bold text-white select-none">
-                  {item.quantity}
-                </span>
-                <button
-                  type="button"
-                  className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onQuantityChange(item.id, 1);
-                  }}
-                  aria-label="Tăng số lượng"
-                >
-                  <span className="text-lg">+</span>
-                </button>
-                <span className="text-sm text-gray-400">x</span>
-              </div>
-              <div className="font-bold text-green-400 text-right sm:min-w-[90px]">
-                {item.price.toLocaleString('vi-VN')}₫
+              <div className="mt-2 sm:mt-0 w-full sm:w-auto flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onQuantityChange(item.id, -1);
+                    }}
+                    aria-label="Giảm số lượng"
+                  >
+                    <span className="text-lg">-</span>
+                  </button>
+                  <span className="w-8 text-center font-bold text-white select-none">
+                    {item.quantity}
+                  </span>
+                  <button
+                    type="button"
+                    className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onQuantityChange(item.id, 1);
+                    }}
+                    aria-label="Tăng số lượng"
+                  >
+                    <span className="text-lg">+</span>
+                  </button>
+                  <span className="text-sm text-gray-400">x</span>
+                </div>
+                <div className="font-bold text-green-400 min-w-[90px] text-right">
+                  {item.price.toLocaleString('vi-VN')}₫
+                </div>
               </div>
             </div>
           );
@@ -384,6 +425,42 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
         originalOnHand={impactModal.originalOnHand}
         isLoading={impactModal.isLoading}
       />
+
+      {preview && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-xl p-4 sm:p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="float-right text-gray-400 hover:text-white text-2xl"
+              onClick={() => setPreview(null)}
+              aria-label="Đóng"
+            >
+              ×
+            </button>
+            <div className="text-lg sm:text-xl font-bold text-white mb-3 text-center truncate">
+              {preview.title}
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview.url}
+              alt={preview.title}
+              className="w-full h-80 object-contain rounded bg-gray-700 border border-gray-800"
+              onError={(e) => {
+                const t = e.target as HTMLImageElement;
+                t.src = '/no-image.png';
+              }}
+            />
+            {preview.id && (
+              <div className="mt-2 text-center text-xs text-blue-300 font-mono">{preview.id}</div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 };

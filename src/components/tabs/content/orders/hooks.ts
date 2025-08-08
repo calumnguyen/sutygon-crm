@@ -244,6 +244,14 @@ export function useOrderStep3ItemsLogic(
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
 
+  // Server-side search state (Elasticsearch)
+  const [serverTotalPages, setServerTotalPages] = useState<number | null>(null);
+  const [serverQuery, setServerQuery] = useState<string>('');
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Use server search when inventory is large
+  const useServerSearch = inventory.length >= 800;
+
   const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const isItemId = (input: string) => /^[A-Za-z]+-?\d{6}/.test(input.trim());
 
@@ -260,46 +268,63 @@ export function useOrderStep3ItemsLogic(
     if (!query.trim()) {
       setSearchResults([]);
       setShowSearchResults(false);
+      setServerTotalPages(null);
+      setServerQuery('');
       return;
     }
 
-    // Use client-side search for better performance
+    // Server-side (Elasticsearch) for large inventory
+    if (useServerSearch) {
+      try {
+        setIsSearching(true);
+        setCurrentPage(1);
+        setServerQuery(query);
+        const url = `/api/inventory/search-elastic?q=${encodeURIComponent(
+          query
+        )}&mode=auto&page=1&limit=${ITEMS_PER_PAGE}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Tìm kiếm thất bại');
+        const data = await res.json();
+        setSearchResults(data.items || []);
+        setServerTotalPages(Number(data.totalPages || 1));
+        setShowSearchResults(true);
+      } catch (err) {
+        console.error('Server search error', err);
+        setSearchResults([]);
+        setServerTotalPages(null);
+        setShowSearchResults(false);
+        setAddError('Không tìm thấy sản phẩm phù hợp');
+      } finally {
+        setIsSearching(false);
+      }
+      return;
+    }
+
+    // Client-side search for small inventory sizes
     const searchQuery = query.toLowerCase().trim();
     const normalizedQuery = normalizeVietnamese(searchQuery);
     const queryWords = normalizedQuery.split(/\s+/).filter((word: string) => word.length > 0);
 
     const results = inventory.filter((item) => {
-      // Check for ID match first (fastest)
       if (isItemId(searchQuery)) {
         const itemId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
         const searchId = searchQuery.replace(/-/g, '').toUpperCase();
         return itemId.startsWith(searchId);
       }
-
-      // Normalize item data for comparison
       const normalizedName = normalizeVietnamese(item.name);
       const normalizedCategory = normalizeVietnamese(item.category);
-
-      // Check if all query words are in name or category
       const nameMatch = queryWords.every((word: string) => normalizedName.includes(word));
       const categoryMatch = queryWords.every((word: string) => normalizedCategory.includes(word));
-
-      // Also check exact matches for better results
       const exactNameMatch = item.name.toLowerCase().includes(searchQuery);
       const exactCategoryMatch = item.category.toLowerCase().includes(searchQuery);
-
-      // Check tags - look for any query word in any tag
       const tagMatch = item.tags.some((tag) => {
         const normalizedTag = normalizeVietnamese(tag);
         return queryWords.some((word: string) => normalizedTag.includes(word));
       });
-
-      // Also check if any tag contains the full search query
       const fullTagMatch = item.tags.some((tag) => {
         const normalizedTag = normalizeVietnamese(tag);
         return normalizedTag.includes(normalizedQuery);
       });
-
       return (
         nameMatch ||
         categoryMatch ||
@@ -310,37 +335,30 @@ export function useOrderStep3ItemsLogic(
       );
     });
 
-    // Sort results by relevance
     const resultsWithScore = results
       .map((item) => {
         let score = 0;
         const itemId = (item.formattedId || '').toLowerCase();
         const itemName = item.name.toLowerCase();
         const itemCategory = item.category.toLowerCase();
-
-        // Exact matches get higher scores
         if (itemId.includes(searchQuery)) score += 10;
         if (itemName.includes(searchQuery)) score += 8;
         if (itemCategory.includes(searchQuery)) score += 6;
-
-        // Tag matches
         const tagMatches = item.tags.filter((tag) => {
           const normalizedTag = normalizeVietnamese(tag);
           return queryWords.some((word: string) => normalizedTag.includes(word));
         }).length;
-        score += tagMatches * 4; // Each matching tag adds 4 points
-
-        // Partial word matches in name and category
+        score += tagMatches * 4;
         queryWords.forEach((word: string) => {
           if (itemName.includes(word)) score += 2;
           if (itemCategory.includes(word)) score += 1;
         });
-
         return { ...item, matchCount: score };
       })
       .sort((a, b) => b.matchCount - a.matchCount);
 
     setSearchResults(resultsWithScore);
+    setServerTotalPages(null);
 
     if (resultsWithScore.length === 0) {
       setAddError('Không tìm thấy sản phẩm nào phù hợp với tên này');
@@ -606,10 +624,32 @@ export function useOrderStep3ItemsLogic(
     }
   };
 
-  const totalPages = Math.ceil(searchResults.length / ITEMS_PER_PAGE);
+  // When using server search, fetch next/prev pages
+  useEffect(() => {
+    const fetchPage = async () => {
+      if (!useServerSearch || !serverQuery.trim()) return;
+      try {
+        setIsSearching(true);
+        const url = `/api/inventory/search-elastic?q=${encodeURIComponent(
+          serverQuery
+        )}&mode=auto&page=${currentPage}&limit=${ITEMS_PER_PAGE}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        setSearchResults(data.items || []);
+        setServerTotalPages(Number(data.totalPages || 1));
+      } finally {
+        setIsSearching(false);
+      }
+    };
+    fetchPage();
+  }, [currentPage, serverQuery, useServerSearch]);
+
+  const localTotalPages = Math.ceil(searchResults.length / ITEMS_PER_PAGE);
+  const totalPages = serverTotalPages ?? localTotalPages;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
-  const currentItems = searchResults.slice(startIndex, endIndex);
+  const currentItems = serverTotalPages ? searchResults : searchResults.slice(startIndex, endIndex);
 
   return {
     itemIdInput,
@@ -646,6 +686,7 @@ export function useOrderStep3ItemsLogic(
     startIndex,
     endIndex,
     currentItems,
+    searching: isSearching,
   };
 }
 
