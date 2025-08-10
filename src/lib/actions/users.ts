@@ -1,14 +1,14 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
+import { users, userSessions, storeSettings, inventoryItems } from '@/lib/db/schema';
 import { User, UserRole, UserStatus } from '@/types/user';
-import { eq } from 'drizzle-orm';
+import { eq, or, isNull } from 'drizzle-orm';
 import { hashValue } from '@/lib/utils/hash';
-import { encryptUserData, decryptUserData } from '@/lib/utils/userEncryption';
+import { encryptUserData, decryptUserData, encryptField } from '@/lib/utils/userEncryption';
 
 export async function getUsers(): Promise<User[]> {
-  const dbUsers = await db.select().from(users);
+  const dbUsers = await db.select().from(users).where(isNull(users.deletedAt));
 
   // Decrypt sensitive data for display
   const decryptedUsers = dbUsers.map((user) => {
@@ -18,6 +18,7 @@ export async function getUsers(): Promise<User[]> {
       name: decrypted.name,
       role: decrypted.role.toLowerCase() as UserRole,
       status: decrypted.status.toLowerCase() as UserStatus,
+      deletedAt: user.deletedAt,
       employeeKey: '••••••', // Mask the employee key with dots
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -131,7 +132,37 @@ export async function updateUser(
 
 export async function deleteUser(userId: number): Promise<void> {
   try {
-    await db.delete(users).where(eq(users.id, userId));
+    // Get the current user to get their name
+    const currentUser = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!currentUser) {
+      throw new Error('User not found');
+    }
+
+    // Decrypt the current name and status
+    const decrypted = decryptUserData(currentUser);
+    const currentName = decrypted.name;
+    const currentStatus = decrypted.status;
+
+    // Append "(đã xoá)" to the name if not already deleted
+    const newName = currentName.includes('(đã xoá)') ? currentName : `${currentName} (đã xoá)`;
+
+    // Encrypt the new name and set status to inactive
+    const encryptedNewName = encryptField(newName);
+    const encryptedInactiveStatus = encryptField('inactive');
+
+    // Soft delete: mark user as deleted, update name, and set status to inactive
+    await db
+      .update(users)
+      .set({
+        name: encryptedNewName,
+        status: encryptedInactiveStatus,
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
   } catch (error) {
     console.error('Error deleting user:', error);
     throw new Error('Failed to delete user');

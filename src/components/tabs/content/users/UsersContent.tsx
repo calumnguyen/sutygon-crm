@@ -70,6 +70,7 @@ export default function UsersContent() {
     type: 'add' | 'edit' | 'delete' | null;
     userId: number | null;
   }>({ type: null, userId: null });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { currentUser } = useUser();
 
@@ -152,14 +153,22 @@ export default function UsersContent() {
   };
 
   const confirmDelete = async () => {
-    if (!userToDelete) return;
+    if (!userToDelete || isDeleting) return;
+
+    setIsDeleting(true);
+
     try {
+      // Add setTimeout to prevent double tap on mobile
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       await deleteUser(parseInt(userToDelete));
       setUsers((prev) => prev.filter((_user) => _user.id.toString() !== userToDelete));
       setDeleteModalOpen(false);
       setUserToDelete(null);
     } catch (error) {
       console.error('Failed to delete user:', error);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -382,6 +391,8 @@ export default function UsersContent() {
         message={TRANSLATIONS.confirmation.deleteUser.message}
         confirmText={TRANSLATIONS.confirmation.deleteUser.confirmText}
         cancelText={TRANSLATIONS.confirmation.deleteUser.cancelText}
+        isLoading={isDeleting}
+        loadingText="Đang xóa..."
       />
 
       <IdentityConfirmModal

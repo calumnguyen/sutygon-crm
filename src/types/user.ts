@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: UserRole;
   status: UserStatus;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
   employeeKey: string;

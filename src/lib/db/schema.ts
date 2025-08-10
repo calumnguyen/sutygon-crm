@@ -19,6 +19,7 @@ export const users = pgTable(
     employeeKey: varchar('employee_key', { length: 255 }).notNull().unique(), // Increased for hashed values
     role: varchar('role', { length: 255 }).notNull(), // Increased for encrypted values
     status: varchar('status', { length: 255 }).notNull(), // Increased for encrypted values
+    deletedAt: timestamp('deleted_at'), // Soft delete timestamp
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -28,6 +29,8 @@ export const users = pgTable(
       employeeKeyIdx: index('users_employee_key_idx').on(table.employeeKey),
       // Index for status filtering (active/inactive users)
       statusIdx: index('users_status_idx').on(table.status),
+      // Index for soft delete filtering
+      deletedAtIdx: index('users_deleted_at_idx').on(table.deletedAt),
       // Index for creation date sorting
       createdAtIdx: index('users_created_at_idx').on(table.createdAt),
     };

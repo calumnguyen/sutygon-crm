@@ -9,6 +9,8 @@ interface ConfirmationModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  isLoading?: boolean;
+  loadingText?: string;
 }
 
 export default function ConfirmationModal({
@@ -19,6 +21,8 @@ export default function ConfirmationModal({
   message,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
+  isLoading = false,
+  loadingText = 'Đang xử lý...',
 }: ConfirmationModalProps) {
   if (!isOpen) return null;
 
@@ -28,11 +32,23 @@ export default function ConfirmationModal({
         <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">{title}</h2>
         <p className="text-gray-300 mb-6 text-center text-sm sm:text-base">{message}</p>
         <div className="flex flex-col sm:flex-row justify-end gap-3 sm:space-x-3">
-          <Button variant="secondary" onClick={onClose} type="button" className="w-full sm:w-auto">
+          <Button
+            variant="secondary"
+            onClick={onClose}
+            type="button"
+            className="w-full sm:w-auto"
+            disabled={isLoading}
+          >
             {cancelText}
           </Button>
-          <Button variant="danger" onClick={onConfirm} type="button" className="w-full sm:w-auto">
-            {confirmText}
+          <Button
+            variant="danger"
+            onClick={onConfirm}
+            type="button"
+            className="w-full sm:w-auto"
+            disabled={isLoading}
+          >
+            {isLoading ? loadingText : confirmText}
           </Button>
         </div>
       </div>

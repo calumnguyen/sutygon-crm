@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       `Fetching inventory adding report from ${fromDate.toISOString()} to ${toDate.toISOString()}`
     );
 
-    // Query inventory items with employee info
+    // Query inventory items with employee info (including deleted users)
     const results = await db
       .select({
         employeeId: users.id,
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       .groupBy(users.id, users.name)
       .orderBy(desc(count(inventoryItems.id)));
 
-    // Decrypt employee names
+    // Decrypt employee names (they already include "(Deleted)" suffix if user was deleted)
     const decryptedResults = results.map((result) => {
       let decryptedName = 'Unknown User';
       try {
