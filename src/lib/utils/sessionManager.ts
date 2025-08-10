@@ -98,6 +98,20 @@ export async function validateSession(sessionToken: string): Promise<SessionData
     };
   } catch (error) {
     console.error('Failed to validate session:', error);
+
+    // If it's a database connection error, don't immediately invalidate the session
+    // Let the client-side retry logic handle it
+    if (
+      error instanceof Error &&
+      (error.message.includes('connection') ||
+        error.message.includes('timeout') ||
+        error.message.includes('ECONNRESET') ||
+        error.message.includes('ENOTFOUND'))
+    ) {
+      console.log('Database connection issue during session validation - allowing retry');
+      return null; // Return null to trigger retry on client side
+    }
+
     return null;
   }
 }

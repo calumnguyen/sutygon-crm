@@ -12,6 +12,7 @@ import { useOrderNewFlow } from './hooks';
 import { OrderItem } from './types';
 import { useTabContext } from '@/context/TabContext';
 import { TabId, createTabId, FirstLevelTab } from '@/types/tabTypes';
+import { useUser } from '@/context/UserContext';
 
 const steps = ['Khách Hàng', 'Chọn Ngày Thuê', 'Sản Phẩm', 'Thanh Toán'];
 
@@ -89,6 +90,15 @@ const OrdersNewContent: React.FC<{ tabId: string }> = ({ tabId }) => {
 
   // Tab navigation
   const { removeTab, firstLevelTabs, activateTab, addFirstLevelTab } = useTabContext();
+  const { setImportantTask } = useUser();
+
+  // Protect against logout during order creation
+  React.useEffect(() => {
+    setImportantTask(true);
+    return () => {
+      setImportantTask(false);
+    };
+  }, [setImportantTask]);
 
   // Handle payment success - show banner and navigate back to Orders view
   const handlePaymentSuccess = () => {

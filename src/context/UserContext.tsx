@@ -15,6 +15,8 @@ interface UserContextType {
   sessionWarningSeconds: number;
   extendSession: () => void;
   dismissSessionWarning: () => void;
+  setImportantTask: (isImportant: boolean) => void;
+  isWorkingOnImportantTask: boolean;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -26,6 +28,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [lastActivity, setLastActivity] = useState<number>(Date.now());
   const [showSessionWarning, setShowSessionWarning] = useState(false);
   const [sessionWarningSeconds, setSessionWarningSeconds] = useState(0);
+  const [isWorkingOnImportantTask, setIsWorkingOnImportantTask] = useState(false); // Track if user is in critical operation
 
   // Inactivity timeout (3 minutes)
   const INACTIVITY_TIMEOUT = 3 * 60 * 1000; // 3 minutes in milliseconds
@@ -57,6 +60,29 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       console.error('Session validation failed:', error);
       return null;
     }
+  };
+
+  // Enhanced session validation with retry logic
+  const validateSessionWithRetry = async (token: string, retries = 2): Promise<User | null> => {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const user = await validateSessionWithServer(token);
+        if (user) {
+          return user;
+        }
+
+        // If this is not the last attempt, wait before retrying
+        if (attempt < retries) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
+        }
+      } catch (error) {
+        console.error(`Session validation attempt ${attempt + 1} failed:`, error);
+        if (attempt < retries) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
+      }
+    }
+    return null;
   };
 
   // Custom setters that track login state
@@ -152,7 +178,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const storedKey = localStorage.getItem('originalEmployeeKey');
 
     if (storedToken) {
-      const user = await validateSessionWithServer(storedToken);
+      const user = await validateSessionWithRetry(storedToken);
       if (user) {
         // Ensure we have the original employee key
         const userWithKey = {
@@ -211,7 +237,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (!sessionToken) return;
 
     const validateCurrentSession = async () => {
-      const user = await validateSessionWithServer(sessionToken);
+      // Don't validate if user is actively working (within last 30 seconds)
+      const timeSinceLastActivity = Date.now() - lastActivity;
+      if (timeSinceLastActivity < 30000) {
+        console.log('Skipping session validation - user is actively working');
+        return;
+      }
+
+      // Don't validate if user is working on important task
+      if (isWorkingOnImportantTask) {
+        console.log('Skipping session validation - user is working on important task');
+        return;
+      }
+
+      const user = await validateSessionWithRetry(sessionToken);
       if (!user) {
         // Session is invalid, logout
         logout();
@@ -234,7 +273,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(validateCurrentSession, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [sessionToken, justLoggedIn]);
+  }, [sessionToken, justLoggedIn, lastActivity]);
 
   // Store status polling for auto-logout (reduced frequency since we have real sessions now)
   useEffect(() => {
@@ -248,7 +287,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         // If store is closed and user is not admin, check if session is still valid
         // The server-side invalidation should handle this, but this is a backup
         if (!data.isOpen && currentUser.role !== 'admin') {
-          const user = await validateSessionWithServer(sessionToken);
+          // Don't validate if user is actively working (within last 30 seconds)
+          const timeSinceLastActivity = Date.now() - lastActivity;
+          if (timeSinceLastActivity < 30000) {
+            console.log('Skipping store status validation - user is actively working');
+            return;
+          }
+
+          // Don't validate if user is working on important task
+          if (isWorkingOnImportantTask) {
+            console.log('Skipping store status validation - user is working on important task');
+            return;
+          }
+
+          const user = await validateSessionWithRetry(sessionToken);
           if (!user) {
             console.log('Store closed - session invalidated by server');
             logout();
@@ -259,11 +311,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Check every 60 seconds (less frequent since server handles invalidation)
-    const interval = setInterval(checkStoreStatus, 60000);
+    // Check every 2 minutes instead of 60 seconds to reduce load
+    const interval = setInterval(checkStoreStatus, 2 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [currentUser, sessionToken]);
+  }, [currentUser, sessionToken, lastActivity]);
 
   const logout = async () => {
     if (sessionToken) {
@@ -302,6 +354,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setShowSessionWarning(false);
   };
 
+  const setImportantTask = (isImportant: boolean) => {
+    setIsWorkingOnImportantTask(isImportant);
+    if (isImportant) {
+      console.log('🔒 User started important task - session validation paused');
+    } else {
+      console.log('🔓 User finished important task - session validation resumed');
+    }
+  };
+
   const value: UserContextType = {
     currentUser,
     isAuthenticated: currentUser !== null && sessionToken !== null,
@@ -315,6 +376,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     sessionWarningSeconds,
     extendSession,
     dismissSessionWarning,
+    setImportantTask,
+    isWorkingOnImportantTask,
   };
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

@@ -3,6 +3,7 @@ import { X, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import AddItemStep1 from './AddItemStep1';
 import AddItemStep2 from './AddItemStep2';
 import { AddItemFormState } from './InventoryTypes';
+import { useUser } from '@/context/UserContext';
 
 interface InventoryAddItemModalProps {
   isOpen: boolean;
@@ -38,6 +39,16 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [bannerCollapsed, setBannerCollapsed] = useState(false);
+  const { setImportantTask } = useUser();
+
+  // Protect against logout when modal is open
+  React.useEffect(() => {
+    if (isOpen) {
+      setImportantTask(true);
+    } else {
+      setImportantTask(false);
+    }
+  }, [isOpen, setImportantTask]);
 
   const handleNext = () => {
     console.log('DEBUG: handleNext called, currentStep:', currentStep);
