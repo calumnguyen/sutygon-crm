@@ -64,7 +64,13 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
   };
 
   const orderDate = date ? parseDateFromString(date) : new Date();
-  const expectedReturnDate = new Date(orderDate.getTime() + 3 * 24 * 60 * 60 * 1000); // +3 days
+
+  // Calculate return date based on order items (including extensions)
+  const extensionItem = orderItems.find((item) => item.isExtension);
+  const extraDays = extensionItem?.extraDays || 0;
+  const totalRentalDays = 3 + extraDays;
+  const expectedReturnDate = new Date(orderDate);
+  expectedReturnDate.setDate(orderDate.getDate() + (totalRentalDays - 1));
 
   const { inventory } = useInventoryFetch(
     orderDate.toISOString(),
@@ -94,7 +100,7 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
         </button>
       )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 items-stretch">
-        <OrderSummaryCustomerInfo customer={customer} date={date} />
+        <OrderSummaryCustomerInfo customer={customer} date={date} orderItems={orderItems} />
         <OrderSummaryPaymentRequirement
           total={orderItems.reduce((sum, i) => sum + i.quantity * i.price, 0)}
           subtotal={orderItems

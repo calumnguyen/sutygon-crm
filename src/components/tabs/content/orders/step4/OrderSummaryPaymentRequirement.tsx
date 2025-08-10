@@ -95,17 +95,21 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
   const vatAmount = Math.round(total * (vatPercentage / 100)); // 8% VAT
   const totalPay = total + vatAmount + depositValue;
 
+  // Calculate return date based on order items (including extensions)
+  const extensionItem = orderItems.find((item) => item.isExtension);
+  const extraDays = extensionItem?.extraDays || 0;
+  const totalRentalDays = 3 + extraDays;
+  const orderDate = new Date(date.split('/').reverse().join('-'));
+  const expectedReturnDate = new Date(orderDate);
+  expectedReturnDate.setDate(orderDate.getDate() + (totalRentalDays - 1));
+
   // Prepare order data for payment (only if order doesn't exist yet)
   const orderData =
     orderId === '0000-A'
       ? {
           customerId: customer?.id || 0,
           orderDate: date.split('/').reverse().join('-'), // Convert dd/MM/yyyy to yyyy-MM-dd
-          expectedReturnDate: new Date(
-            new Date(date.split('/').reverse().join('-')).getTime() + 3 * 24 * 60 * 60 * 1000
-          )
-            .toISOString()
-            .split('T')[0], // +3 days
+          expectedReturnDate: expectedReturnDate.toISOString().split('T')[0],
           totalAmount: total,
           depositAmount: depositValue,
           items: orderItems.map((item) => ({
@@ -142,9 +146,7 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
     customer?.phone || 'N/A',
     date,
     date,
-    new Date(
-      new Date(date.split('/').reverse().join('-')).getTime() + 3 * 24 * 60 * 60 * 1000
-    ).toLocaleDateString('vi-VN')
+    expectedReturnDate.toLocaleDateString('vi-VN')
   );
 
   // Effects

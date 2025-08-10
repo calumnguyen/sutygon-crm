@@ -204,19 +204,26 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                     </span>
                   </div>
                 </div>
-                {paymentComplete && (
+                {localPaymentComplete && (
                   <div className="mt-4 p-3 rounded bg-gray-700">
                     <div className="text-center text-gray-300">
-                      {paidAmount - totalPay === 0 ? (
-                        <span>Thanh toán hoàn tất. Không cần trả lại tiền thừa.</span>
-                      ) : (
-                        <span>
-                          Thanh toán hoàn tất. Vui lòng trả lại khách hàng{' '}
-                          <span className="text-yellow-400 font-bold">
-                            {(paidAmount - totalPay).toLocaleString('vi-VN')} đ
+                      {(() => {
+                        const requiredAmount =
+                          isPartialPayment && partialAmount
+                            ? parseInt(partialAmount) || 0
+                            : totalPay;
+                        const changeAmount = paidAmount - requiredAmount;
+                        return changeAmount === 0 ? (
+                          <span>Thanh toán hoàn tất. Không cần trả lại tiền thừa.</span>
+                        ) : (
+                          <span>
+                            Thanh toán hoàn tất. Vui lòng trả lại khách hàng{' '}
+                            <span className="text-yellow-400 font-bold">
+                              {changeAmount.toLocaleString('vi-VN')} đ
+                            </span>
                           </span>
-                        </span>
-                      )}
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
