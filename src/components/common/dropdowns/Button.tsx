@@ -52,10 +52,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       }
 
       if (props.onClick) {
-        // Use setTimeout to ensure event processing completes on iOS
-        setTimeout(() => {
-          props.onClick?.(e);
-        }, 0);
+        props.onClick(e);
       }
     };
 
