@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Calendar,
   ChevronDown,
@@ -9,6 +9,15 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react';
+
+// Vietnamese date formatting utilities
+const formatDateForDisplay = (date: Date): string => {
+  return date.toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
 
 interface DateRange {
   from: Date;
@@ -36,6 +45,17 @@ const InventoryAddingReport: React.FC = () => {
   const [employeeStats, setEmployeeStats] = useState<EmployeeStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Use ref to track current date range for auto-refresh
+  const dateRangeRef = useRef<DateRange>(dateRange);
+  dateRangeRef.current = dateRange;
+
+  // Debounce mechanism to prevent rapid successive calls
+  const lastFetchTimeRef = useRef<number>(0);
+  const FETCH_DEBOUNCE_MS = 1000; // 1 second debounce
+
+  // Flag to prevent multiple initial fetches
+  const hasInitialFetchRef = useRef<boolean>(false);
 
   // Initialize date range based on selected filter
   useEffect(() => {
@@ -65,19 +85,36 @@ const InventoryAddingReport: React.FC = () => {
 
   // Fetch employee statistics
   useEffect(() => {
+    // Reset the initial fetch flag when date range changes
+    hasInitialFetchRef.current = false;
     fetchEmployeeStats();
   }, [dateRange]);
 
-  // Auto-refresh every 20 seconds
+  // Auto-refresh every 20 seconds (fixed to prevent multiple intervals)
   useEffect(() => {
     const interval = setInterval(() => {
       fetchEmployeeStats(true); // Pass true for auto-refresh
     }, 20000); // 20 seconds
 
     return () => clearInterval(interval);
-  }, [dateRange]); // Re-create interval when date range changes
+  }, []); // No dependencies - interval created once and uses ref for current date range
 
   const fetchEmployeeStats = async (isAutoRefresh = false) => {
+    // Debounce rapid successive calls
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
+      console.log('Skipping fetch - too soon since last call');
+      return;
+    }
+    lastFetchTimeRef.current = now;
+
+    // Prevent duplicate calls during the same render cycle (for non-auto-refresh)
+    if (!isAutoRefresh && hasInitialFetchRef.current) {
+      console.log('Skipping fetch - already fetched in this render cycle');
+      return;
+    }
+    hasInitialFetchRef.current = true;
+
     // For auto-refresh, use isRefreshing instead of loading
     if (isAutoRefresh) {
       setIsRefreshing(true);
@@ -85,9 +122,11 @@ const InventoryAddingReport: React.FC = () => {
       setLoading(true);
     }
     try {
-      console.log('Fetching employee stats for date range:', dateRange);
+      // Use ref for auto-refresh to avoid stale closure issues
+      const currentDateRange = isAutoRefresh ? dateRangeRef.current : dateRange;
+      console.log('Fetching employee stats for date range:', currentDateRange);
       const response = await fetch(
-        `/api/reports/inventory-adding?from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}`
+        `/api/reports/inventory-adding?from=${currentDateRange.from.toISOString()}&to=${currentDateRange.to.toISOString()}`
       );
 
       console.log('API response status:', response.status);
@@ -124,13 +163,11 @@ const InventoryAddingReport: React.FC = () => {
   };
 
   const formatDateRange = () => {
-    const formatDate = (date: Date) => date.toLocaleDateString('vi-VN');
-
     if (dateRange.from.toDateString() === dateRange.to.toDateString()) {
-      return formatDate(dateRange.from);
+      return formatDateForDisplay(dateRange.from);
     }
 
-    return `${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}`;
+    return `${formatDateForDisplay(dateRange.from)} - ${formatDateForDisplay(dateRange.to)}`;
   };
 
   const totalItems = employeeStats.reduce((sum, emp) => sum + emp.itemsAdded, 0);
@@ -596,28 +633,56 @@ const InventoryAddingReport: React.FC = () => {
             <div className="space-y-4">
               {/* From Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Từ ngày</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Từ ngày <span className="text-gray-500 text-xs">(DD/MM/YYYY)</span>
+                </label>
                 <input
-                  type="date"
-                  value={dateRange.from.toISOString().split('T')[0]}
+                  type="text"
+                  value={formatDateForDisplay(dateRange.from)}
                   onChange={(e) => {
-                    const newFromDate = new Date(e.target.value);
-                    setDateRange((prev) => ({ ...prev, from: newFromDate }));
+                    // Parse DD/MM/YYYY format
+                    const parts = e.target.value.split('/');
+                    if (parts.length === 3) {
+                      const day = parseInt(parts[0]);
+                      const month = parseInt(parts[1]) - 1; // Month is 0-indexed
+                      const year = parseInt(parts[2]);
+                      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                        const newDate = new Date(year, month, day);
+                        if (newDate.toString() !== 'Invalid Date') {
+                          setDateRange((prev) => ({ ...prev, from: newDate }));
+                        }
+                      }
+                    }
                   }}
+                  placeholder="DD/MM/YYYY"
                   className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               {/* To Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Đến ngày</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Đến ngày <span className="text-gray-500 text-xs">(DD/MM/YYYY)</span>
+                </label>
                 <input
-                  type="date"
-                  value={dateRange.to.toISOString().split('T')[0]}
+                  type="text"
+                  value={formatDateForDisplay(dateRange.to)}
                   onChange={(e) => {
-                    const newToDate = new Date(e.target.value);
-                    setDateRange((prev) => ({ ...prev, to: newToDate }));
+                    // Parse DD/MM/YYYY format
+                    const parts = e.target.value.split('/');
+                    if (parts.length === 3) {
+                      const day = parseInt(parts[0]);
+                      const month = parseInt(parts[1]) - 1; // Month is 0-indexed
+                      const year = parseInt(parts[2]);
+                      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                        const newDate = new Date(year, month, day);
+                        if (newDate.toString() !== 'Invalid Date') {
+                          setDateRange((prev) => ({ ...prev, to: newDate }));
+                        }
+                      }
+                    }
                   }}
+                  placeholder="DD/MM/YYYY"
                   className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

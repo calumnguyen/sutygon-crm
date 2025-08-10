@@ -29,6 +29,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [showSessionWarning, setShowSessionWarning] = useState(false);
   const [sessionWarningSeconds, setSessionWarningSeconds] = useState(0);
   const [isWorkingOnImportantTask, setIsWorkingOnImportantTask] = useState(false); // Track if user is in critical operation
+  const [hasValidatedSession, setHasValidatedSession] = useState(false); // Track if session has been validated this cycle
 
   // Inactivity timeout (3 minutes)
   const INACTIVITY_TIMEOUT = 3 * 60 * 1000; // 3 minutes in milliseconds
@@ -93,6 +94,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setLastActivity(Date.now()); // Reset activity timer on login
       setShowSessionWarning(false); // Clear any existing warning
       setSessionWarningSeconds(0); // Reset warning countdown
+      setHasValidatedSession(false); // Reset validation flag for new login
       // Reset flag after a short delay
       setTimeout(() => setJustLoggedIn(false), 2000);
     }
@@ -188,16 +190,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setCurrentUser(userWithKey);
         setSessionToken(storedToken);
         setLastActivity(Date.now()); // Reset activity timer for existing session
+        setHasValidatedSession(true); // Mark that we've validated this session
       } else {
         // Invalid session, clear storage
         localStorage.removeItem('sessionToken');
         localStorage.removeItem('originalEmployeeKey');
         setCurrentUser(null);
         setSessionToken(null);
+        setHasValidatedSession(false);
       }
     } else {
       setCurrentUser(null);
       setSessionToken(null);
+      setHasValidatedSession(false);
     }
   };
 
@@ -261,9 +266,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Skip immediate validation if we just logged in (preserve login data)
-    if (justLoggedIn) {
-      // Skip validation to preserve login data
+    // Skip immediate validation if we just logged in OR if we've already validated this session
+    if (justLoggedIn || hasValidatedSession) {
+      console.log(
+        'Skipping immediate validation - user just logged in or session already validated'
+      );
+      // Reset the validation flag after a delay to allow future validations
+      if (hasValidatedSession) {
+        setTimeout(() => setHasValidatedSession(false), 5000); // Reset after 5 seconds
+      }
     } else {
       // Validate immediately for existing sessions
       validateCurrentSession();
@@ -273,7 +284,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(validateCurrentSession, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [sessionToken, justLoggedIn, lastActivity]);
+  }, [sessionToken, justLoggedIn, lastActivity, isWorkingOnImportantTask, hasValidatedSession]);
 
   // Store status polling for auto-logout (reduced frequency since we have real sessions now)
   useEffect(() => {
@@ -336,6 +347,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setSessionToken(null);
     setShowSessionWarning(false);
     setSessionWarningSeconds(0);
+    setHasValidatedSession(false); // Reset validation flag
     localStorage.removeItem('sessionToken');
     localStorage.removeItem('originalEmployeeKey');
   };
