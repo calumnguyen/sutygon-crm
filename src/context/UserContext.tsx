@@ -36,15 +36,34 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const WARNING_THRESHOLD = 2 * 60 * 1000; // Show warning at 2 minutes (1 minute left)
 
   const validateSessionWithServer = async (token: string): Promise<User | null> => {
+    const requestId = `client-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+
+    console.log(`[${requestId}] 🔐 Client-side session validation started`);
+
     try {
+      console.log(`[${requestId}] 🚀 Sending session validation request...`);
       const res = await fetch('/api/auth/validate-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionToken: token }),
       });
 
+      console.log(`[${requestId}] 📡 Session validation response:`, {
+        status: res.status,
+        statusText: res.statusText,
+        ok: res.ok,
+        timestamp: new Date().toISOString(),
+      });
+
       if (res.ok) {
         const data = await res.json();
+        console.log(`[${requestId}] ✅ Session validation successful:`, {
+          userId: data.user?.id,
+          userName: data.user?.name,
+          userRole: data.user?.role,
+          timestamp: new Date().toISOString(),
+        });
 
         // Use the original employee key stored during login
         const originalEmployeeKey = localStorage.getItem('originalEmployeeKey');
@@ -53,12 +72,32 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           employeeKey: originalEmployeeKey || data.user.employeeKey,
         };
 
+        const duration = Date.now() - startTime;
+        console.log(
+          `[${requestId}] ✅ Client-side session validation completed successfully in ${duration}ms`,
+          {
+            userId: validatedUser.id,
+            duration,
+            timestamp: new Date().toISOString(),
+          }
+        );
+
         return validatedUser;
       } else {
+        console.warn(`[${requestId}] ⚠️ Session validation failed with status:`, res.status);
         return null;
       }
     } catch (error) {
-      console.error('Session validation failed:', error);
+      const duration = Date.now() - startTime;
+      console.error(
+        `[${requestId}] ❌ Client-side session validation failed after ${duration}ms:`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          duration,
+          timestamp: new Date().toISOString(),
+        }
+      );
       return null;
     }
   };
@@ -74,12 +113,33 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
         // If this is not the last attempt, wait before retrying
         if (attempt < retries) {
-          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
+          const waitTime = Math.pow(2, attempt + 1) * 1000; // Exponential backoff: 2s, 4s, 8s
+          console.log(`Session validation failed, retrying in ${waitTime}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
         }
       } catch (error) {
         console.error(`Session validation attempt ${attempt + 1} failed:`, error);
-        if (attempt < retries) {
-          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+
+        // Check if it's a connection error that warrants retry
+        const isConnectionError =
+          error instanceof Error &&
+          (error.message.includes('connection') ||
+            error.message.includes('timeout') ||
+            error.message.includes('fetch failed') ||
+            error.message.includes('other side closed') ||
+            error.message.includes('ECONNRESET') ||
+            error.message.includes('ENOTFOUND') ||
+            error.message.includes('NetworkError') ||
+            error.message.includes('Failed to fetch'));
+
+        if (attempt < retries && isConnectionError) {
+          const waitTime = Math.pow(2, attempt + 1) * 1000; // Exponential backoff: 2s, 4s, 8s
+          console.log(`Connection error detected, retrying in ${waitTime}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+        } else if (!isConnectionError) {
+          // If it's not a connection error, don't retry
+          console.log('Non-connection error detected, not retrying');
+          break;
         }
       }
     }
@@ -242,24 +302,35 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (!sessionToken) return;
 
     const validateCurrentSession = async () => {
+      const requestId = `session-poll-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
       // Don't validate if user is actively working (within last 30 seconds)
       const timeSinceLastActivity = Date.now() - lastActivity;
       if (timeSinceLastActivity < 30000) {
-        console.log('Skipping session validation - user is actively working');
+        console.log(
+          `[${requestId}] ⏭️ Skipping session validation - user is actively working (${timeSinceLastActivity}ms since last activity)`
+        );
         return;
       }
 
       // Don't validate if user is working on important task
       if (isWorkingOnImportantTask) {
-        console.log('Skipping session validation - user is working on important task');
+        console.log(
+          `[${requestId}] ⏭️ Skipping session validation - user is working on important task`
+        );
         return;
       }
 
+      console.log(`[${requestId}] 🔍 Periodic session validation started`);
       const user = await validateSessionWithRetry(sessionToken);
       if (!user) {
+        console.warn(`[${requestId}] ⚠️ Session validation failed - logging out user`);
         // Session is invalid, logout
         logout();
       } else {
+        console.log(
+          `[${requestId}] ✅ Periodic session validation successful - updating user data`
+        );
         // Update user data (but preserve employeeKey from login)
         setCurrentUser(user);
         setLastActivity(Date.now()); // Reset activity timer on successful validation
@@ -291,34 +362,60 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (!currentUser || !sessionToken) return;
 
     const checkStoreStatus = async () => {
+      const requestId = `store-status-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
       try {
+        console.log(`[${requestId}] 🏪 Checking store status...`);
         const res = await fetch('/api/store/status');
         const data = await res.json();
 
+        console.log(`[${requestId}] 📊 Store status:`, {
+          isOpen: data.isOpen,
+          userRole: currentUser?.role,
+          timestamp: new Date().toISOString(),
+        });
+
         // If store is closed and user is not admin, check if session is still valid
         // The server-side invalidation should handle this, but this is a backup
-        if (!data.isOpen && currentUser.role !== 'admin') {
+        if (!data.isOpen && currentUser?.role !== 'admin') {
+          console.log(
+            `[${requestId}] 🔒 Store is closed - checking session validity for non-admin user`
+          );
+
           // Don't validate if user is actively working (within last 30 seconds)
           const timeSinceLastActivity = Date.now() - lastActivity;
           if (timeSinceLastActivity < 30000) {
-            console.log('Skipping store status validation - user is actively working');
+            console.log(
+              `[${requestId}] ⏭️ Skipping store status validation - user is actively working (${timeSinceLastActivity}ms since last activity)`
+            );
             return;
           }
 
           // Don't validate if user is working on important task
           if (isWorkingOnImportantTask) {
-            console.log('Skipping store status validation - user is working on important task');
+            console.log(
+              `[${requestId}] ⏭️ Skipping store status validation - user is working on important task`
+            );
             return;
           }
 
+          console.log(`[${requestId}] 🔍 Validating session for closed store...`);
           const user = await validateSessionWithRetry(sessionToken);
           if (!user) {
-            console.log('Store closed - session invalidated by server');
+            console.warn(
+              `[${requestId}] ⚠️ Store closed - session invalidated by server, logging out user`
+            );
             logout();
+          } else {
+            console.log(`[${requestId}] ✅ Session still valid despite closed store`);
           }
         }
       } catch (error) {
-        console.error('Failed to check store status:', error);
+        console.error(`[${requestId}] ❌ Store status check failed:`, {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date().toISOString(),
+        });
       }
     };
 

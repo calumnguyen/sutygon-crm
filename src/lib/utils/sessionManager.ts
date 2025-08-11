@@ -2,6 +2,11 @@ import { db } from '@/lib/db';
 import { userSessions, users } from '@/lib/db/schema';
 import { eq, and, gt } from 'drizzle-orm';
 import { decryptUserData } from '@/lib/utils/userEncryption';
+import {
+  logDatabaseError,
+  logConnectionError,
+  logAuthenticationError,
+} from '@/lib/utils/errorMonitor';
 import crypto from 'crypto';
 
 // Session duration: 8 hours
@@ -53,67 +58,150 @@ export async function createSession(
 
 // Validate a session token and return user data
 export async function validateSession(sessionToken: string): Promise<SessionData | null> {
-  try {
-    const session = await db.query.userSessions.findFirst({
-      where: and(
-        eq(userSessions.sessionToken, sessionToken),
-        eq(userSessions.isActive, true),
-        gt(userSessions.expiresAt, new Date())
-      ),
-    });
+  const requestId = `session-mgr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const startTime = Date.now();
+  const maxRetries = 2;
+  let retryCount = 0;
 
-    if (!session) {
+  console.log(`[${requestId}] 🔍 Session manager validation started`);
+
+  while (retryCount <= maxRetries) {
+    try {
+      console.log(
+        `[${requestId}] 🔍 Attempt ${retryCount + 1}/${maxRetries + 1}: Looking up session...`
+      );
+
+      const session = await db.query.userSessions.findFirst({
+        where: and(
+          eq(userSessions.sessionToken, sessionToken),
+          eq(userSessions.isActive, true),
+          gt(userSessions.expiresAt, new Date())
+        ),
+      });
+
+      if (!session) {
+        console.warn(`[${requestId}] ⚠️ Session not found or inactive/expired`);
+        return null;
+      }
+
+      console.log(`[${requestId}] ✅ Session found:`, {
+        sessionId: session.sessionToken.substring(0, 8) + '...',
+        userId: session.userId,
+        expiresAt: session.expiresAt,
+        isActive: session.isActive,
+      });
+
+      // Get user data separately
+      console.log(`[${requestId}] 🔍 Looking up user data...`);
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, session.userId),
+      });
+
+      if (!user) {
+        console.error(`[${requestId}] ❌ User not found for session:`, session.userId);
+        return null;
+      }
+
+      console.log(`[${requestId}] ✅ User found:`, {
+        userId: user.id,
+        hasName: !!user.name,
+        hasRole: !!user.role,
+        hasStatus: !!user.status,
+      });
+
+      // Update session activity timestamp
+      console.log(`[${requestId}] 🔄 Updating session activity...`);
+      await db
+        .update(userSessions)
+        .set({ updatedAt: new Date() })
+        .where(eq(userSessions.sessionToken, sessionToken));
+
+      // Decrypt user data
+      console.log(`[${requestId}] 🔓 Decrypting user data...`);
+      const decryptedUser = decryptUserData(user);
+
+      const duration = Date.now() - startTime;
+      console.log(`[${requestId}] ✅ Session validation completed successfully in ${duration}ms`, {
+        userId: user.id,
+        userName: decryptedUser.name,
+        userRole: decryptedUser.role,
+        duration,
+        timestamp: new Date().toISOString(),
+      });
+
+      return {
+        sessionToken: session.sessionToken,
+        userId: session.userId,
+        expiresAt: session.expiresAt,
+        user: {
+          id: user.id,
+          name: decryptedUser.name,
+          // Don't return employeeKey from session validation (it's hashed in DB)
+          role: decryptedUser.role,
+          status: decryptedUser.status,
+        },
+      };
+    } catch (error) {
+      retryCount++;
+      const duration = Date.now() - startTime;
+      console.error(
+        `[${requestId}] ❌ Session validation failed (attempt ${retryCount}/${maxRetries + 1}) after ${duration}ms:`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          retryCount,
+          maxRetries,
+          duration,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      // Check if it's a connection error
+      const isConnectionError =
+        error instanceof Error &&
+        (error.message.includes('connection') ||
+          error.message.includes('timeout') ||
+          error.message.includes('ECONNRESET') ||
+          error.message.includes('ENOTFOUND') ||
+          error.message.includes('fetch failed') ||
+          error.message.includes('other side closed'));
+
+      // Log to error monitor
+      if (isConnectionError) {
+        await logConnectionError(
+          requestId,
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            operation: 'session_validation_database',
+            endpoint: 'sessionManager',
+          }
+        );
+      } else {
+        await logDatabaseError(
+          requestId,
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            operation: 'session_validation_database',
+            endpoint: 'sessionManager',
+          }
+        );
+      }
+
+      // If it's a database connection error and we haven't exhausted retries, wait and retry
+      if (retryCount <= maxRetries && isConnectionError) {
+        const waitTime = Math.pow(2, retryCount) * 1000; // Exponential backoff: 2s, 4s
+        console.log(`[${requestId}] 🔄 Database connection issue - retrying in ${waitTime}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+        continue;
+      }
+
+      // If we've exhausted retries or it's not a connection error, return null
+      console.error(`[${requestId}] ❌ Session validation failed after all retries`);
       return null;
     }
-
-    // Get user data separately
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.userId),
-    });
-
-    if (!user) {
-      return null;
-    }
-
-    // Update session activity timestamp
-    await db
-      .update(userSessions)
-      .set({ updatedAt: new Date() })
-      .where(eq(userSessions.sessionToken, sessionToken));
-
-    // Decrypt user data
-    const decryptedUser = decryptUserData(user);
-
-    return {
-      sessionToken: session.sessionToken,
-      userId: session.userId,
-      expiresAt: session.expiresAt,
-      user: {
-        id: user.id,
-        name: decryptedUser.name,
-        // Don't return employeeKey from session validation (it's hashed in DB)
-        role: decryptedUser.role,
-        status: decryptedUser.status,
-      },
-    };
-  } catch (error) {
-    console.error('Failed to validate session:', error);
-
-    // If it's a database connection error, don't immediately invalidate the session
-    // Let the client-side retry logic handle it
-    if (
-      error instanceof Error &&
-      (error.message.includes('connection') ||
-        error.message.includes('timeout') ||
-        error.message.includes('ECONNRESET') ||
-        error.message.includes('ENOTFOUND'))
-    ) {
-      console.log('Database connection issue during session validation - allowing retry');
-      return null; // Return null to trigger retry on client side
-    }
-
-    return null;
   }
+
+  return null;
 }
 
 // Invalidate a specific session

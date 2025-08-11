@@ -17,6 +17,7 @@ import {
   decryptTagData,
 } from '@/lib/utils/inventoryEncryption';
 import { inventorySync } from '@/lib/elasticsearch/sync';
+import { logInventoryError, logDatabaseError, logConnectionError } from '@/lib/utils/errorMonitor';
 
 // Define a minimal InventoryItem type for this context
 // interface InventoryItemForId {
@@ -87,36 +88,46 @@ export async function GET(request: NextRequest) {
 
     // Get all tags for these tag ids in a single query
     const tagIds = invTags.map((t) => t.tagId);
-    const allTags = tagIds.length
-      ? await db.select().from(tags).where(inArray(tags.id, tagIds))
-      : [];
+    let allTags: Array<{ id: number; name: string }> = [];
 
-    // Build nested structure with decryption
-    const result = items.map((item) => {
-      // Decrypt inventory item data
+    try {
+      allTags = tagIds.length ? await db.select().from(tags).where(inArray(tags.id, tagIds)) : [];
+    } catch (tagError) {
+      console.warn('Failed to fetch tags for inventory items:', tagError);
+      // Continue with empty tags rather than failing the entire request
+    }
+
+    // Create a map for quick tag lookup
+    const tagMap = new Map(allTags.map((tag) => [tag.id, tag]));
+
+    // Process items with decryption
+    const processedItems = items.map((item) => {
       const decryptedItem = decryptInventoryData(item);
 
-      const itemSizes = sizes
-        .filter((s) => s.itemId === item.id)
-        .map((s) => {
-          // Decrypt size data with type safety
-          const decryptedSize = decryptInventorySizeData(s);
-          return {
-            title: decryptedSize.title,
-            quantity: decryptedSize.quantity,
-            onHand: decryptedSize.onHand,
-            price: decryptedSize.price,
-          };
-        });
+      // Get sizes for this item
+      const itemSizes = sizes.filter((size) => size.itemId === item.id);
+      const decryptedSizes = itemSizes.map((size) => {
+        const decryptedSize = decryptInventorySizeData(size);
+        return {
+          title: decryptedSize.title,
+          quantity: decryptedSize.quantity,
+          onHand: decryptedSize.onHand,
+          price: decryptedSize.price,
+        };
+      });
 
-      const itemTagIds = invTags.filter((t) => t.itemId === item.id).map((t) => t.tagId);
-      const itemTags = allTags
-        .filter((t) => itemTagIds.includes(t.id))
+      // Get tags for this item
+      const itemInvTags = invTags.filter((t) => t.itemId === item.id);
+      const itemTags = itemInvTags
         .map((t) => {
-          // Decrypt tag data
-          const decryptedTag = decryptTagData(t);
-          return decryptedTag.name;
-        });
+          const tag = tagMap.get(t.tagId);
+          if (tag) {
+            const decryptedTag = decryptTagData(tag);
+            return decryptedTag.name;
+          }
+          return null;
+        })
+        .filter((tag) => tag !== null) as string[];
 
       return {
         id: item.id,
@@ -125,7 +136,7 @@ export async function GET(request: NextRequest) {
         category: decryptedItem.category,
         imageUrl: item.imageUrl,
         tags: itemTags,
-        sizes: itemSizes,
+        sizes: decryptedSizes,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       };
@@ -134,7 +145,7 @@ export async function GET(request: NextRequest) {
     const hasMore = offset + limit < total;
 
     return NextResponse.json({
-      items: result,
+      items: processedItems,
       hasMore,
       total,
       page,
@@ -142,157 +153,356 @@ export async function GET(request: NextRequest) {
       offset,
     });
   } catch (error) {
-    console.error('Error fetching inventory:', error);
-    return NextResponse.json({ error: 'Failed to fetch inventory' }, { status: 500 });
+    console.error('Failed to fetch inventory items:', error);
+
+    // Check if it's a connection error
+    if (
+      error instanceof Error &&
+      (error.message.includes('connection') ||
+        error.message.includes('timeout') ||
+        error.message.includes('fetch failed') ||
+        error.message.includes('other side closed'))
+    ) {
+      return NextResponse.json(
+        { error: 'Database connection issue. Please try again in a moment.' },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json({ error: 'Failed to fetch inventory items' }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  // Expect: { name, category, imageUrl, tags: string[], sizes: [{title, quantity, onHand, price}], addedBy?: number }
-  const { name, category, imageUrl, tags: tagNames, sizes, addedBy } = body;
+  const requestId = `inv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const startTime = Date.now();
 
-  // Debug log
-  console.log('DEBUG: Received imageUrl in POST /api/inventory', imageUrl);
-  console.log('DEBUG: Received addedBy user ID:', addedBy);
+  console.log(`[${requestId}] 🆕 Inventory item creation started`);
 
-  // Use the provided user ID and current time if user is provided
-  const currentUserId = addedBy || null;
-  const currentTime = currentUserId ? new Date() : null;
+  try {
+    const body = await req.json();
+    // Expect: { name, category, imageUrl, tags: string[], sizes: [{title, quantity, onHand, price}], addedBy?: number }
+    const { name, category, imageUrl, tags: tagNames, sizes, addedBy } = body;
 
-  // Encrypt the category for counter lookup
-  const encryptedCategory = encryptInventoryData({ name: '', category }).category;
+    console.log(`[${requestId}] 📋 Request data:`, {
+      name: name ? `${name.substring(0, 20)}...` : 'null',
+      category,
+      hasImage: !!imageUrl,
+      tagCount: tagNames?.length || 0,
+      sizeCount: sizes?.length || 0,
+      addedBy,
+      timestamp: new Date().toISOString(),
+    });
 
-  // Try to increment the counter for the category
-  let categoryCounter: number;
+    // Use the provided user ID and current time if user is provided
+    const currentUserId = addedBy || null;
+    const currentTime = currentUserId ? new Date() : null;
 
-  // First try to find existing counter with encrypted category
-  const [counter] = await db
-    .select()
-    .from(categoryCounters)
-    .where(eq(categoryCounters.category, encryptedCategory));
+    console.log(`[${requestId}] 🔐 User context:`, { currentUserId, currentTime });
 
-  if (counter) {
-    // Update existing counter
-    const [updatedCounter] = await db
-      .update(categoryCounters)
-      .set({ counter: sql`${categoryCounters.counter} + 1` })
-      .where(eq(categoryCounters.category, encryptedCategory))
-      .returning({ counter: categoryCounters.counter });
-    categoryCounter = updatedCounter.counter;
-  } else {
-    // If counter doesn't exist, create it and use 1
-    await db.insert(categoryCounters).values({ category: encryptedCategory, counter: 1 });
-    categoryCounter = 1;
-  }
+    // Encrypt the category for counter lookup
+    const encryptedCategory = encryptInventoryData({ name: '', category }).category;
+    console.log(
+      `[${requestId}] 🔒 Encrypted category:`,
+      encryptedCategory.substring(0, 20) + '...'
+    );
 
-  // Encrypt inventory data before storing
-  const encryptedInventoryData = encryptInventoryData({
-    name,
-    category,
-    categoryCounter,
-    imageUrl,
-  });
+    // Try to increment the counter for the category
+    let categoryCounter: number;
 
-  // Insert item with encrypted data and tracking info
-  const [item] = await db
-    .insert(inventoryItems)
-    .values({
-      name: encryptedInventoryData.name,
-      category: encryptedInventoryData.category,
-      categoryCounter: categoryCounter,
+    try {
+      console.log(`[${requestId}] 🔍 Looking up category counter...`);
+      // First try to find existing counter with encrypted category
+      const [counter] = await db
+        .select()
+        .from(categoryCounters)
+        .where(eq(categoryCounters.category, encryptedCategory));
+
+      if (counter) {
+        console.log(`[${requestId}] 📊 Found existing counter:`, counter.counter);
+        // Update existing counter
+        const [updatedCounter] = await db
+          .update(categoryCounters)
+          .set({ counter: sql`${categoryCounters.counter} + 1` })
+          .where(eq(categoryCounters.category, encryptedCategory))
+          .returning({ counter: categoryCounters.counter });
+        categoryCounter = updatedCounter.counter;
+        console.log(`[${requestId}] ✅ Updated counter to:`, categoryCounter);
+      } else {
+        console.log(`[${requestId}] 🆕 Creating new category counter`);
+        // If counter doesn't exist, create it and use 1
+        await db.insert(categoryCounters).values({ category: encryptedCategory, counter: 1 });
+        categoryCounter = 1;
+        console.log(`[${requestId}] ✅ Created new counter:`, categoryCounter);
+      }
+    } catch (counterError) {
+      console.error(`[${requestId}] ❌ Category counter operation failed:`, {
+        error: counterError instanceof Error ? counterError.message : String(counterError),
+        stack: counterError instanceof Error ? counterError.stack : undefined,
+        category: encryptedCategory.substring(0, 20) + '...',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Log to error monitor
+      await logDatabaseError(
+        requestId,
+        counterError instanceof Error ? counterError : new Error(String(counterError)),
+        {
+          operation: 'category_counter_lookup',
+          endpoint: '/api/inventory',
+          user: { id: currentUserId },
+        }
+      );
+
+      throw new Error(
+        `Category counter operation failed: ${counterError instanceof Error ? counterError.message : String(counterError)}`
+      );
+    }
+
+    // Encrypt inventory data before storing
+    const encryptedInventoryData = encryptInventoryData({
+      name,
+      category,
+      categoryCounter,
       imageUrl,
-      addedBy: currentUserId,
-      addedAt: currentTime,
-    })
-    .returning();
+    });
 
-  // Insert sizes with encrypted data
-  if (sizes && sizes.length) {
-    const encryptedSizes = sizes.map(
-      (s: { title: string; quantity: number; onHand: number; price: number }) => {
-        const encryptedSize = encryptInventorySizeData({
-          ...s,
+    console.log(`[${requestId}] 🔒 Encrypted inventory data prepared`);
+
+    // Insert item with encrypted data and tracking info
+    let item;
+    try {
+      console.log(`[${requestId}] 💾 Inserting inventory item...`);
+      [item] = await db
+        .insert(inventoryItems)
+        .values({
+          name: encryptedInventoryData.name,
+          category: encryptedInventoryData.category,
+          categoryCounter: categoryCounter,
+          imageUrl,
+          addedBy: currentUserId,
+          addedAt: currentTime,
+        })
+        .returning();
+
+      console.log(`[${requestId}] ✅ Inventory item created with ID:`, item.id);
+    } catch (insertError) {
+      console.error(`[${requestId}] ❌ Inventory item insertion failed:`, {
+        error: insertError instanceof Error ? insertError.message : String(insertError),
+        stack: insertError instanceof Error ? insertError.stack : undefined,
+        itemData: {
+          nameLength: name?.length || 0,
+          categoryLength: category?.length || 0,
+          hasImage: !!imageUrl,
+          categoryCounter,
+          addedBy: currentUserId,
+          addedAt: currentTime,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      throw new Error(
+        `Inventory item insertion failed: ${insertError instanceof Error ? insertError.message : String(insertError)}`
+      );
+    }
+
+    // Insert sizes with encrypted data
+    if (sizes && sizes.length) {
+      try {
+        console.log(`[${requestId}] 📏 Inserting ${sizes.length} sizes...`);
+        const encryptedSizes = sizes.map(
+          (s: { title: string; quantity: number; onHand: number; price: number }) => {
+            const encryptedSize = encryptInventorySizeData({
+              ...s,
+              itemId: item.id,
+            });
+            return {
+              title: encryptedSize.title,
+              quantity: encryptedSize.quantity,
+              onHand: encryptedSize.onHand,
+              price: encryptedSize.price,
+              itemId: item.id,
+            };
+          }
+        );
+
+        await db.insert(inventorySizes).values(encryptedSizes);
+        console.log(`[${requestId}] ✅ Sizes inserted successfully`);
+      } catch (sizeError) {
+        console.error(`[${requestId}] ❌ Size insertion failed:`, {
+          error: sizeError instanceof Error ? sizeError.message : String(sizeError),
+          stack: sizeError instanceof Error ? sizeError.stack : undefined,
           itemId: item.id,
+          sizeCount: sizes.length,
+          sizes: sizes.map(
+            (s: { title: string; quantity: number; onHand: number; price: number }) => ({
+              title: s.title,
+              quantity: s.quantity,
+              onHand: s.onHand,
+              price: s.price,
+            })
+          ),
+          timestamp: new Date().toISOString(),
         });
-        return {
-          title: encryptedSize.title,
-          quantity: encryptedSize.quantity,
-          onHand: encryptedSize.onHand,
-          price: encryptedSize.price,
+        // Continue without sizes rather than failing the entire operation
+        console.warn(`[${requestId}] ⚠️ Continuing without sizes due to insertion failure`);
+      }
+    }
+
+    // Insert tags (create if not exist) with encrypted names
+    const tagIds: number[] = [];
+    if (tagNames && tagNames.length) {
+      try {
+        console.log(`[${requestId}] 🏷️ Processing ${tagNames.length} tags...`);
+        for (const tagName of tagNames) {
+          // Encrypt tag name for lookup
+          const encryptedTagName = encryptTagData({ name: tagName }).name;
+
+          let [tag] = await db.select().from(tags).where(eq(tags.name, encryptedTagName));
+          if (!tag) {
+            console.log(`[${requestId}] 🆕 Creating new tag:`, tagName);
+            [tag] = await db.insert(tags).values({ name: encryptedTagName }).returning();
+          }
+          tagIds.push(tag.id);
+        }
+
+        console.log(`[${requestId}] 🔗 Inserting ${tagIds.length} tag associations...`);
+        // Insert into inventory_tags
+        await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId: item.id, tagId })));
+        console.log(`[${requestId}] ✅ Tags inserted successfully`);
+      } catch (tagError) {
+        console.error(`[${requestId}] ❌ Tag insertion failed:`, {
+          error: tagError instanceof Error ? tagError.message : String(tagError),
+          stack: tagError instanceof Error ? tagError.stack : undefined,
           itemId: item.id,
+          tagNames,
+          tagCount: tagNames.length,
+          timestamp: new Date().toISOString(),
+        });
+        // Continue without tags rather than failing the entire operation
+        console.warn(`[${requestId}] ⚠️ Continuing without tags due to insertion failure`);
+      }
+    }
+
+    // Return the created item in UI structure
+    const decryptedItem = decryptInventoryData(item);
+
+    // Get sizes for this item
+    let decryptedSizes: Array<{
+      title: string;
+      quantity: number;
+      onHand: number;
+      price: number;
+    }> = [];
+    try {
+      console.log(`[${requestId}] 📏 Fetching sizes for response...`);
+      const itemSizes = await db
+        .select()
+        .from(inventorySizes)
+        .where(eq(inventorySizes.itemId, item.id));
+
+      decryptedSizes = itemSizes.map((s) => {
+        const decryptedSize = decryptInventorySizeData(s);
+        return {
+          title: decryptedSize.title,
+          quantity: decryptedSize.quantity,
+          onHand: decryptedSize.onHand,
+          price: decryptedSize.price,
         };
+      });
+      console.log(`[${requestId}] ✅ Retrieved ${decryptedSizes.length} sizes`);
+    } catch (sizeFetchError) {
+      console.error(`[${requestId}] ❌ Size fetch failed:`, {
+        error: sizeFetchError instanceof Error ? sizeFetchError.message : String(sizeFetchError),
+        itemId: item.id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Get tags for this item
+    let itemTags: string[] = [];
+    try {
+      console.log(`[${requestId}] 🏷️ Fetching tags for response...`);
+      const invTags = await db
+        .select()
+        .from(inventoryTags)
+        .where(eq(inventoryTags.itemId, item.id));
+
+      const itemTagIds = invTags.map((t) => t.tagId);
+      const allTags = itemTagIds.length
+        ? await db.select().from(tags).where(inArray(tags.id, itemTagIds))
+        : [];
+
+      itemTags = allTags.map((t) => {
+        const decryptedTag = decryptTagData(t);
+        return decryptedTag.name;
+      });
+      console.log(`[${requestId}] ✅ Retrieved ${itemTags.length} tags`);
+    } catch (tagFetchError) {
+      console.error(`[${requestId}] ❌ Tag fetch failed:`, {
+        error: tagFetchError instanceof Error ? tagFetchError.message : String(tagFetchError),
+        itemId: item.id,
+        timestamp: new Date().toISOString(),
+      });
+      // Continue with empty tags
+    }
+
+    // Sync to Elasticsearch (async, don't wait)
+    inventorySync.syncItemCreate(item.id).catch((syncError) => {
+      console.error(`[${requestId}] ❌ Elasticsearch sync failed:`, {
+        error: syncError instanceof Error ? syncError.message : String(syncError),
+        itemId: item.id,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    const result = {
+      id: item.id,
+      formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
+      name: decryptedItem.name,
+      category: decryptedItem.category,
+      imageUrl: item.imageUrl,
+      tags: itemTags,
+      sizes: decryptedSizes,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    };
+
+    const duration = Date.now() - startTime;
+    console.log(
+      `[${requestId}] ✅ Inventory item creation completed successfully in ${duration}ms`,
+      {
+        itemId: item.id,
+        formattedId: result.formattedId,
+        duration,
+        timestamp: new Date().toISOString(),
       }
     );
 
-    await db.insert(inventorySizes).values(encryptedSizes);
-  }
+    return NextResponse.json({ success: true, item: result });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`[${requestId}] ❌ Inventory item creation failed after ${duration}ms:`, {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      duration,
+      timestamp: new Date().toISOString(),
+    });
 
-  // Insert tags (create if not exist) with encrypted names
-  const tagIds: number[] = [];
-  if (tagNames && tagNames.length) {
-    for (const tagName of tagNames) {
-      // Encrypt tag name for lookup
-      const encryptedTagName = encryptTagData({ name: tagName }).name;
+    // Check if it's a connection error
+    const isConnectionError =
+      error instanceof Error &&
+      (error.message.includes('connection') ||
+        error.message.includes('timeout') ||
+        error.message.includes('fetch failed') ||
+        error.message.includes('other side closed'));
 
-      let [tag] = await db.select().from(tags).where(eq(tags.name, encryptedTagName));
-      if (!tag) {
-        [tag] = await db.insert(tags).values({ name: encryptedTagName }).returning();
-      }
-      tagIds.push(tag.id);
+    if (isConnectionError) {
+      return NextResponse.json(
+        { error: 'Database connection issue. Please try again in a moment.' },
+        { status: 503 }
+      );
     }
-    // Insert into inventory_tags
-    await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId: item.id, tagId })));
+
+    return NextResponse.json({ error: 'Failed to create inventory item' }, { status: 500 });
   }
-
-  // Return the created item in UI structure
-  const decryptedItem = decryptInventoryData(item);
-
-  // Get sizes for this item
-  const itemSizes = await db
-    .select()
-    .from(inventorySizes)
-    .where(eq(inventorySizes.itemId, item.id));
-
-  const decryptedSizes = itemSizes.map((s) => {
-    const decryptedSize = decryptInventorySizeData(s);
-    return {
-      title: decryptedSize.title,
-      quantity: decryptedSize.quantity,
-      onHand: decryptedSize.onHand,
-      price: decryptedSize.price,
-    };
-  });
-
-  // Get tags for this item
-  const invTags = await db.select().from(inventoryTags).where(eq(inventoryTags.itemId, item.id));
-
-  const itemTagIds = invTags.map((t) => t.tagId);
-  const allTags = itemTagIds.length
-    ? await db.select().from(tags).where(inArray(tags.id, itemTagIds))
-    : [];
-
-  const itemTags = allTags.map((t) => {
-    const decryptedTag = decryptTagData(t);
-    return decryptedTag.name;
-  });
-
-  // Sync to Elasticsearch (async, don't wait)
-  inventorySync.syncItemCreate(item.id).catch((error) => {
-    console.error('Elasticsearch sync failed for new item:', error);
-  });
-
-  const result = {
-    id: item.id,
-    formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
-    name: decryptedItem.name,
-    category: decryptedItem.category,
-    imageUrl: item.imageUrl,
-    tags: itemTags,
-    sizes: decryptedSizes,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
-  };
-
-  return NextResponse.json({ success: true, item: result });
 }

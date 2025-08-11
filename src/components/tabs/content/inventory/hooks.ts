@@ -310,32 +310,92 @@ export function useInventoryModals(
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
+    const requestId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+
+    console.log(`[${requestId}] 📤 Image upload started:`, {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      timestamp: new Date().toISOString(),
+    });
+
     try {
       const formData = new FormData();
       formData.append('file', file);
 
+      console.log(`[${requestId}] 🚀 Sending upload request to /api/upload`);
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
 
+      console.log(`[${requestId}] 📡 Upload response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        timestamp: new Date().toISOString(),
+      });
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+        console.error(`[${requestId}] ❌ Upload failed:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          fileInfo: {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+          },
+          timestamp: new Date().toISOString(),
+        });
+        throw new Error(errorData.error || `Upload failed: ${response.status}`);
       }
 
       const result = await response.json();
+      console.log(`[${requestId}] ✅ Upload successful:`, {
+        url: result.url ? 'URL received' : 'No URL returned',
+        timestamp: new Date().toISOString(),
+      });
+
+      const duration = Date.now() - startTime;
+      console.log(`[${requestId}] ✅ Image upload completed successfully in ${duration}ms`, {
+        fileName: file.name,
+        fileSize: file.size,
+        duration,
+        timestamp: new Date().toISOString(),
+      });
+
       return result.url;
     } catch (error) {
-      console.error('Upload error:', error);
+      const duration = Date.now() - startTime;
+      console.error(`[${requestId}] ❌ Image upload failed after ${duration}ms:`, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        fileInfo: {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        },
+        duration,
+        timestamp: new Date().toISOString(),
+      });
       throw error;
     }
   };
 
   const handleAddItem = async (shouldCloseModal: boolean = true) => {
-    console.log('DEBUG: handleAddItem called');
-    console.log('DEBUG: Current form data:', form);
-    console.log('DEBUG: shouldCloseModal:', shouldCloseModal);
+    const requestId = `client-add-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+
+    console.log(`[${requestId}] 🆕 Client-side inventory item creation started`);
+    console.log(`[${requestId}] 📋 Form data:`, {
+      name: form.name ? `${form.name.substring(0, 20)}...` : 'null',
+      category: form.category,
+      shouldCloseModal,
+      timestamp: new Date().toISOString(),
+    });
 
     try {
       setIsUploading(true);
@@ -353,26 +413,44 @@ export function useInventoryModals(
         price: parseInt(s.price.replace(/\D/g, ''), 10) || 0,
       }));
 
-      console.log('DEBUG: Processed tags:', tags);
-      console.log('DEBUG: Processed sizes:', sizes);
+      console.log(`[${requestId}] 📋 Processed data:`, {
+        tagCount: tags.length,
+        sizeCount: sizes.length,
+        tags: tags.slice(0, 3), // Log first 3 tags
+        sizes: sizes.map((s) => ({
+          title: s.title,
+          quantity: s.quantity,
+          onHand: s.onHand,
+          price: s.price,
+        })),
+      });
 
       // Upload image if provided
       let imageUrl: string | undefined;
       if (form.photoFile) {
-        console.log('DEBUG: Uploading image...');
+        console.log(`[${requestId}] 📤 Uploading image...`);
         try {
           const uploadedUrl = await uploadImage(form.photoFile);
           imageUrl = uploadedUrl || undefined;
-          console.log('DEBUG: Image uploaded, URL:', imageUrl);
-        } catch (error) {
-          console.error('Image upload failed:', error);
+          console.log(
+            `[${requestId}] ✅ Image uploaded:`,
+            imageUrl ? 'URL received' : 'No URL returned'
+          );
+        } catch (uploadError) {
+          console.error(`[${requestId}] ❌ Image upload failed:`, {
+            error: uploadError instanceof Error ? uploadError.message : String(uploadError),
+            fileName: form.photoFile.name,
+            fileSize: form.photoFile.size,
+            fileType: form.photoFile.type,
+            timestamp: new Date().toISOString(),
+          });
           // Continue without image if upload fails
           imageUrl = undefined;
         }
       }
 
       // Create inventory item
-      console.log('DEBUG: Sending API request to /api/inventory');
+      console.log(`[${requestId}] 🚀 Sending API request to /api/inventory`);
       const response = await fetch('/api/inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -386,39 +464,68 @@ export function useInventoryModals(
         }),
       });
 
-      console.log('DEBUG: API response status:', response.status);
-      console.log('DEBUG: API response ok:', response.ok);
+      console.log(`[${requestId}] 📡 API response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        timestamp: new Date().toISOString(),
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('DEBUG: API error response:', errorText);
+        console.error(`[${requestId}] ❌ API error response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+          requestData: {
+            name: form.name ? `${form.name.substring(0, 20)}...` : 'null',
+            category: form.category,
+            tagCount: tags.length,
+            sizeCount: sizes.length,
+            hasImage: !!imageUrl,
+            addedBy: currentUser?.id,
+          },
+          timestamp: new Date().toISOString(),
+        });
         throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('DEBUG: API response data:', result);
+      console.log(`[${requestId}] ✅ API response data:`, {
+        success: result.success,
+        itemId: result.item?.id,
+        formattedId: result.item?.formattedId,
+        timestamp: new Date().toISOString(),
+      });
 
       // Instead of refreshing the entire inventory, add the new item to the local state
       if (result.success && result.item) {
+        console.log(`[${requestId}] 🔄 Updating local inventory state...`);
         if (setInventory) {
           // Optimistic update: add the new item to the beginning of the inventory list
           // Check for duplicates and ensure uniqueness
           setInventory((prev) => {
-            console.log('DEBUG: Optimistic update - new item:', result.item);
-            console.log('DEBUG: Optimistic update - current inventory length:', prev.length);
+            console.log(`[${requestId}] 📊 Optimistic update - new item:`, result.item);
+            console.log(
+              `[${requestId}] 📊 Optimistic update - current inventory length:`,
+              prev.length
+            );
 
             // Check for existing items with same formattedId
             const duplicatesByFormattedId = prev.filter(
               (item) => item.formattedId === result.item.formattedId
             );
             if (duplicatesByFormattedId.length > 0) {
-              console.warn('DEBUG: Found duplicates by formattedId:', duplicatesByFormattedId);
+              console.warn(
+                `[${requestId}] ⚠️ Found duplicates by formattedId:`,
+                duplicatesByFormattedId
+              );
             }
 
             // Check for existing items with same ID
             const duplicatesById = prev.filter((item) => item.id === result.item.id);
             if (duplicatesById.length > 0) {
-              console.warn('DEBUG: Found duplicates by ID:', duplicatesById);
+              console.warn(`[${requestId}] ⚠️ Found duplicates by ID:`, duplicatesById);
             }
 
             // Remove any existing items with the same formattedId to prevent duplicates
@@ -430,25 +537,65 @@ export function useInventoryModals(
             const finalFiltered = filteredPrev.filter((item) => item.id !== result.item.id);
 
             console.log(
-              'DEBUG: Optimistic update - filtered inventory length:',
+              `[${requestId}] 📊 Optimistic update - filtered inventory length:`,
               finalFiltered.length
             );
 
             return [result.item, ...finalFiltered];
           });
+          console.log(`[${requestId}] ✅ Local inventory state updated successfully`);
         } else {
           // Fallback to full refresh if setInventory is not available
+          console.log(`[${requestId}] 🔄 Fallback: refreshing entire inventory`);
           refreshInventory();
         }
+      } else {
+        console.warn(`[${requestId}] ⚠️ API returned success: false or no item data`);
       }
 
       // Only close modal and reset form if shouldCloseModal is true (normal mode)
       if (shouldCloseModal) {
+        console.log(`[${requestId}] 🔒 Closing modal and resetting form`);
         resetAddItemForm();
         setAddModalOpen(false);
       }
+
+      const duration = Date.now() - startTime;
+      console.log(
+        `[${requestId}] ✅ Client-side inventory item creation completed successfully in ${duration}ms`,
+        {
+          itemId: result.item?.id,
+          formattedId: result.item?.formattedId,
+          duration,
+          timestamp: new Date().toISOString(),
+        }
+      );
     } catch (error) {
-      console.error('Failed to add item:', error);
+      const duration = Date.now() - startTime;
+      console.error(
+        `[${requestId}] ❌ Client-side inventory item creation failed after ${duration}ms:`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          formData: {
+            name: form.name ? `${form.name.substring(0, 20)}...` : 'null',
+            category: form.category,
+            tagCount: form.tagsInput.split(',').filter((t) => t.trim().length > 0).length,
+            sizeCount: form.sizes.length,
+            hasPhoto: !!form.photoFile,
+            photoSize: form.photoFile?.size || 0,
+          },
+          userContext: {
+            userId: currentUser?.id,
+            userName: currentUser?.name,
+            userRole: currentUser?.role,
+          },
+          duration,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      console.error(`[${requestId}] ❌ Failed to add item - user should retry`);
     } finally {
       setIsUploading(false);
     }
@@ -462,10 +609,18 @@ export function useInventoryModals(
     sizes: Array<{ title: string; quantity: number; onHand: number; price: number }>;
     imageUrl?: string;
   }) => {
+    const requestId = `client-edit-${updatedItem.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+
+    console.log(
+      `[${requestId}] ✏️ Client-side inventory item edit started for item ID:`,
+      updatedItem.id
+    );
+
     // Prevent multiple simultaneous requests for the same item
     if (saveRequestInProgress.current.has(updatedItem.id)) {
       console.log(
-        `[Client] Request already in progress for item ${updatedItem.id}, ignoring duplicate`
+        `[${requestId}] ⚠️ Request already in progress for item ${updatedItem.id}, ignoring duplicate`
       );
       return;
     }
@@ -474,7 +629,15 @@ export function useInventoryModals(
       setIsSaving(true);
       saveRequestInProgress.current.add(updatedItem.id);
 
-      console.log(`[Client] Starting save request for item ${updatedItem.id}`);
+      console.log(`[${requestId}] 📋 Edit data:`, {
+        itemId: updatedItem.id,
+        name: updatedItem.name ? `${updatedItem.name.substring(0, 20)}...` : 'null',
+        category: updatedItem.category,
+        tagCount: updatedItem.tags.length,
+        sizeCount: updatedItem.sizes.length,
+        hasImage: !!updatedItem.imageUrl,
+        timestamp: new Date().toISOString(),
+      });
 
       const response = await fetch(`/api/inventory/${updatedItem.id}`, {
         method: 'PUT',
@@ -488,19 +651,75 @@ export function useInventoryModals(
         }),
       });
 
+      console.log(`[${requestId}] 📡 API response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        timestamp: new Date().toISOString(),
+      });
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('API Error:', errorText);
+        console.error(`[${requestId}] ❌ API error response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+          requestData: {
+            itemId: updatedItem.id,
+            name: updatedItem.name ? `${updatedItem.name.substring(0, 20)}...` : 'null',
+            category: updatedItem.category,
+            tagCount: updatedItem.tags.length,
+            sizeCount: updatedItem.sizes.length,
+            hasImage: !!updatedItem.imageUrl,
+          },
+          timestamp: new Date().toISOString(),
+        });
         throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
 
-      console.log(`[Client] Successfully saved item ${updatedItem.id}`);
+      console.log(`[${requestId}] ✅ API response successful`);
+
+      // Refresh inventory and close modal
+      console.log(`[${requestId}] 🔄 Refreshing inventory and closing modal`);
       refreshInventory();
       setEditModalOpen(false);
       setSelectedItem(null);
+
+      const duration = Date.now() - startTime;
+      console.log(
+        `[${requestId}] ✅ Client-side inventory item edit completed successfully in ${duration}ms`,
+        {
+          itemId: updatedItem.id,
+          duration,
+          timestamp: new Date().toISOString(),
+        }
+      );
     } catch (error) {
-      console.error('Failed to update item:', error);
-      alert(`Lỗi khi lưu thay đổi: ${error}`);
+      const duration = Date.now() - startTime;
+      console.error(
+        `[${requestId}] ❌ Client-side inventory item edit failed after ${duration}ms:`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          itemData: {
+            itemId: updatedItem.id,
+            name: updatedItem.name ? `${updatedItem.name.substring(0, 20)}...` : 'null',
+            category: updatedItem.category,
+            tagCount: updatedItem.tags.length,
+            sizeCount: updatedItem.sizes.length,
+            hasImage: !!updatedItem.imageUrl,
+          },
+          userContext: {
+            userId: currentUser?.id,
+            userName: currentUser?.name,
+            userRole: currentUser?.role,
+          },
+          duration,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      alert(`Lỗi khi lưu thay đổi: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsSaving(false);
       saveRequestInProgress.current.delete(updatedItem.id);
@@ -508,18 +727,77 @@ export function useInventoryModals(
   };
 
   const handleDeleteItem = async (itemId: number) => {
+    const requestId = `client-delete-${itemId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+
+    console.log(
+      `[${requestId}] 🗑️ Client-side inventory item deletion started for item ID:`,
+      itemId
+    );
+
     try {
       setIsDeleting(true);
 
-      await fetch(`/api/inventory/${itemId}`, {
+      console.log(`[${requestId}] 🚀 Sending DELETE request to /api/inventory/${itemId}`);
+      const response = await fetch(`/api/inventory/${itemId}`, {
         method: 'DELETE',
       });
 
+      console.log(`[${requestId}] 📡 API response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[${requestId}] ❌ API error response:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+          itemId,
+          timestamp: new Date().toISOString(),
+        });
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
+      }
+
+      console.log(`[${requestId}] ✅ API response successful`);
+
+      // Refresh inventory and close modal
+      console.log(`[${requestId}] 🔄 Refreshing inventory and closing modal`);
       refreshInventory();
       setEditModalOpen(false);
       setSelectedItem(null);
+
+      const duration = Date.now() - startTime;
+      console.log(
+        `[${requestId}] ✅ Client-side inventory item deletion completed successfully in ${duration}ms`,
+        {
+          itemId,
+          duration,
+          timestamp: new Date().toISOString(),
+        }
+      );
     } catch (error) {
-      console.error('Failed to delete item:', error);
+      const duration = Date.now() - startTime;
+      console.error(
+        `[${requestId}] ❌ Client-side inventory item deletion failed after ${duration}ms:`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          itemId,
+          userContext: {
+            userId: currentUser?.id,
+            userName: currentUser?.name,
+            userRole: currentUser?.role,
+          },
+          duration,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      alert(`Lỗi khi xóa sản phẩm: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsDeleting(false);
     }

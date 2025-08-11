@@ -10,158 +10,232 @@ import {
 import { inventorySync } from '@/lib/elasticsearch/sync';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const itemId = parseInt(id);
+  const requestId = `inv-edit-${itemId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const startTime = Date.now();
+
+  console.log(`[${requestId}] ✏️ Inventory item edit started for item ID:`, itemId);
+
+  if (isNaN(itemId)) {
+    console.error(`[${requestId}] ❌ Invalid item ID:`, id);
+    return NextResponse.json({ error: 'Invalid item ID' }, { status: 400 });
+  }
+
   try {
-    const { id } = await params;
-    const itemId = parseInt(id, 10);
-    if (isNaN(itemId)) {
-      return NextResponse.json({ error: 'Invalid item ID' }, { status: 400 });
-    }
-
     const body = await request.json();
-    const { name, category, tags: tagNames, sizes, imageUrl } = body;
-    console.log(
-      `[Inventory Update] Starting update for item ${itemId} with ${tagNames?.length || 0} tags`
-    );
+    const { name, category, imageUrl, tags: tagNames, sizes } = body;
 
-    // Encrypt inventory data before storing
+    console.log(`[${requestId}] 📋 Edit request data:`, {
+      itemId,
+      name: name ? `${name.substring(0, 20)}...` : 'null',
+      category,
+      hasImage: !!imageUrl,
+      tagCount: tagNames?.length || 0,
+      sizeCount: sizes?.length || 0,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Encrypt the data
     const encryptedInventoryData = encryptInventoryData({
       name,
       category,
+      imageUrl,
     });
 
+    console.log(`[${requestId}] 🔒 Encrypted inventory data prepared`);
+
     // Update the inventory item
-    await db
-      .update(inventoryItems)
-      .set({
-        name: encryptedInventoryData.name,
-        category: encryptedInventoryData.category,
-        imageUrl: imageUrl || null, // Update imageUrl if provided
-      })
-      .where(eq(inventoryItems.id, itemId));
+    try {
+      console.log(`[${requestId}] 💾 Updating inventory item...`);
+      await db
+        .update(inventoryItems)
+        .set({
+          name: encryptedInventoryData.name,
+          category: encryptedInventoryData.category,
+          imageUrl,
+          updatedAt: new Date(),
+        })
+        .where(eq(inventoryItems.id, itemId));
 
-    // Delete existing sizes and tags
-    await db.delete(inventorySizes).where(eq(inventorySizes.itemId, itemId));
-    await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
-
-    // Insert new sizes with encrypted data
-    if (sizes && sizes.length > 0) {
-      const encryptedSizes = sizes.map(
-        (s: { title: string; quantity: number; onHand: number; price: number }) => {
-          const encryptedSize = encryptInventorySizeData({
-            ...s,
-            itemId,
-          });
-          return {
-            title: encryptedSize.title,
-            quantity: encryptedSize.quantity,
-            onHand: encryptedSize.onHand,
-            price: encryptedSize.price,
-            itemId,
-          };
-        }
+      console.log(`[${requestId}] ✅ Inventory item updated successfully`);
+    } catch (updateError) {
+      console.error(`[${requestId}] ❌ Inventory item update failed:`, {
+        error: updateError instanceof Error ? updateError.message : String(updateError),
+        stack: updateError instanceof Error ? updateError.stack : undefined,
+        itemId,
+        itemData: {
+          nameLength: name?.length || 0,
+          categoryLength: category?.length || 0,
+          hasImage: !!imageUrl,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      throw new Error(
+        `Inventory item update failed: ${updateError instanceof Error ? updateError.message : String(updateError)}`
       );
+    }
 
-      // Insert sizes with robust race condition handling
-      let sizesInsertSuccess = false;
-      let sizesAttempts = 0;
-      const maxSizesAttempts = 2;
+    // Update sizes
+    if (sizes && sizes.length) {
+      try {
+        console.log(`[${requestId}] 📏 Updating ${sizes.length} sizes...`);
 
-      while (!sizesInsertSuccess && sizesAttempts < maxSizesAttempts) {
-        sizesAttempts++;
-        try {
-          await db.insert(inventorySizes).values(encryptedSizes);
-          sizesInsertSuccess = true;
-        } catch (error: unknown) {
-          if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-            console.log(
-              `Race condition detected for inventory_sizes (attempt ${sizesAttempts}), cleaning up and retrying...`
-            );
+        // Delete existing sizes
+        await db.delete(inventorySizes).where(eq(inventorySizes.itemId, itemId));
+        console.log(`[${requestId}] 🗑️ Deleted existing sizes`);
 
-            // Delete old inventory_sizes again (another request might have added some)
-            await db.delete(inventorySizes).where(eq(inventorySizes.itemId, itemId));
-
-            if (sizesAttempts >= maxSizesAttempts) {
-              // Final attempt
-              await db.insert(inventorySizes).values(encryptedSizes);
-              sizesInsertSuccess = true;
-            }
-          } else {
-            throw error; // Re-throw other errors
+        // Insert new sizes
+        const encryptedSizes = sizes.map(
+          (s: { title: string; quantity: number; onHand: number; price: number }) => {
+            const encryptedSize = encryptInventorySizeData({
+              ...s,
+              itemId: itemId,
+            });
+            return {
+              title: encryptedSize.title,
+              quantity: encryptedSize.quantity,
+              onHand: encryptedSize.onHand,
+              price: encryptedSize.price,
+              itemId: itemId,
+            };
           }
-        }
+        );
+
+        await db.insert(inventorySizes).values(encryptedSizes);
+        console.log(`[${requestId}] ✅ Sizes updated successfully`);
+      } catch (sizeError) {
+        console.error(`[${requestId}] ❌ Size update failed:`, {
+          error: sizeError instanceof Error ? sizeError.message : String(sizeError),
+          stack: sizeError instanceof Error ? sizeError.stack : undefined,
+          itemId,
+          sizeCount: sizes.length,
+          sizes: sizes.map(
+            (s: { title: string; quantity: number; onHand: number; price: number }) => ({
+              title: s.title,
+              quantity: s.quantity,
+              onHand: s.onHand,
+              price: s.price,
+            })
+          ),
+          timestamp: new Date().toISOString(),
+        });
+        throw new Error(
+          `Size update failed: ${sizeError instanceof Error ? sizeError.message : String(sizeError)}`
+        );
       }
     }
 
-    // Insert new tags with race condition handling
-    const tagIds: number[] = [];
-    if (tagNames && tagNames.length > 0) {
-      for (const tagName of tagNames) {
-        // Encrypt tag name for lookup
-        const encryptedTagName = encryptTagData({ name: tagName }).name;
+    // Update tags
+    if (tagNames && tagNames.length) {
+      try {
+        console.log(`[${requestId}] 🏷️ Processing ${tagNames.length} tags...`);
 
-        let [tag] = await db.select().from(tags).where(eq(tags.name, encryptedTagName));
-        if (!tag) {
-          try {
-            // Try to insert new tag
+        // Delete existing tags
+        await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
+        console.log(`[${requestId}] 🗑️ Deleted existing tag associations`);
+
+        // Create or find tags and get their IDs
+        const tagIds: number[] = [];
+        for (const tagName of tagNames) {
+          const encryptedTagName = encryptTagData({ name: tagName }).name;
+
+          let [tag] = await db.select().from(tags).where(eq(tags.name, encryptedTagName));
+          if (!tag) {
+            console.log(`[${requestId}] 🆕 Creating new tag:`, tagName);
             [tag] = await db.insert(tags).values({ name: encryptedTagName }).returning();
-          } catch (error: unknown) {
-            // If duplicate key error (race condition), query again
-            if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-              console.log('Race condition detected for tag creation, querying again...');
-              [tag] = await db.select().from(tags).where(eq(tags.name, encryptedTagName));
-              if (!tag) {
-                throw new Error('Failed to create or find tag after race condition');
+          }
+          tagIds.push(tag.id);
+        }
+
+        // Insert into inventory_tags using PostgreSQL UPSERT to handle conflicts gracefully
+        if (tagIds.length > 0) {
+          try {
+            console.log(`[${requestId}] 🔗 Inserting ${tagIds.length} tag associations...`);
+            // Use raw SQL for ON CONFLICT DO NOTHING since Drizzle doesn't fully support it yet
+            const values = tagIds.map((tagId) => `(${itemId}, ${tagId})`).join(', ');
+            const insertQuery = `
+              INSERT INTO inventory_tags (item_id, tag_id) 
+              VALUES ${values} 
+              ON CONFLICT (item_id, tag_id) DO NOTHING
+            `;
+
+            await db.execute(sql.raw(insertQuery));
+            console.log(`[${requestId}] ✅ Tags updated successfully using UPSERT`);
+          } catch (upsertError) {
+            console.warn(
+              `[${requestId}] ⚠️ UPSERT failed, falling back to delete-insert approach:`,
+              {
+                error: upsertError instanceof Error ? upsertError.message : String(upsertError),
+                itemId,
+                tagIds,
               }
-            } else {
-              throw error; // Re-throw other errors
+            );
+
+            // Fallback to the old delete-insert method if the raw SQL approach fails
+            try {
+              // Delete existing tags for this item
+              await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
+
+              // Re-insert the tags
+              await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId, tagId })));
+              console.log(`[${requestId}] ✅ Tags updated successfully using fallback method`);
+            } catch (fallbackError) {
+              console.error(`[${requestId}] ❌ Tag update fallback also failed:`, {
+                error:
+                  fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+                itemId,
+                tagIds,
+                timestamp: new Date().toISOString(),
+              });
+              throw new Error(
+                `Tag update failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
+              );
             }
           }
         }
-        tagIds.push(tag.id);
-      }
-
-      // Insert into inventory_tags using PostgreSQL UPSERT to handle conflicts gracefully
-      if (tagIds.length > 0) {
-        try {
-          // Use raw SQL for ON CONFLICT DO NOTHING since Drizzle doesn't fully support it yet
-          const values = tagIds.map((tagId) => `(${itemId}, ${tagId})`).join(', ');
-          const insertQuery = `
-            INSERT INTO inventory_tags (item_id, tag_id) 
-            VALUES ${values} 
-            ON CONFLICT (item_id, tag_id) DO NOTHING
-          `;
-
-          await db.execute(sql.raw(insertQuery));
-          console.log(
-            `[Inventory Update] Successfully upserted ${tagIds.length} tags for item ${itemId}`
-          );
-        } catch (error: unknown) {
-          // Fallback to the old delete-insert method if the raw SQL approach fails
-          console.log(
-            '[Inventory Update] UPSERT failed, falling back to delete-insert approach...'
-          );
-
-          // Delete existing tags for this item
-          await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
-
-          // Re-insert the tags
-          await db.insert(inventoryTags).values(tagIds.map((tagId) => ({ itemId, tagId })));
-          console.log(
-            `[Inventory Update] Fallback: Successfully inserted ${tagIds.length} tags for item ${itemId}`
-          );
-        }
+      } catch (tagError) {
+        console.error(`[${requestId}] ❌ Tag update failed:`, {
+          error: tagError instanceof Error ? tagError.message : String(tagError),
+          stack: tagError instanceof Error ? tagError.stack : undefined,
+          itemId,
+          tagNames,
+          tagCount: tagNames.length,
+          timestamp: new Date().toISOString(),
+        });
+        throw new Error(
+          `Tag update failed: ${tagError instanceof Error ? tagError.message : String(tagError)}`
+        );
       }
     }
 
     // Sync to Elasticsearch (async, don't wait)
-    inventorySync.syncItemUpdate(itemId).catch((error) => {
-      console.error('Elasticsearch sync failed for updated item:', error);
+    inventorySync.syncItemUpdate(itemId).catch((syncError) => {
+      console.error(`[${requestId}] ❌ Elasticsearch sync failed:`, {
+        error: syncError instanceof Error ? syncError.message : String(syncError),
+        itemId,
+        timestamp: new Date().toISOString(),
+      });
     });
 
-    console.log(`[Inventory Update] Successfully updated item ${itemId}`);
+    const duration = Date.now() - startTime;
+    console.log(`[${requestId}] ✅ Inventory item edit completed successfully in ${duration}ms`, {
+      itemId,
+      duration,
+      timestamp: new Date().toISOString(),
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Update inventory error:', error);
+    const duration = Date.now() - startTime;
+    console.error(`[${requestId}] ❌ Inventory item edit failed after ${duration}ms:`, {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      itemId,
+      duration,
+      timestamp: new Date().toISOString(),
+    });
+
     return NextResponse.json({ error: 'Failed to update inventory item' }, { status: 500 });
   }
 }

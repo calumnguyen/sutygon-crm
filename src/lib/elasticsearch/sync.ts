@@ -162,79 +162,127 @@ class InventorySync {
   }
 
   private async buildItemDocument(itemId: number): Promise<SyncInventoryItem | null> {
-    try {
-      // Get the item from database
-      const items = await db
-        .select()
-        .from(inventoryItems)
-        .where(eq(inventoryItems.id, itemId))
-        .limit(1);
+    const maxRetries = 3;
+    let retryCount = 0;
 
-      if (items.length === 0) {
-        console.warn(`Item ${itemId} not found in database`);
+    while (retryCount < maxRetries) {
+      try {
+        // Get the item from database
+        const items = await db
+          .select()
+          .from(inventoryItems)
+          .where(eq(inventoryItems.id, itemId))
+          .limit(1);
+
+        if (items.length === 0) {
+          console.warn(`Item ${itemId} not found in database`);
+          return null;
+        }
+
+        const item = items[0];
+
+        // Get sizes and tags for this item with retry logic
+        let sizes: Array<{
+          id: number;
+          itemId: number;
+          title: string;
+          quantity: string;
+          onHand: string;
+          price: string;
+        }>;
+        let itemTags: Array<{ tagName: string }>;
+        try {
+          [sizes, itemTags] = await Promise.all([
+            db.select().from(inventorySizes).where(eq(inventorySizes.itemId, itemId)),
+            db
+              .select({
+                tagName: tags.name,
+              })
+              .from(inventoryTags)
+              .innerJoin(tags, eq(inventoryTags.tagId, tags.id))
+              .where(eq(inventoryTags.itemId, itemId)),
+          ]);
+        } catch (tagError) {
+          console.warn(
+            `Failed to fetch tags for item ${itemId} (attempt ${retryCount + 1}):`,
+            tagError
+          );
+          // If tags fail, continue with empty tags rather than failing the entire sync
+          sizes = await db.select().from(inventorySizes).where(eq(inventorySizes.itemId, itemId));
+          itemTags = [];
+        }
+
+        // Decrypt data
+        const decryptedItem = decryptInventoryData(item);
+        const decryptedSizes = sizes.map((size) => decryptInventorySizeData(size));
+        const decryptedTags = itemTags.map((tag) => decryptTagData({ name: tag.tagName }).name);
+
+        // Generate formatted ID using same logic as API routes
+        function getFormattedId(category: string, categoryCounter: number) {
+          let code = (category || 'XX')
+            .split(' ')
+            .map((w: string) => w[0])
+            .join('');
+          // Replace Đ/đ with D/d, then remove diacritics
+          code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
+          code = code
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .replace(/\u0300-\u036f/g, '');
+          code = code.toUpperCase().slice(0, 2);
+          return `${code}-${String(categoryCounter).padStart(6, '0')}`;
+        }
+
+        const formattedId = getFormattedId(decryptedItem.category, item.categoryCounter);
+
+        // Build document (excluding imageUrl to avoid Elasticsearch size limits)
+        const doc: SyncInventoryItem = {
+          id: item.id,
+          formattedId: formattedId,
+          name: decryptedItem.name,
+          category: decryptedItem.category,
+          // imageUrl: item.imageUrl, // Excluded - too large for Elasticsearch
+          tags: decryptedTags,
+          createdAt: item.createdAt.toISOString(),
+          updatedAt: item.updatedAt.toISOString(),
+          sizes: decryptedSizes.map((size) => ({
+            title: size.title,
+            quantity: size.quantity,
+            onHand: size.onHand,
+            price: size.price,
+          })),
+        };
+
+        return doc;
+      } catch (error) {
+        retryCount++;
+        console.error(
+          `Failed to build document for item ${itemId} (attempt ${retryCount}/${maxRetries}):`,
+          error
+        );
+
+        // If it's a connection error and we haven't exhausted retries, wait and retry
+        if (
+          retryCount < maxRetries &&
+          error instanceof Error &&
+          (error.message.includes('connection') ||
+            error.message.includes('timeout') ||
+            error.message.includes('fetch failed') ||
+            error.message.includes('other side closed'))
+        ) {
+          const waitTime = Math.pow(2, retryCount) * 1000; // Exponential backoff: 2s, 4s, 8s
+          console.log(`Retrying in ${waitTime}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          continue;
+        }
+
+        // If we've exhausted retries or it's not a connection error, return null
+        console.error(`Failed to build document for item ${itemId} after ${maxRetries} attempts`);
         return null;
       }
-
-      const item = items[0];
-
-      // Get sizes and tags for this item
-      const [sizes, itemTags] = await Promise.all([
-        db.select().from(inventorySizes).where(eq(inventorySizes.itemId, itemId)),
-        db
-          .select({
-            tagName: tags.name,
-          })
-          .from(inventoryTags)
-          .innerJoin(tags, eq(inventoryTags.tagId, tags.id))
-          .where(eq(inventoryTags.itemId, itemId)),
-      ]);
-
-      // Decrypt data
-      const decryptedItem = decryptInventoryData(item);
-      const decryptedSizes = sizes.map((size) => decryptInventorySizeData(size));
-      const decryptedTags = itemTags.map((tag) => decryptTagData({ name: tag.tagName }).name);
-
-      // Generate formatted ID using same logic as API routes
-      function getFormattedId(category: string, categoryCounter: number) {
-        let code = (category || 'XX')
-          .split(' ')
-          .map((w: string) => w[0])
-          .join('');
-        // Replace Đ/đ with D/d, then remove diacritics
-        code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
-        code = code
-          .normalize('NFD')
-          .replace(/\p{Diacritic}/gu, '')
-          .replace(/\u0300-\u036f/g, '');
-        code = code.toUpperCase().slice(0, 2);
-        return `${code}-${String(categoryCounter).padStart(6, '0')}`;
-      }
-
-      const formattedId = getFormattedId(decryptedItem.category, item.categoryCounter);
-
-      // Build document (excluding imageUrl to avoid Elasticsearch size limits)
-      const doc: SyncInventoryItem = {
-        id: item.id,
-        formattedId: formattedId,
-        name: decryptedItem.name,
-        category: decryptedItem.category,
-        // imageUrl: item.imageUrl, // Excluded - too large for Elasticsearch
-        tags: decryptedTags,
-        createdAt: item.createdAt.toISOString(),
-        updatedAt: item.updatedAt.toISOString(),
-        sizes: decryptedSizes.map((size) => ({
-          title: size.title,
-          quantity: size.quantity,
-          onHand: size.onHand,
-          price: size.price,
-        })),
-      };
-
-      return doc;
-    } catch (error) {
-      console.error(`Failed to build document for item ${itemId}:`, error);
-      return null;
     }
+
+    return null;
   }
 
   /**
