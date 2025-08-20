@@ -17,19 +17,35 @@ import { encrypt, decrypt } from '@/lib/utils/encryption';
 import { monitorDatabaseQuery } from '@/lib/utils/performance';
 import { calculateExpectedReturnDate } from '@/lib/utils/orderUtils';
 
+// Category code mapping for consistent IDs
+const CATEGORY_CODE_MAP: Record<string, string> = {
+  'Áo Dài': 'AD',
+  Áo: 'AO',
+  Quần: 'QU',
+  'Văn Nghệ': 'VN',
+  'Đồ Tây': 'DT',
+  Giầy: 'GI',
+  'Dụng Cụ': 'DC',
+  'Đầm Dạ Hội': 'DH',
+};
+
 // Helper: get formatted ID (e.g., AD-000001)
 function getFormattedId(category: string, categoryCounter: number) {
-  let code = (category || 'XX')
-    .split(' ')
-    .map((w: string) => w[0])
-    .join('');
-  // Replace Đ/đ with D/d, then remove diacritics
-  code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
-  code = code
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/\u0300-\u036f/g, '');
-  code = code.toUpperCase().slice(0, 2);
+  let code = CATEGORY_CODE_MAP[category];
+  if (!code) {
+    // Fallback for unknown categories - generate from first letters
+    code = (category || 'XX')
+      .split(' ')
+      .map((w: string) => w[0])
+      .join('');
+    // Replace Đ/đ with D/d, then remove diacritics
+    code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
+    code = code
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/\u0300-\u036f/g, '');
+    code = code.toUpperCase().slice(0, 2);
+  }
   return `${code}-${String(categoryCounter).padStart(6, '0')}`;
 }
 

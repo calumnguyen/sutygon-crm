@@ -31,6 +31,7 @@ export const CATEGORY_CODE_MAP: Record<string, string> = {
   'Đồ Tây': 'DT',
   Giầy: 'GI',
   'Dụng Cụ': 'DC',
+  'Đầm Dạ Hội': 'DH',
 };
 
 // Generate item ID based on category and count
