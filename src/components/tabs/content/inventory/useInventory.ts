@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { InventoryItem } from '@/types/inventory';
+import { useUser } from '@/context/UserContext';
 
 export function useInventory() {
+  const { sessionToken } = useUser();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -14,52 +16,68 @@ export function useInventory() {
 
   const ITEMS_PER_PAGE = 10;
 
-  const fetchInventory = useCallback(async (pageNum: number = 1, append: boolean = false) => {
-    // Prevent multiple simultaneous requests
-    if (isFetchingRef.current) return;
+  const fetchInventory = useCallback(
+    async (pageNum: number = 1, append: boolean = false) => {
+      // Prevent multiple simultaneous requests
+      if (isFetchingRef.current) return;
 
-    try {
-      isFetchingRef.current = true;
-
-      if (pageNum === 1) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-      setFetchError(null);
-
-      const offset = (pageNum - 1) * ITEMS_PER_PAGE;
-      const response = await fetch(
-        `/api/inventory?limit=${ITEMS_PER_PAGE}&offset=${offset}&page=${pageNum}`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch inventory');
+      // Don't fetch if no session token
+      if (!sessionToken) {
+        setFetchError('No session token available');
+        setLoading(false);
+        setLoadingMore(false);
+        return;
       }
 
-      const data = await response.json();
+      try {
+        isFetchingRef.current = true;
 
-      if (append) {
-        setInventory((prev) => [...prev, ...data.items]);
-      } else {
-        setInventory(data.items);
-      }
+        if (pageNum === 1) {
+          setLoading(true);
+        } else {
+          setLoadingMore(true);
+        }
+        setFetchError(null);
 
-      setHasMore(data.hasMore);
-      setTotal(data.total);
-      setPage(pageNum);
-    } catch (err) {
-      setFetchError('Lỗi khi tải dữ liệu kho.');
-      console.error('Fetch error:', err);
-      if (!append) {
-        setInventory([]);
+        const offset = (pageNum - 1) * ITEMS_PER_PAGE;
+        const response = await fetch(
+          `/api/inventory?limit=${ITEMS_PER_PAGE}&offset=${offset}&page=${pageNum}`,
+          {
+            headers: {
+              Authorization: `Bearer ${sessionToken}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch inventory');
+        }
+
+        const data = await response.json();
+
+        if (append) {
+          setInventory((prev) => [...prev, ...data.items]);
+        } else {
+          setInventory(data.items);
+        }
+
+        setHasMore(data.hasMore);
+        setTotal(data.total);
+        setPage(pageNum);
+      } catch (err) {
+        setFetchError('Lỗi khi tải dữ liệu kho.');
+        console.error('Fetch error:', err);
+        if (!append) {
+          setInventory([]);
+        }
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+        isFetchingRef.current = false;
       }
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-      isFetchingRef.current = false;
-    }
-  }, []);
+    },
+    [sessionToken]
+  );
 
   const refreshInventory = useCallback(async () => {
     setIsRefreshing(true);
@@ -85,7 +103,7 @@ export function useInventory() {
   // Fetch inventory on mount
   useEffect(() => {
     fetchInventory(1, false);
-  }, [fetchInventory]);
+  }, [fetchInventory, sessionToken]);
 
   return {
     inventory,

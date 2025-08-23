@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useUser } from '@/context/UserContext';
 
 interface InventoryOverview {
   totalModels: number;
@@ -6,14 +7,24 @@ interface InventoryOverview {
 }
 
 export function useInventoryOverview(autoRefresh: boolean = true) {
+  const { sessionToken } = useUser();
   const [data, setData] = useState<InventoryOverview>({ totalModels: 0, totalProducts: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchOverview = useCallback(async () => {
+    if (!sessionToken) {
+      setError('No session token available');
+      setLoading(false);
+      return;
+    }
     try {
       setError(null);
-      const response = await fetch('/api/inventory/overview');
+      const response = await fetch('/api/inventory/overview', {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch inventory overview');
@@ -32,7 +43,7 @@ export function useInventoryOverview(autoRefresh: boolean = true) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sessionToken]);
 
   // Initial fetch on mount
   useEffect(() => {
@@ -48,7 +59,7 @@ export function useInventoryOverview(autoRefresh: boolean = true) {
     }, 20000); // 20 seconds
 
     return () => clearInterval(interval);
-  }, [autoRefresh, fetchOverview]);
+  }, [autoRefresh, fetchOverview, sessionToken]);
 
   return {
     data,

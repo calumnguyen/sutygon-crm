@@ -6,6 +6,7 @@ import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { parseTags } from './InventoryUtils';
 import { AddItemFormState } from '@/types/inventory';
 import { InventoryItem } from '@/types/inventory';
+import { useUser } from '@/context/UserContext';
 
 interface InventoryEditModalProps {
   editModalOpen: boolean;
@@ -50,9 +51,19 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  const { setImportantTask } = useUser();
   const webcamRef = useRef<Webcam>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Protect against logout when modal is open
+  React.useEffect(() => {
+    if (editModalOpen) {
+      setImportantTask(true);
+    } else {
+      setImportantTask(false);
+    }
+  }, [editModalOpen, setImportantTask]);
 
   const isMobile = () => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -118,6 +129,9 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
 
       const response = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('sessionToken')}`,
+        },
         body: formData,
       });
 

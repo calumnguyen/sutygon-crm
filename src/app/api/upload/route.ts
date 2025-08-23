@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: AuthenticatedRequest) => {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -78,4 +79,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

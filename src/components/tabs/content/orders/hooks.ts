@@ -4,6 +4,7 @@ import { vi } from 'date-fns/locale';
 import { OrderItem, ItemSize } from './types';
 import { InventoryItem } from '@/types/inventory';
 import { getOrdersWithCustomers, Order } from '@/lib/actions/orders';
+import { useUser } from '@/context/UserContext';
 
 interface Customer {
   id: number;
@@ -20,6 +21,7 @@ interface AddCustomerData {
 }
 
 export function useOrderNewFlow() {
+  const { sessionToken } = useUser();
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [phone, setPhone] = useState<string>('');
   const [searching, setSearching] = useState<boolean>(false);
@@ -33,8 +35,13 @@ export function useOrderNewFlow() {
 
   useEffect(() => {
     async function fetchPhones() {
+      if (!sessionToken) return;
       try {
-        const res = await fetch('/api/customers');
+        const res = await fetch('/api/customers', {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        });
         const customers: Customer[] = await res.json();
         // Use decrypted phone numbers for validation since they're already decrypted
         setExistingPhones(customers.map((c: Customer) => c.phone));
@@ -43,7 +50,7 @@ export function useOrderNewFlow() {
       }
     }
     fetchPhones();
-  }, []);
+  }, [sessionToken]);
 
   const handlePhoneInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 11);
@@ -60,7 +67,11 @@ export function useOrderNewFlow() {
       setSearched(false);
       setCustomer(null);
       try {
-        const res = await fetch(`/api/customers?phone=${phone}`);
+        const res = await fetch(`/api/customers?phone=${phone}`, {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        });
         const data: Customer = await res.json();
         setCustomer(data);
       } catch (err) {
@@ -76,7 +87,10 @@ export function useOrderNewFlow() {
     try {
       const res = await fetch('/api/customers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
         body: JSON.stringify({
           name: customerData.name,
           phone: customerData.phone,
@@ -187,6 +201,7 @@ export function useOrderNewFlow() {
 }
 
 export function useInventoryFetch(dateFrom?: string, dateTo?: string) {
+  const { sessionToken } = useUser();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
@@ -201,7 +216,11 @@ export function useInventoryFetch(dateFrom?: string, dateTo?: string) {
         const url = '/api/inventory/search-elastic?q=&page=1&limit=1000'; // Increased limit to get all items
 
         // Use the optimized search API to get all items (empty query)
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        });
         if (!res.ok) throw new Error('Lỗi khi tải dữ liệu kho');
         const data = await res.json();
 
@@ -215,7 +234,7 @@ export function useInventoryFetch(dateFrom?: string, dateTo?: string) {
       }
     }
     fetchInventory();
-  }, []); // Remove date dependencies - we want all items loaded regardless of dates
+  }, [sessionToken]); // Remove date dependencies - we want all items loaded regardless of dates
 
   return { inventory, inventoryLoading, inventoryError };
 }
@@ -225,6 +244,7 @@ export function useOrderStep3ItemsLogic(
   setOrderItems: React.Dispatch<React.SetStateAction<OrderItem[]>>,
   inventory: InventoryItem[]
 ) {
+  const { sessionToken } = useUser();
   const [itemIdInput, setItemIdInput] = useState('');
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState('');
@@ -282,7 +302,11 @@ export function useOrderStep3ItemsLogic(
         const url = `/api/inventory/search-elastic?q=${encodeURIComponent(
           query
         )}&mode=auto&page=1&limit=${ITEMS_PER_PAGE}`;
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        });
         if (!res.ok) throw new Error('Tìm kiếm thất bại');
         const data = await res.json();
         setSearchResults(data.items || []);
@@ -391,7 +415,11 @@ export function useOrderStep3ItemsLogic(
     // If not found in client cache, use Elasticsearch API
     try {
       const url = `/api/inventory/search-elastic?q=${encodeURIComponent(id)}&mode=auto&limit=5`;
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
       if (!res.ok) return null;
 
       const data = await res.json();
@@ -644,7 +672,11 @@ export function useOrderStep3ItemsLogic(
         const url = `/api/inventory/search-elastic?q=${encodeURIComponent(
           serverQuery
         )}&mode=auto&page=${currentPage}&limit=${ITEMS_PER_PAGE}`;
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        });
         if (!res.ok) return;
         const data = await res.json();
         setSearchResults(data.items || []);
@@ -654,7 +686,7 @@ export function useOrderStep3ItemsLogic(
       }
     };
     fetchPage();
-  }, [currentPage, serverQuery, useServerSearch]);
+  }, [currentPage, serverQuery, useServerSearch, sessionToken]);
 
   const localTotalPages = Math.ceil(searchResults.length / ITEMS_PER_PAGE);
   const totalPages = serverTotalPages ?? localTotalPages;

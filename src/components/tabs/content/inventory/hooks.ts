@@ -4,6 +4,7 @@ import { useUser } from '@/context/UserContext';
 
 // Optimized search hook with debouncing and server-side search
 export function useInventorySearch() {
+  const { sessionToken } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -29,7 +30,12 @@ export function useInventorySearch() {
 
       try {
         const response = await fetch(
-          `/api/inventory/search-elastic?q=${encodeURIComponent(searchQuery)}&page=${searchPage}&limit=20`
+          `/api/inventory/search-elastic?q=${encodeURIComponent(searchQuery)}&page=${searchPage}&limit=20`,
+          {
+            headers: {
+              Authorization: `Bearer ${sessionToken}`,
+            },
+          }
         );
 
         if (!response.ok) {
@@ -64,7 +70,7 @@ export function useInventorySearch() {
         setIsSearching(false);
       }
     }, 300),
-    []
+    [sessionToken]
   );
 
   const handleSearch = useCallback(
@@ -271,7 +277,7 @@ export function useInventoryModals(
   refreshInventory: () => void,
   setInventory?: React.Dispatch<React.SetStateAction<InventoryItem[]>>
 ) {
-  const { currentUser } = useUser();
+  const { currentUser, sessionToken, logout } = useUser();
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -327,6 +333,9 @@ export function useInventoryModals(
       console.log(`[${requestId}] 🚀 Sending upload request to /api/upload`);
       const response = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
         body: formData,
       });
 
@@ -453,7 +462,10 @@ export function useInventoryModals(
       console.log(`[${requestId}] 🚀 Sending API request to /api/inventory`);
       const response = await fetch('/api/inventory', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
         body: JSON.stringify({
           name: form.name,
           category: form.category,
@@ -487,6 +499,21 @@ export function useInventoryModals(
           },
           timestamp: new Date().toISOString(),
         });
+
+        // Check if it's an authentication error
+        if (response.status === 401) {
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.reason === 'session_expired') {
+              // This will trigger the logout modal with the reason
+              throw new Error('SESSION_EXPIRED');
+            }
+          } catch (parseError) {
+            // If we can't parse the error, treat it as a general auth error
+            throw new Error('AUTHENTICATION_ERROR');
+          }
+        }
+
         throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
 
@@ -595,6 +622,17 @@ export function useInventoryModals(
         }
       );
 
+      // Check for authentication errors
+      if (error instanceof Error) {
+        if (error.message === 'SESSION_EXPIRED') {
+          logout('session_expired', 'Phiên đăng nhập đã hết hạn khi tạo sản phẩm');
+          return;
+        } else if (error.message === 'AUTHENTICATION_ERROR') {
+          logout('authentication_error', 'Lỗi xác thực khi tạo sản phẩm');
+          return;
+        }
+      }
+
       console.error(`[${requestId}] ❌ Failed to add item - user should retry`);
     } finally {
       setIsUploading(false);
@@ -641,7 +679,10 @@ export function useInventoryModals(
 
       const response = await fetch(`/api/inventory/${updatedItem.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
         body: JSON.stringify({
           name: updatedItem.name,
           category: updatedItem.category,
@@ -674,6 +715,19 @@ export function useInventoryModals(
           },
           timestamp: new Date().toISOString(),
         });
+
+        // Check if it's an authentication error
+        if (response.status === 401) {
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.reason === 'session_expired') {
+              throw new Error('SESSION_EXPIRED');
+            }
+          } catch (parseError) {
+            throw new Error('AUTHENTICATION_ERROR');
+          }
+        }
+
         throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
 
@@ -719,6 +773,17 @@ export function useInventoryModals(
         }
       );
 
+      // Check for authentication errors
+      if (error instanceof Error) {
+        if (error.message === 'SESSION_EXPIRED') {
+          logout('session_expired', 'Phiên đăng nhập đã hết hạn khi chỉnh sửa sản phẩm');
+          return;
+        } else if (error.message === 'AUTHENTICATION_ERROR') {
+          logout('authentication_error', 'Lỗi xác thực khi chỉnh sửa sản phẩm');
+          return;
+        }
+      }
+
       alert(`Lỗi khi lưu thay đổi: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsSaving(false);
@@ -741,6 +806,9 @@ export function useInventoryModals(
       console.log(`[${requestId}] 🚀 Sending DELETE request to /api/inventory/${itemId}`);
       const response = await fetch(`/api/inventory/${itemId}`, {
         method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
       });
 
       console.log(`[${requestId}] 📡 API response:`, {

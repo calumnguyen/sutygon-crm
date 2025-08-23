@@ -1,13 +1,14 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User, UserRole } from '@/types/user';
+import LogoutReasonModal, { LogoutReason } from '@/components/common/LogoutReasonModal';
 
 interface UserContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
   userRole: UserRole | null;
   setCurrentUser: (user: User | null) => void;
-  logout: () => void;
+  logout: (reason?: LogoutReason, details?: string) => void;
   reloadUser: () => void;
   sessionToken: string | null;
   setSessionToken: (token: string | null) => void;
@@ -30,6 +31,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [sessionWarningSeconds, setSessionWarningSeconds] = useState(0);
   const [isWorkingOnImportantTask, setIsWorkingOnImportantTask] = useState(false); // Track if user is in critical operation
   const [hasValidatedSession, setHasValidatedSession] = useState(false); // Track if session has been validated this cycle
+  const [logoutReason, setLogoutReason] = useState<LogoutReason | null>(null);
+  const [logoutDetails, setLogoutDetails] = useState<string>('');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Inactivity timeout (3 minutes)
   const INACTIVITY_TIMEOUT = 3 * 60 * 1000; // 3 minutes in milliseconds
@@ -212,7 +216,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (timeSinceLastActivity >= INACTIVITY_TIMEOUT) {
         console.log('⏰ Session expired due to inactivity');
         setShowSessionWarning(false);
-        logout();
+        logout(
+          'timeout',
+          'Phiên đăng nhập đã hết hạn do không hoạt động trong 3 phút / Login session expired due to 3 minutes of inactivity'
+        );
       } else if (timeSinceLastActivity >= WARNING_THRESHOLD && !showSessionWarning) {
         // Show warning when 2 minutes of inactivity (1 minute left)
         const remainingSeconds = Math.ceil((INACTIVITY_TIMEOUT - timeSinceLastActivity) / 1000);
@@ -252,12 +259,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setLastActivity(Date.now()); // Reset activity timer for existing session
         setHasValidatedSession(true); // Mark that we've validated this session
       } else {
-        // Invalid session, clear storage
+        // Invalid session, clear storage and show logout reason
         localStorage.removeItem('sessionToken');
         localStorage.removeItem('originalEmployeeKey');
         setCurrentUser(null);
         setSessionToken(null);
         setHasValidatedSession(false);
+        logout('session_expired', 'Phiên đăng nhập đã hết hạn khi tải trang');
       }
     } else {
       setCurrentUser(null);
@@ -326,7 +334,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (!user) {
         console.warn(`[${requestId}] ⚠️ Session validation failed - logging out user`);
         // Session is invalid, logout
-        logout();
+        logout('session_expired', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn');
       } else {
         console.log(
           `[${requestId}] ✅ Periodic session validation successful - updating user data`
@@ -405,7 +413,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             console.warn(
               `[${requestId}] ⚠️ Store closed - session invalidated by server, logging out user`
             );
-            logout();
+            logout('store_closed', 'Phiên đăng nhập đã bị vô hiệu hóa do cửa hàng đóng cửa');
           } else {
             console.log(`[${requestId}] ✅ Session still valid despite closed store`);
           }
@@ -425,7 +433,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [currentUser, sessionToken, lastActivity]);
 
-  const logout = async () => {
+  const logout = async (reason: LogoutReason = 'unknown', details: string = '') => {
     if (sessionToken) {
       try {
         // Call logout API to invalidate session on server
@@ -438,6 +446,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         console.error('Failed to logout on server:', error);
       }
     }
+
+    // Set logout reason and show modal
+    setLogoutReason(reason);
+    setLogoutDetails(details);
+    setShowLogoutModal(true);
 
     // Clear client-side state regardless of API success
     setCurrentUser(null);
@@ -472,6 +485,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleLogoutModalClose = () => {
+    setShowLogoutModal(false);
+    setLogoutReason(null);
+    setLogoutDetails('');
+  };
+
+  const handleLogoutRetry = () => {
+    setShowLogoutModal(false);
+    setLogoutReason(null);
+    setLogoutDetails('');
+    // Try to reload the user session
+    loadSessionFromStorage();
+  };
+
   const value: UserContextType = {
     currentUser,
     isAuthenticated: currentUser !== null && sessionToken !== null,
@@ -489,7 +516,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     isWorkingOnImportantTask,
   };
 
-  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
+  return (
+    <UserContext.Provider value={value}>
+      {children}
+      <LogoutReasonModal
+        isOpen={showLogoutModal}
+        reason={logoutReason || 'unknown'}
+        details={logoutDetails}
+        onClose={handleLogoutModalClose}
+        onRetry={handleLogoutRetry}
+      />
+    </UserContext.Provider>
+  );
 }
 
 export function useUser() {

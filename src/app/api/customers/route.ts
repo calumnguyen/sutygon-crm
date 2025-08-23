@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllCustomers, createCustomer, getCustomerByPhone } from '@/lib/actions/customers';
+import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: AuthenticatedRequest) => {
   const { searchParams } = new URL(req.url);
   const phone = searchParams.get('phone');
   if (phone) {
@@ -10,15 +11,15 @@ export async function GET(req: NextRequest) {
   }
   const customers = await getAllCustomers();
   return NextResponse.json(customers);
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: AuthenticatedRequest) => {
   const data = await req.json();
   const [customer] = await createCustomer(data);
-  
+
   // Decrypt the customer data before returning to frontend
   const { decryptCustomerData } = await import('@/lib/utils/customerEncryption');
   const decryptedCustomer = decryptCustomerData(customer);
-  
+
   return NextResponse.json(decryptedCustomer, { status: 201 });
-}
+});

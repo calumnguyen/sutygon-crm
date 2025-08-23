@@ -18,6 +18,7 @@ import {
 } from '@/lib/utils/inventoryEncryption';
 import { inventorySync } from '@/lib/elasticsearch/sync';
 import { logInventoryError, logDatabaseError, logConnectionError } from '@/lib/utils/errorMonitor';
+import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 
 // Define a minimal InventoryItem type for this context
 // interface InventoryItemForId {
@@ -57,7 +58,7 @@ function getFormattedId(category: string, categoryCounter: number) {
   return `${code}-${String(categoryCounter).padStart(6, '0')}`;
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: AuthenticatedRequest) => {
   const { searchParams } = new URL(request.url);
   const limit = parseInt(searchParams.get('limit') || '10');
   const offset = parseInt(searchParams.get('offset') || '0');
@@ -187,9 +188,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Failed to fetch inventory items' }, { status: 500 });
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: AuthenticatedRequest) => {
   const requestId = `inv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const startTime = Date.now();
 
@@ -521,4 +522,4 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: 'Failed to create inventory item' }, { status: 500 });
   }
-}
+});

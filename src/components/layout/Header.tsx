@@ -27,13 +27,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch }) => {
           <SearchBar onSearch={onSearch} />
         </div>
         <div className="order-2 sm:order-3">
-          <SignOutButton
-            userName={currentUser?.name}
-            onSignOut={() => {
-              logout();
-              router.replace('/login');
-            }}
-          />
+          <SignOutButton userName={currentUser?.name} />
         </div>
       </div>
     </header>

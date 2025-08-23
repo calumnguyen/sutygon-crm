@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { inventoryItems, inventoryTags, tags } from '@/lib/db/schema';
 import { inArray, eq } from 'drizzle-orm';
 import { decryptTagData } from '@/lib/utils/inventoryEncryption';
+import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 
 // Helper function for Vietnamese text normalization
 function normalizeVietnamese(text: string): string {
@@ -16,7 +17,7 @@ function normalizeVietnamese(text: string): string {
     .replace(/Đ/g, 'd');
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: AuthenticatedRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q') || '';
@@ -487,4 +488,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
