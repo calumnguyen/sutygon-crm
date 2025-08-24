@@ -139,6 +139,15 @@ const LogoutReasonModal: React.FC<LogoutReasonModalProps> = ({
   onClose,
   onRetry,
 }) => {
+  console.log(
+    '🔍 LogoutReasonModal render - isOpen:',
+    isOpen,
+    'reason:',
+    reason,
+    'details:',
+    details
+  );
+
   if (!isOpen) return null;
 
   const reasonInfo = getReasonInfo(reason);

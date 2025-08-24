@@ -210,6 +210,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (!currentUser || !sessionToken) return;
 
     const checkInactivity = () => {
+      // Don't check inactivity if user is working on important task
+      if (isWorkingOnImportantTask) {
+        console.log('⏭️ Skipping inactivity check - user is working on important task');
+        return;
+      }
+
       const now = Date.now();
       const timeSinceLastActivity = now - lastActivity;
 
@@ -240,7 +246,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(checkInactivity, 10000);
 
     return () => clearInterval(interval);
-  }, [currentUser, sessionToken, lastActivity, showSessionWarning]);
+  }, [currentUser, sessionToken, lastActivity, showSessionWarning, isWorkingOnImportantTask]);
 
   const loadSessionFromStorage = async () => {
     const storedToken = localStorage.getItem('sessionToken');
@@ -434,6 +440,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser, sessionToken, lastActivity]);
 
   const logout = async (reason: LogoutReason = 'unknown', details: string = '') => {
+    console.log('🚪 Logout called with reason:', reason, 'details:', details);
+
+    // Set logout reason and show modal FIRST (before clearing state)
+    setLogoutReason(reason);
+    setLogoutDetails(details);
+    setShowLogoutModal(true);
+
+    console.log('📋 Modal state set - reason:', reason, 'showModal: true');
+
+    // Small delay to ensure modal state is set before clearing user state
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     if (sessionToken) {
       try {
         // Call logout API to invalidate session on server
@@ -446,11 +464,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         console.error('Failed to logout on server:', error);
       }
     }
-
-    // Set logout reason and show modal
-    setLogoutReason(reason);
-    setLogoutDetails(details);
-    setShowLogoutModal(true);
 
     // Clear client-side state regardless of API success
     setCurrentUser(null);
