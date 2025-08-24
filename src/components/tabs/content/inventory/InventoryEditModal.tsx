@@ -60,8 +60,15 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
   React.useEffect(() => {
     if (editModalOpen) {
       setImportantTask(true);
+      console.log('🔒 Edit Item Modal opened - important task protection enabled');
     } else {
-      setImportantTask(false);
+      // Add a small delay before removing protection to prevent race conditions
+      const timer = setTimeout(() => {
+        setImportantTask(false);
+        console.log('🔓 Edit Item Modal closed - important task protection disabled');
+      }, 1000); // 1 second delay
+
+      return () => clearTimeout(timer);
     }
   }, [editModalOpen, setImportantTask]);
 

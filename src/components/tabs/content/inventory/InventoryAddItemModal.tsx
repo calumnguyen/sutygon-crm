@@ -45,8 +45,15 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       setImportantTask(true);
+      console.log('🔒 Add Item Modal opened - important task protection enabled');
     } else {
-      setImportantTask(false);
+      // Add a small delay before removing protection to prevent race conditions
+      const timer = setTimeout(() => {
+        setImportantTask(false);
+        console.log('🔓 Add Item Modal closed - important task protection disabled');
+      }, 1000); // 1 second delay
+
+      return () => clearTimeout(timer);
     }
   }, [isOpen, setImportantTask]);
 

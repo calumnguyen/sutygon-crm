@@ -507,6 +507,10 @@ export function useInventoryModals(
             if (errorData.reason === 'session_expired') {
               // This will trigger the logout modal with the reason
               throw new Error('SESSION_EXPIRED');
+            } else if (errorData.reason === 'authentication_error') {
+              // This might be a temporary auth issue, don't logout immediately
+              console.warn('Authentication error - might be temporary:', errorData);
+              throw new Error('AUTHENTICATION_ERROR');
             }
           } catch (parseError) {
             // If we can't parse the error, treat it as a general auth error

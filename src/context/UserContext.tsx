@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User, UserRole } from '@/types/user';
 import LogoutReasonModal, { LogoutReason } from '@/components/common/LogoutReasonModal';
 
@@ -169,9 +169,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Track user activity (clicks, keyboard, mouse movement)
-  const trackActivity = () => {
+  const trackActivity = useCallback(() => {
     setLastActivity(Date.now());
-  };
+  }, []);
 
   // Activity tracking effect
   useEffect(() => {
@@ -203,7 +203,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         document.removeEventListener(event, trackActivity, true);
       });
     };
-  }, [currentUser, sessionToken]);
+  }, [currentUser, sessionToken, trackActivity]);
 
   // Inactivity timer effect
   useEffect(() => {
@@ -369,7 +369,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(validateCurrentSession, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [sessionToken, justLoggedIn, lastActivity, isWorkingOnImportantTask, hasValidatedSession]);
+  }, [sessionToken, justLoggedIn, isWorkingOnImportantTask, hasValidatedSession]);
 
   // Store status polling for auto-logout (reduced frequency since we have real sessions now)
   useEffect(() => {
@@ -437,7 +437,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(checkStoreStatus, 2 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [currentUser, sessionToken, lastActivity]);
+  }, [currentUser, sessionToken, lastActivity, isWorkingOnImportantTask]);
 
   const logout = async (reason: LogoutReason = 'unknown', details: string = '') => {
     console.log('🚪 Logout called with reason:', reason, 'details:', details);
