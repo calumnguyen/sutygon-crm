@@ -541,7 +541,7 @@ class TypesenseInventorySync {
           nameNormalized: normalizeVietnameseText(decryptedItem.name),
           category: decryptedItem.category,
           categoryNormalized: normalizeVietnameseText(decryptedItem.category),
-          imageUrl: item.imageUrl, // Typesense can handle larger data
+          imageUrl: item.imageUrl ? 'has_image' : null, // Only store reference, not full base64 data
           tags: decryptedTags,
           createdAt: new Date(item.createdAt).getTime(),
           updatedAt: new Date(item.updatedAt).getTime(),
