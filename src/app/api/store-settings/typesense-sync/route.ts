@@ -12,10 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     // Prevent multiple simultaneous sync operations
     if (isSyncing) {
-      return NextResponse.json(
-        { error: 'Đồng bộ đang chạy, vui lòng đợi...' },
-        { status: 429 }
-      );
+      return NextResponse.json({ error: 'Đồng bộ đang chạy, vui lòng đợi...' }, { status: 429 });
     }
     isSyncing = true;
 
@@ -24,12 +21,12 @@ export async function POST(request: NextRequest) {
     const isStreaming = acceptHeader?.includes('text/event-stream');
 
     if (isStreaming) {
-            // Return SSE stream for real-time logs
+      // Return SSE stream for real-time logs
       const stream = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
-          
-          const sendEvent = (data: any) => {
+
+          const sendEvent = (data: Record<string, unknown>) => {
             const event = `data: ${JSON.stringify(data)}\n\n`;
             controller.enqueue(encoder.encode(event));
           };
@@ -41,7 +38,7 @@ export async function POST(request: NextRequest) {
           try {
             // Get all inventory item IDs first
             const items = await db.select({ id: inventoryItems.id }).from(inventoryItems);
-            const itemIds = items.map(item => item.id);
+            const itemIds = items.map((item) => item.id);
 
             if (itemIds.length === 0) {
               sendEvent({ type: 'complete', syncedCount: 0, totalItems: 0, failedCount: 0 });
@@ -50,46 +47,58 @@ export async function POST(request: NextRequest) {
             }
 
             const onProgress = (current: number, total: number) => {
-              sendEvent({ type: 'progress', current, total, percentage: Math.round((current / total) * 100) });
+              sendEvent({
+                type: 'progress',
+                current,
+                total,
+                percentage: Math.round((current / total) * 100),
+              });
             };
 
             // Start the sync process
-            const result = await typesenseInventorySync.syncMultipleItems(itemIds, onProgress, onLog);
-            
-            sendEvent({ 
-              type: 'complete', 
-              syncedCount: result.synced, 
+            const result = await typesenseInventorySync.syncMultipleItems(
+              itemIds,
+              onProgress,
+              onLog
+            );
+
+            sendEvent({
+              type: 'complete',
+              syncedCount: result.synced,
               totalItems: result.total,
-              failedCount: result.failed 
+              failedCount: result.failed,
             });
             controller.close();
-          } catch (error: any) {
-            sendEvent({ type: 'error', error: error.message });
+          } catch (error: unknown) {
+            sendEvent({
+              type: 'error',
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
             controller.close();
           } finally {
             isSyncing = false;
           }
-        }
+        },
       });
 
       return new Response(stream, {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
+          Connection: 'keep-alive',
         },
       });
     } else {
       // Original non-streaming implementation
       const logs: string[] = [];
-      
+
       const onLog = (log: string) => {
         logs.push(log);
       };
 
       // Get all inventory item IDs first
       const items = await db.select({ id: inventoryItems.id }).from(inventoryItems);
-      const itemIds = items.map(item => item.id);
+      const itemIds = items.map((item) => item.id);
 
       if (itemIds.length === 0) {
         return NextResponse.json({
@@ -97,7 +106,7 @@ export async function POST(request: NextRequest) {
           syncedCount: 0,
           totalItems: 0,
           failedCount: 0,
-          logs
+          logs,
         });
       }
 
@@ -106,21 +115,21 @@ export async function POST(request: NextRequest) {
       };
 
       const result = await typesenseInventorySync.syncMultipleItems(itemIds, onProgress, onLog);
-      
+
       const message = `Đồng bộ thành công: ${result.synced} sản phẩm (${result.failed} lỗi)`;
-      
+
       return NextResponse.json({
         message,
         syncedCount: result.synced,
         totalItems: result.total,
         failedCount: result.failed,
-        logs
+        logs,
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     isSyncing = false;
     return NextResponse.json(
-      { error: error.message || 'Có lỗi xảy ra khi đồng bộ' },
+      { error: error instanceof Error ? error.message : 'Có lỗi xảy ra khi đồng bộ' },
       { status: 500 }
     );
   }
@@ -130,11 +139,11 @@ export async function GET() {
   try {
     // Check Typesense connection status
     const connected = await typesenseService.connect();
-    
+
     if (!connected) {
       return NextResponse.json({
         status: 'unavailable',
-        message: 'Typesense không khả dụng'
+        message: 'Typesense không khả dụng',
       });
     }
 
@@ -146,7 +155,7 @@ export async function GET() {
     let typesenseCount = 0;
     try {
       const collection = await typesenseService.getCollection('inventory_items');
-      typesenseCount = collection.num_documents || 0;
+      typesenseCount = (collection.num_documents as number) || 0;
     } catch (error) {
       console.warn('Could not get Typesense collection info:', error);
     }
@@ -155,9 +164,8 @@ export async function GET() {
       status: 'available',
       totalItems,
       typesenseCount,
-      lastSync: new Date().toISOString() // You might want to store this in a database
+      lastSync: new Date().toISOString(), // You might want to store this in a database
     });
-
   } catch (error) {
     console.error('Typesense status check error:', error);
     return NextResponse.json(

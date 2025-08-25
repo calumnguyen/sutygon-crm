@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { User, UserRole } from '@/types/user';
 import LogoutReasonModal, { LogoutReason } from '@/components/common/LogoutReasonModal';
 
@@ -30,13 +30,33 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [showSessionWarning, setShowSessionWarning] = useState(false);
   const [sessionWarningSeconds, setSessionWarningSeconds] = useState(0);
   const [isWorkingOnImportantTask, setIsWorkingOnImportantTask] = useState(false); // Track if user is in critical operation
+
+  // Use refs to store stable references for useEffect dependencies
+  const lastActivityRef = useRef(lastActivity);
+  const showSessionWarningRef = useRef(showSessionWarning);
+  const isWorkingOnImportantTaskRef = useRef(isWorkingOnImportantTask);
+
+  // Update refs when state changes
+  useEffect(() => {
+    lastActivityRef.current = lastActivity;
+  }, [lastActivity]);
+
+  useEffect(() => {
+    showSessionWarningRef.current = showSessionWarning;
+  }, [showSessionWarning]);
+
+  useEffect(() => {
+    isWorkingOnImportantTaskRef.current = isWorkingOnImportantTask;
+  }, [isWorkingOnImportantTask]);
   const [hasValidatedSession, setHasValidatedSession] = useState(false); // Track if session has been validated this cycle
   const [logoutReason, setLogoutReason] = useState<LogoutReason | null>(null);
   const [logoutDetails, setLogoutDetails] = useState<string>('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Inactivity timeout (longer for mobile browsers)
-  const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
   const INACTIVITY_TIMEOUT = isMobileBrowser ? 10 * 60 * 1000 : 3 * 60 * 1000; // 10 minutes on mobile, 3 minutes on desktop
   const WARNING_THRESHOLD = isMobileBrowser ? 8 * 60 * 1000 : 2 * 60 * 1000; // Show warning at 8 minutes on mobile, 2 minutes on desktop
 
@@ -174,29 +194,22 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setLastActivity(Date.now());
   }, []);
 
-  // Activity tracking effect
+  // Activity tracking effect - TEMPORARILY DISABLED FOR DEBUGGING
   useEffect(() => {
     if (!currentUser || !sessionToken) return;
 
-    // Add activity event listeners
+    // TEMPORARILY DISABLED - Only track mouse events, not input events
     const events = [
       'mousedown',
       'mousemove',
-      'keypress',
-      'scroll',
       'click', // Desktop/laptop events
       'touchstart',
       'touchmove',
       'touchend', // Mobile touch events
       'wheel',
-      'keydown',
-      'keyup', // Additional input events
-      'focus',
+      'scroll',
       'resize', // Window/app interaction events
-      'input', // Form input events (important for mobile typing)
-      'change', // Form change events
-      'paste', // Paste events
-      'select', // Text selection events
+      // REMOVED: 'keydown', 'keyup', 'input', 'change', 'focus', 'paste', 'select'
     ];
 
     events.forEach((event) => {
@@ -216,13 +229,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     const checkInactivity = () => {
       // Don't check inactivity if user is working on important task
-      if (isWorkingOnImportantTask) {
+      if (isWorkingOnImportantTaskRef.current) {
         console.log('⏭️ Skipping inactivity check - user is working on important task');
         return;
       }
 
       const now = Date.now();
-      const timeSinceLastActivity = now - lastActivity;
+      const timeSinceLastActivity = now - lastActivityRef.current;
 
       if (timeSinceLastActivity >= INACTIVITY_TIMEOUT) {
         console.log('⏰ Session expired due to inactivity');
@@ -232,7 +245,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           'timeout',
           `Phiên đăng nhập đã hết hạn do không hoạt động trong ${timeoutMinutes} phút / Login session expired due to ${timeoutMinutes} minutes of inactivity`
         );
-      } else if (timeSinceLastActivity >= WARNING_THRESHOLD && !showSessionWarning) {
+      } else if (timeSinceLastActivity >= WARNING_THRESHOLD && !showSessionWarningRef.current) {
         // Show warning when 2 minutes of inactivity (1 minute left)
         const remainingSeconds = Math.ceil((INACTIVITY_TIMEOUT - timeSinceLastActivity) / 1000);
         console.log(
@@ -240,7 +253,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         );
         setSessionWarningSeconds(remainingSeconds);
         setShowSessionWarning(true);
-      } else if (showSessionWarning && timeSinceLastActivity < WARNING_THRESHOLD) {
+      } else if (showSessionWarningRef.current && timeSinceLastActivity < WARNING_THRESHOLD) {
         // Hide warning if user becomes active again before timeout
         console.log('✅ User became active again, hiding warning');
         setShowSessionWarning(false);
@@ -252,7 +265,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(checkInactivity, 10000);
 
     return () => clearInterval(interval);
-  }, [currentUser, sessionToken, lastActivity, showSessionWarning, isWorkingOnImportantTask]);
+  }, [currentUser, sessionToken]); // Remove unstable dependencies
 
   const loadSessionFromStorage = async () => {
     const storedToken = localStorage.getItem('sessionToken');
@@ -292,8 +305,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const hasStoredTokens = localStorage.getItem('sessionToken');
 
     // More lenient session management for mobile browsers
-    const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
+    const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+
     if (hasStoredTokens && !browserSessionId) {
       if (isMobileBrowser) {
         // On mobile browsers, be more lenient - don't clear session immediately
@@ -385,7 +400,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(validateCurrentSession, validationInterval);
 
     return () => clearInterval(interval);
-  }, [sessionToken, justLoggedIn, isWorkingOnImportantTask, hasValidatedSession]);
+  }, [sessionToken, justLoggedIn, hasValidatedSession]); // Remove unstable dependency
 
   // Store status polling for auto-logout (reduced frequency since we have real sessions now)
   useEffect(() => {
@@ -413,7 +428,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           );
 
           // Don't validate if user is actively working (within last 30 seconds)
-          const timeSinceLastActivity = Date.now() - lastActivity;
+          const timeSinceLastActivity = Date.now() - lastActivityRef.current;
           if (timeSinceLastActivity < 30000) {
             console.log(
               `[${requestId}] ⏭️ Skipping store status validation - user is actively working (${timeSinceLastActivity}ms since last activity)`
@@ -422,7 +437,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           }
 
           // Don't validate if user is working on important task
-          if (isWorkingOnImportantTask) {
+          if (isWorkingOnImportantTaskRef.current) {
             console.log(
               `[${requestId}] ⏭️ Skipping store status validation - user is working on important task`
             );
@@ -453,7 +468,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(checkStoreStatus, 2 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [currentUser, sessionToken, lastActivity, isWorkingOnImportantTask]);
+  }, [currentUser, sessionToken]); // Remove unstable dependencies
 
   const logout = async (reason: LogoutReason = 'unknown', details: string = '') => {
     console.log('🚪 Logout called with reason:', reason, 'details:', details);

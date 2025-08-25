@@ -54,9 +54,7 @@ export function useInventoryOverview(autoRefresh: boolean = true) {
   useEffect(() => {
     if (!autoRefresh) return;
 
-    const interval = setInterval(() => {
-      fetchOverview();
-    }, 20000); // 20 seconds
+    const interval = setInterval(fetchOverview, 20000); // 20 seconds
 
     return () => clearInterval(interval);
   }, [autoRefresh, fetchOverview, sessionToken]);

@@ -19,7 +19,7 @@ export function useInventorySearch() {
     debounce(async (query: unknown, page: unknown = 1) => {
       const searchQuery = query as string;
       const searchPage = page as number;
-      
+
       if (!searchQuery.trim()) {
         setSearchResults([]);
         setHasMore(false);
@@ -62,22 +62,26 @@ export function useInventorySearch() {
         if (page === 1) {
           // Deduplicate initial results to prevent duplicate keys
           const items = data.items || [];
-          const uniqueItems = items.filter((item, index, self) => 
-            index === self.findIndex(t => t.id === item.id)
+          const uniqueItems = items.filter(
+            (item: InventoryItem, index: number, self: InventoryItem[]) =>
+              index === self.findIndex((t) => t.id === item.id)
           );
           setSearchResults(uniqueItems);
         } else {
           setSearchResults((prev) => {
             // Deduplicate by ID to prevent duplicate keys
-            const existingIds = new Set(prev.map(item => item.id));
-            const newItems = (data.items || []).filter(item => !existingIds.has(item.id));
-            
+            const existingIds = new Set(prev.map((item) => item.id));
+            const newItems = (data.items || []).filter(
+              (item: InventoryItem) => !existingIds.has(item.id)
+            );
+
             // Final safety check: ensure no duplicates in the combined result
             const combined = [...prev, ...newItems];
-            const finalUnique = combined.filter((item, index, self) => 
-              index === self.findIndex(t => t.id === item.id)
+            const finalUnique = combined.filter(
+              (item: InventoryItem, index: number, self: InventoryItem[]) =>
+                index === self.findIndex((t) => t.id === item.id)
             );
-            
+
             return finalUnique;
           });
         }

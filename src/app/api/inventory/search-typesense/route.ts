@@ -17,7 +17,7 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
 
     console.log('Typesense search API called with:', { query, page, limit, category });
 
-          // const offset = (page - 1) * limit; // Not used in Typesense search
+    // const offset = (page - 1) * limit; // Not used in Typesense search
 
     // Check if Typesense is connected
     const isConnected = typesenseService.isTypesenseConnected();
@@ -58,7 +58,7 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
     // Configure search behavior based on mode
     if (query.trim()) {
       const searchQuery = query.trim();
-      
+
       // Handle product ID searches
       const isLikelyProductId = /^[A-Za-z]{1,3}[-]?[0-9]{4,6}$/i.test(searchQuery);
       if (isLikelyProductId) {
@@ -84,7 +84,8 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
           searchParameters.prefix = true;
           searchParameters.infix = 'off';
           // Allow more typos for short queries to handle Vietnamese diacritics
-          searchParameters.num_typos = searchQuery.length <= 3 ? 2 : searchQuery.length <= 5 ? 1 : 0;
+          searchParameters.num_typos =
+            searchQuery.length <= 3 ? 2 : searchQuery.length <= 5 ? 1 : 0;
         }
       }
 
@@ -97,7 +98,8 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
         searchParameters.min_score = 0.1;
       } else {
         // mode === 'auto' - improved for Vietnamese text
-        searchParameters.min_score = searchQuery.length <= 3 ? 0.5 : searchQuery.length <= 5 ? 1.0 : 2.0;
+        searchParameters.min_score =
+          searchQuery.length <= 3 ? 0.5 : searchQuery.length <= 5 ? 1.0 : 2.0;
       }
     }
 
@@ -112,10 +114,10 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
 
     // Process results
     const hits = response.hits || [];
-    const totalHits = response.found || 0;
+    const totalHits = (response.found as number) || 0;
 
     // Extract item IDs from search results to fetch imageUrls from database
-    const itemIds = (hits as any[])
+    const itemIds = (hits as Record<string, unknown>[])
       .map((hit: Record<string, unknown>) => (hit.document as Record<string, unknown>).id as number)
       .filter((id: number) => !isNaN(id));
 
@@ -167,23 +169,24 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
       }
     }
 
-    const items = (hits as any[]).map((hit: Record<string, unknown>) => {
-      const document = hit.document;
-      const itemId = document.id;
+    const items = (hits as Record<string, unknown>[]).map((hit: Record<string, unknown>) => {
+      const document = hit.document as Record<string, unknown>;
+      const itemId = document.id as number;
 
       const result: Record<string, unknown> = {
-        id: document.id,
-        formattedId: document.formattedId,
-        name: document.name,
-        category: document.category,
-        imageUrl: document.imageUrl || imageUrlMap[itemId] || null,
-        tags: Array.isArray(document.tags) && document.tags.length > 0
-          ? document.tags
-          : tagsMap[itemId] || [],
-        sizes: document.sizes || [],
-        createdAt: document.createdAt,
-        updatedAt: document.updatedAt,
-        _score: hit.text_match || 0,
+        id: document.id as number,
+        formattedId: document.formattedId as string,
+        name: document.name as string,
+        category: document.category as string,
+        imageUrl: (document.imageUrl as string) || imageUrlMap[itemId] || null,
+        tags:
+          Array.isArray(document.tags) && (document.tags as unknown[]).length > 0
+            ? (document.tags as string[])
+            : tagsMap[itemId] || [],
+        sizes: (document.sizes as unknown[]) || [],
+        createdAt: document.createdAt as string,
+        updatedAt: document.updatedAt as string,
+        _score: (hit.text_match as number) || 0,
       };
 
       // Add highlights if available

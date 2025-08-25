@@ -112,7 +112,11 @@ class TypesenseInventorySync {
     }
   }
 
-  async syncMultipleItems(itemIds: number[], onProgress?: (current: number, total: number) => void, onLog?: (log: string) => void): Promise<{ synced: number; failed: number; total: number }> {
+  async syncMultipleItems(
+    itemIds: number[],
+    onProgress?: (current: number, total: number) => void,
+    onLog?: (log: string) => void
+  ): Promise<{ synced: number; failed: number; total: number }> {
     if (!(await this.checkTypesense())) {
       console.log(`⚠️ Skipping bulk sync for ${itemIds.length} items - Typesense unavailable`);
       return { synced: 0, failed: itemIds.length, total: itemIds.length };
@@ -122,18 +126,20 @@ class TypesenseInventorySync {
       const startLog = `🔄 Bắt đầu đồng bộ hàng loạt ${itemIds.length} sản phẩm với Typesense...`;
       console.log(startLog);
       if (onLog) onLog(startLog);
-      
+
       // Send initial progress update
       if (onProgress) {
         onProgress(0, itemIds.length);
       }
-      
+
       // Fetch all data in bulk with batching to avoid PostgreSQL parameter limit
       if (onLog) onLog('🔍 Đang tải dữ liệu từ cơ sở dữ liệu...');
-      
-      const allItems: any[] = [], allSizes: any[] = [], allTags: any[] = [];
+
+      const allItems: any[] = [],
+        allSizes: any[] = [],
+        allTags: any[] = [];
       const BATCH_SIZE = 500; // Use smaller batches to be extra safe with PostgreSQL
-      
+
       try {
         // Fetch items in batches
         for (let i = 0; i < itemIds.length; i += BATCH_SIZE) {
@@ -148,20 +154,23 @@ class TypesenseInventorySync {
               })
               .from(inventoryTags)
               .innerJoin(tags, eq(inventoryTags.tagId, tags.id))
-              .where(inArray(inventoryTags.itemId, batch))
+              .where(inArray(inventoryTags.itemId, batch)),
           ]);
-          
+
           allItems.push(...batchItems);
           allSizes.push(...batchSizes);
           allTags.push(...batchTags);
-          
-          if (onLog) onLog(`📊 Đã tải lô ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(itemIds.length/BATCH_SIZE)}`);
+
+          if (onLog)
+            onLog(
+              `📊 Đã tải lô ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(itemIds.length / BATCH_SIZE)}`
+            );
         }
 
         const fetchLog = `📊 Đã tải ${allItems.length} sản phẩm, ${allSizes.length} kích thước, ${allTags.length} nhãn`;
         console.log(fetchLog);
         if (onLog) onLog(fetchLog);
-        
+
         if (onLog) onLog('🔍 Đang tạo bản đồ tra cứu...');
       } catch (dbError) {
         const errorLog = `❌ Truy vấn cơ sở dữ liệu thất bại: ${dbError instanceof Error ? dbError.message : String(dbError)}`;
@@ -171,39 +180,45 @@ class TypesenseInventorySync {
       }
 
       // Create lookup maps for efficient access
-      const sizesByItemId = allSizes.reduce((acc: Record<number, any[]>, size: any) => {
-        if (!acc[size.itemId]) acc[size.itemId] = [];
-        acc[size.itemId].push(size);
-        return acc;
-      }, {} as Record<number, any[]>);
+      const sizesByItemId = allSizes.reduce(
+        (acc: Record<number, any[]>, size: any) => {
+          if (!acc[size.itemId]) acc[size.itemId] = [];
+          acc[size.itemId].push(size);
+          return acc;
+        },
+        {} as Record<number, any[]>
+      );
 
-      const tagsByItemId = allTags.reduce((acc: Record<number, string[]>, item: any) => {
-        const decryptedTagName = decryptTagData({ name: item.tagName }).name;
-        if (!acc[item.itemId]) acc[item.itemId] = [];
-        acc[item.itemId].push(decryptedTagName);
-        return acc;
-      }, {} as Record<number, string[]>);
+      const tagsByItemId = allTags.reduce(
+        (acc: Record<number, string[]>, item: any) => {
+          const decryptedTagName = decryptTagData({ name: item.tagName }).name;
+          if (!acc[item.itemId]) acc[item.itemId] = [];
+          acc[item.itemId].push(decryptedTagName);
+          return acc;
+        },
+        {} as Record<number, string[]>
+      );
 
-              if (onLog) onLog('🔍 Đang xây dựng tài liệu...');
+      if (onLog) onLog('🔍 Đang xây dựng tài liệu...');
 
       // Build documents efficiently
       const documents: SyncInventoryItem[] = [];
       const failedItems: number[] = [];
       let processedCount = 0;
 
-            for (const item of allItems) {
+      for (const item of allItems) {
         // Log the first item being processed
         if (processedCount === 0 && onLog) {
           onLog(`🔍 Đang xử lý sản phẩm đầu tiên: ${item.id}`);
         }
-        
+
         const doc = this.buildItemDocumentFromData(
-          item, 
-          sizesByItemId[item.id] || [], 
+          item,
+          sizesByItemId[item.id] || [],
           tagsByItemId[item.id] || [],
           onLog
         );
-        
+
         if (doc) {
           documents.push(doc);
         } else {
@@ -214,15 +229,15 @@ class TypesenseInventorySync {
             console.error(failLog);
             if (onLog) onLog(failLog);
           }
-          
+
           // Log the first failure with more detail
           if (failedItems.length === 1 && onLog) {
             onLog(`🔍 Lỗi đầu tiên - đang kiểm tra cấu trúc dữ liệu sản phẩm ${item.id}...`);
           }
         }
-        
+
         processedCount++;
-        
+
         // Report progress every 50 items for more frequent updates
         if (processedCount % 50 === 0 || processedCount === allItems.length) {
           if (onProgress) {
@@ -240,27 +255,30 @@ class TypesenseInventorySync {
         const indexLog = `📤 Đang lập chỉ mục ${documents.length} tài liệu vào Typesense...`;
         console.log(indexLog);
         if (onLog) onLog(indexLog);
-        
+
         // Send progress update to indicate indexing phase has started
         if (onProgress) {
           onProgress(30, 100); // 30% - building phase complete, indexing starting
         }
-        
+
         try {
           // Split into smaller chunks to avoid timeouts
           const CHUNK_SIZE = 100;
           let totalSynced = 0;
-          
+
           for (let i = 0; i < documents.length; i += CHUNK_SIZE) {
             const chunk = documents.slice(i, i + CHUNK_SIZE);
             const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
             const totalChunks = Math.ceil(documents.length / CHUNK_SIZE);
-            
-            if (onLog) onLog(`📤 Đang lập chỉ mục phần ${chunkNumber}/${totalChunks} (${chunk.length} tài liệu)...`);
-            
+
+            if (onLog)
+              onLog(
+                `📤 Đang lập chỉ mục phần ${chunkNumber}/${totalChunks} (${chunk.length} tài liệu)...`
+              );
+
             await typesenseService.bulkIndex(INVENTORY_COLLECTION, chunk);
             totalSynced += chunk.length;
-            
+
             // Report progress during indexing phase
             if (onProgress) {
               // During indexing, show progress as 30% (building) + 70% (indexing)
@@ -268,28 +286,33 @@ class TypesenseInventorySync {
               const totalProgress = 30 + indexingProgress;
               onProgress(totalProgress, 100);
             }
-            
-            if (onLog) onLog(`✅ Phần ${chunkNumber}/${totalChunks} hoàn thành (${totalSynced}/${documents.length} tổng cộng)`);
+
+            if (onLog)
+              onLog(
+                `✅ Phần ${chunkNumber}/${totalChunks} hoàn thành (${totalSynced}/${documents.length} tổng cộng)`
+              );
           }
-          
+
           // Only log success after ALL chunks are complete
           const successLog = `✅ Đã đồng bộ thành công ${totalSynced} sản phẩm với Typesense`;
           console.log(successLog);
           if (onLog) onLog(successLog);
-          
+
           // Return success after all chunks are complete
           return { synced: totalSynced, failed: 0, total: itemIds.length };
         } catch (indexError: any) {
           console.error('Typesense indexing error:', indexError);
-          
+
           if (indexError.importResults) {
             const failedDocs = indexError.importResults.filter((result: any) => !result.success);
-            const successCount = indexError.importResults.filter((result: any) => result.success).length;
-            
+            const successCount = indexError.importResults.filter(
+              (result: any) => result.success
+            ).length;
+
             const errorLog = `❌ Nhập dữ liệu Typesense thất bại: ${successCount} thành công, ${failedDocs.length} thất bại`;
             console.error(errorLog);
             if (onLog) onLog(errorLog);
-            
+
             // Log first few specific errors
             if (failedDocs.length > 0 && onLog) {
               onLog(`🔍 Một số lỗi đầu tiên:`);
@@ -302,25 +325,30 @@ class TypesenseInventorySync {
             console.error(errorLog);
             if (onLog) onLog(errorLog);
           }
-          
+
           // Return partial success
-          const successCount = indexError.importResults ? 
-            indexError.importResults.filter((result: any) => result.success).length : 0;
-          
-          return { synced: successCount, failed: documents.length - successCount, total: itemIds.length };
+          const successCount = indexError.importResults
+            ? indexError.importResults.filter((result: any) => result.success).length
+            : 0;
+
+          return {
+            synced: successCount,
+            failed: documents.length - successCount,
+            total: itemIds.length,
+          };
         }
-        
+
         if (failedItems.length > 0) {
           const failLog = `⚠️ Không thể xây dựng ${failedItems.length} sản phẩm: ${failedItems.slice(0, 5).join(', ')}${failedItems.length > 5 ? '...' : ''}`;
           console.warn(failLog);
-          if (onLog) onLog(failLog);
+          onLog?.(failLog);
         }
       } else {
         const noDocsLog = `ℹ️ Không có tài liệu nào để đồng bộ`;
         console.log(noDocsLog);
-        if (onLog) onLog(noDocsLog);
+        onLog?.(noDocsLog);
       }
-      
+
       return { synced: documents.length, failed: failedItems.length, total: itemIds.length };
     } catch (error) {
       console.error(
@@ -408,12 +436,14 @@ class TypesenseInventorySync {
     } catch (error) {
       console.error(`Failed to build document for item ${item.id}:`, error);
       console.error('Item data:', { id: item.id, name: item.name, category: item.category });
-      
+
       // Add more detailed error info to the log callback
       if (onLog) {
-        onLog(`❌ Item ${item.id} failed: ${error instanceof Error ? error.message : String(error)}`);
+        onLog(
+          `❌ Item ${item.id} failed: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
-      
+
       return null;
     }
   }
@@ -576,7 +606,7 @@ class TypesenseInventorySync {
         query_by: 'id',
         per_page: 1,
       });
-      return (response.hits?.length || 0) > 0;
+      return ((response.hits as unknown[])?.length || 0) > 0;
     } catch (error) {
       console.error(`Failed to check if item ${itemId} exists in search:`, error);
       return false;

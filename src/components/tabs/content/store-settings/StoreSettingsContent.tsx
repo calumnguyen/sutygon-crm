@@ -185,7 +185,9 @@ const StoreSettingsContent: React.FC = () => {
   const [storeOpenModalOpen, setStoreOpenModalOpen] = useState(false);
 
   // Typesense sync state
-  const [typesenseStatus, setTypesenseStatus] = useState<'available' | 'unavailable' | 'loading'>('loading');
+  const [typesenseStatus, setTypesenseStatus] = useState<'available' | 'unavailable' | 'loading'>(
+    'loading'
+  );
   const [typesenseStats, setTypesenseStats] = useState<{
     totalItems: number;
     typesenseCount: number;
@@ -194,34 +196,29 @@ const StoreSettingsContent: React.FC = () => {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
   const [syncError, setSyncError] = useState('');
-  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; percentage: number; startTime: number; estimatedTimeRemaining: string } | null>(null);
+  const [syncProgress, setSyncProgress] = useState<{
+    current: number;
+    total: number;
+    percentage: number;
+    startTime: number;
+    estimatedTimeRemaining: string;
+  } | null>(null);
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const syncStartTimeRef = useRef<number | null>(null);
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load all store settings data on component mount
   useEffect(() => {
     const loadAllStoreSettings = async () => {
       // Load all data in parallel for better performance
       await Promise.all([
-        fetchStoreStatus(), 
-        fetchStoreCodeInfo(), 
+        fetchStoreStatus(),
+        fetchStoreCodeInfo(),
         fetchVATPercentage(),
-        fetchTypesenseStatus()
+        fetchTypesenseStatus(),
       ]);
     };
 
     loadAllStoreSettings();
-  }, []);
-
-  // Cleanup countdown timer on component unmount
-  useEffect(() => {
-    return () => {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-    };
   }, []);
 
   const fetchStoreStatus = async () => {
@@ -266,13 +263,13 @@ const StoreSettingsContent: React.FC = () => {
     try {
       const res = await fetch('/api/store-settings/typesense-sync');
       const data = await res.json();
-      
+
       if (res.ok) {
         setTypesenseStatus(data.status);
         setTypesenseStats({
           totalItems: data.totalItems || 0,
           typesenseCount: data.typesenseCount || 0,
-          lastSync: data.lastSync || null
+          lastSync: data.lastSync || null,
         });
       } else {
         setTypesenseStatus('unavailable');
@@ -283,52 +280,20 @@ const StoreSettingsContent: React.FC = () => {
     }
   };
 
-  const startCountdownTimer = (totalRemainingMs: number) => {
-    // Clear any existing timer
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
+  const formatTime = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+
+    if (hours > 0) {
+      return `${hours} giờ ${minutes % 60} phút`;
+    } else if (minutes > 0) {
+      return `${minutes} phút ${seconds % 60} giây`;
+    } else if (seconds > 0) {
+      return `${seconds} giây`;
+    } else {
+      return '0 giây';
     }
-
-    // Ensure we don't start with negative time
-    let remainingMs = Math.max(0, totalRemainingMs);
-    
-
-    
-    const updateCountdown = () => {
-      if (remainingMs <= 0) {
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-        setSyncProgress(prev => prev ? { ...prev, estimatedTimeRemaining: '0 giây' } : null);
-        return;
-      }
-
-      const formatTime = (ms: number) => {
-        const seconds = Math.floor(ms / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        
-        if (hours > 0) {
-          return `${hours} giờ ${minutes % 60} phút`;
-        } else if (minutes > 0) {
-          return `${minutes} phút ${seconds % 60} giây`;
-        } else if (seconds > 0) {
-          return `${seconds} giây`;
-        } else {
-          return '0 giây';
-        }
-      };
-
-      setSyncProgress(prev => prev ? { ...prev, estimatedTimeRemaining: formatTime(remainingMs) } : null);
-      remainingMs -= 1000; // Decrease by 1 second
-    };
-
-    // Update immediately
-    updateCountdown();
-    
-    // Set interval for countdown
-    countdownIntervalRef.current = setInterval(updateCountdown, 1000);
   };
 
   const handleTypesenseSync = async () => {
@@ -336,7 +301,7 @@ const StoreSettingsContent: React.FC = () => {
     if (syncLoading) {
       return;
     }
-    
+
     setSyncLoading(true);
     setSyncMessage('');
     setSyncError('');
@@ -352,19 +317,19 @@ const StoreSettingsContent: React.FC = () => {
         total: 0,
         percentage: 0,
         startTime,
-        estimatedTimeRemaining: 'Đang tính toán...'
+        estimatedTimeRemaining: 'Đang tính toán...',
       });
-      
+
       // Add initial log
-      setSyncLogs(prev => [...prev, '🔄 Bắt đầu đồng bộ Typesense...']);
+      setSyncLogs((prev) => [...prev, '🔄 Bắt đầu đồng bộ Typesense...']);
 
       // Use fetch with streaming for real-time logs
       const res = await fetch('/api/store-settings/typesense-sync', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Accept': 'text/event-stream'
-        }
+          Accept: 'text/event-stream',
+        },
       });
 
       if (!res.ok) {
@@ -381,65 +346,70 @@ const StoreSettingsContent: React.FC = () => {
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (done) break;
-        
+
         const chunk = decoder.decode(value);
         const lines = chunk.split('\n');
-        
+
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              
+
               switch (data.type) {
                 case 'log':
-                  setSyncLogs(prev => [...prev, data.message]);
+                  setSyncLogs((prev) => [...prev, data.message]);
                   break;
-                                 case 'progress':
-                   const currentTime = Date.now();
-                   // Use the startTime from the ref to ensure it's preserved across state updates
-                   const startTime = syncStartTimeRef.current || currentTime;
-                   const elapsedTime = currentTime - startTime;
-                   
-                   // Only calculate time if we have meaningful progress and elapsed time
-                   if (data.percentage > 0 && elapsedTime > 1000 && !countdownIntervalRef.current) { // Wait at least 1 second and only start timer once
-                     // Calculate based on chunks: 23 chunks total, each taking ~15-30 seconds
-                     const totalChunks = 23;
-                     const completedChunks = Math.floor((data.percentage / 100) * totalChunks);
-                     const remainingChunks = totalChunks - completedChunks;
-                     const secondsPerChunk = 25; // Average time per chunk (15-30 seconds)
-                     const remainingTime = remainingChunks * secondsPerChunk * 1000;
-                     
-                     // Start countdown timer with the calculated remaining time (only once)
-                     startCountdownTimer(remainingTime);
-                   }
-                   
-                   setSyncProgress({
-                     current: data.current,
-                     total: data.total,
-                     percentage: data.percentage,
-                     startTime: startTime,
-                     estimatedTimeRemaining: syncProgress?.estimatedTimeRemaining || 'Đang tính toán...'
-                   });
-                   setSyncLogs(prev => [...prev, `📊 Tiến độ: ${data.percentage}%`]);
-                   break;
-                case 'complete':
-                  // Stop the countdown timer
-                  if (countdownIntervalRef.current) {
-                    clearInterval(countdownIntervalRef.current);
-                    countdownIntervalRef.current = null;
+                case 'progress':
+                  const currentTime = Date.now();
+                  // Use the startTime from the ref to ensure it's preserved across state updates
+                  const startTime = syncStartTimeRef.current || currentTime;
+                  const elapsedTime = currentTime - startTime;
+
+                  // Calculate time estimate once and keep it static
+                  let estimatedTimeRemaining =
+                    syncProgress?.estimatedTimeRemaining || 'Đang tính toán...';
+
+                  if (
+                    data.percentage > 0 &&
+                    elapsedTime > 1000 &&
+                    estimatedTimeRemaining === 'Đang tính toán...'
+                  ) {
+                    // Calculate based on chunks: 23 chunks total, each taking ~15-30 seconds
+                    const totalChunks = 23;
+                    const completedChunks = Math.floor((data.percentage / 100) * totalChunks);
+                    const remainingChunks = totalChunks - completedChunks;
+                    const secondsPerChunk = 25; // Average time per chunk (15-30 seconds)
+                    const remainingTime = remainingChunks * secondsPerChunk * 1000;
+
+                    // Calculate static time estimate (only once)
+                    estimatedTimeRemaining = formatTime(remainingTime);
                   }
-                  
-                  setSyncMessage(`Đồng bộ thành công: ${data.syncedCount} sản phẩm (${data.failedCount} lỗi)`);
-                  setSyncLogs(prev => [...prev, `✅ Hoàn thành: ${data.syncedCount}/${data.totalItems} sản phẩm đã đồng bộ thành công`]);
-                  
+
+                  setSyncProgress({
+                    current: data.current,
+                    total: data.total,
+                    percentage: data.percentage,
+                    startTime: startTime,
+                    estimatedTimeRemaining,
+                  });
+                  setSyncLogs((prev) => [...prev, `📊 Tiến độ: ${data.percentage}%`]);
+                  break;
+                case 'complete':
+                  setSyncMessage(
+                    `Đồng bộ thành công: ${data.syncedCount} sản phẩm (${data.failedCount} lỗi)`
+                  );
+                  setSyncLogs((prev) => [
+                    ...prev,
+                    `✅ Hoàn thành: ${data.syncedCount}/${data.totalItems} sản phẩm đã đồng bộ thành công`,
+                  ]);
+
                   // Set final time to 0 giây
-                  setSyncProgress(prev => prev ? { ...prev, estimatedTimeRemaining: '0 giây' } : null);
-                  
-                  // Stop loading state
-                  setSyncLoading(false);
-                  
+                  setSyncProgress((prev) =>
+                    prev ? { ...prev, estimatedTimeRemaining: '0 giây' } : null
+                  );
+
                   // Refresh status after sync
                   setTimeout(() => {
                     fetchTypesenseStatus();
@@ -447,7 +417,7 @@ const StoreSettingsContent: React.FC = () => {
                   break;
                 case 'error':
                   setSyncError(data.error);
-                  setSyncLogs(prev => [...prev, `❌ ${data.error}`]);
+                  setSyncLogs((prev) => [...prev, `❌ ${data.error}`]);
                   break;
               }
             } catch (parseError) {
@@ -456,16 +426,9 @@ const StoreSettingsContent: React.FC = () => {
           }
         }
       }
-
     } catch (error) {
-      // Stop the countdown timer
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-      
       setSyncError('Có lỗi xảy ra khi đồng bộ');
-      setSyncLogs(prev => [...prev, '❌ Có lỗi xảy ra khi đồng bộ']);
+      setSyncLogs((prev) => [...prev, '❌ Có lỗi xảy ra khi đồng bộ']);
       setSyncLoading(false);
       setSyncProgress(null);
     }
@@ -875,34 +838,51 @@ const StoreSettingsContent: React.FC = () => {
         {/* Typesense Sync Card */}
         <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700">
           <div className="flex items-center gap-3 mb-4">
-            <RefreshCw className={`w-5 h-5 ${
-              typesenseStatus === 'available' ? 'text-green-500' : 
-              typesenseStatus === 'unavailable' ? 'text-red-500' : 'text-yellow-500'
-            }`} />
+            <RefreshCw
+              className={`w-5 h-5 ${
+                typesenseStatus === 'available'
+                  ? 'text-green-500'
+                  : typesenseStatus === 'unavailable'
+                    ? 'text-red-500'
+                    : 'text-yellow-500'
+              }`}
+            />
             <h2 className="text-lg font-semibold text-white">Đồng Bộ Typesense</h2>
           </div>
 
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-gray-400">Trạng thái:</span>
-              <span className={`text-sm font-medium ${
-                typesenseStatus === 'available' ? 'text-green-400' : 
-                typesenseStatus === 'unavailable' ? 'text-red-400' : 'text-yellow-400'
-              }`}>
-                {typesenseStatus === 'available' ? 'Khả dụng' : 
-                 typesenseStatus === 'unavailable' ? 'Không khả dụng' : 'Đang kiểm tra...'}
+              <span
+                className={`text-sm font-medium ${
+                  typesenseStatus === 'available'
+                    ? 'text-green-400'
+                    : typesenseStatus === 'unavailable'
+                      ? 'text-red-400'
+                      : 'text-yellow-400'
+                }`}
+              >
+                {typesenseStatus === 'available'
+                  ? 'Khả dụng'
+                  : typesenseStatus === 'unavailable'
+                    ? 'Không khả dụng'
+                    : 'Đang kiểm tra...'}
               </span>
             </div>
-            
+
             {typesenseStatus === 'available' && (
               <>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm text-gray-400">Sản phẩm trong DB:</span>
-                  <span className="text-sm text-white font-medium">{typesenseStats.totalItems}</span>
+                  <span className="text-sm text-white font-medium">
+                    {typesenseStats.totalItems}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm text-gray-400">Sản phẩm trong Typesense:</span>
-                  <span className="text-sm text-white font-medium">{typesenseStats.typesenseCount}</span>
+                  <span className="text-sm text-white font-medium">
+                    {typesenseStats.typesenseCount}
+                  </span>
                 </div>
                 {typesenseStats.lastSync && (
                   <div className="flex items-center justify-between">
@@ -935,7 +915,7 @@ const StoreSettingsContent: React.FC = () => {
                 <span>{syncProgress.percentage}%</span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
-                <div 
+                <div
                   className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out relative"
                   style={{ width: `${syncProgress.percentage}%` }}
                 >
