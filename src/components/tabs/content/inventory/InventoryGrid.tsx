@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { InventoryItem } from '@/types/inventory';
 import { formatPriceVND } from './InventoryUtils';
 import Button from '@/components/common/dropdowns/Button';
@@ -23,15 +23,18 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
   loadMore,
   hasMore,
 }) => {
-  if (filteredInventory.length === 0) {
+
+
+    if (filteredInventory.length === 0) {
     return <div className="text-center text-gray-400 py-10">Chưa có sản phẩm nào trong kho.</div>;
   }
+
   return (
     <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-      {filteredInventory.map((item, index) => {
+      {filteredInventory.map((item: InventoryItem, index: number) => {
         return (
           <div
-            key={`${item.formattedId}-${index}`}
+            key={`grid-${String(item.id || 'unknown')}-${index}-${item.formattedId || 'no-id'}`}
             ref={index === filteredInventory.length - 1 ? lastElementRef : undefined}
             className="bg-gray-900 rounded-lg shadow border border-gray-700 flex flex-col items-center p-3 w-full min-w-0 hover:border-gray-600 transition-colors"
           >
@@ -81,9 +84,9 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
                 <span className="font-semibold">Giá</span>
               </div>
               <div className="flex flex-col gap-1">
-                {(item.sizes || []).map((size) => (
+                {(item.sizes || []).map((size, sizeIndex) => (
                   <div
-                    key={size.title}
+                    key={`${item.id}-${size.title}-${sizeIndex}`}
                     className="grid grid-cols-4 text-xs text-gray-200 min-w-max"
                   >
                     <span className="font-mono whitespace-nowrap text-ellipsis overflow-hidden">

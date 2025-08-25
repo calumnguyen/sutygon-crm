@@ -70,7 +70,7 @@ const InventoryEditModal: React.FC<InventoryEditModalProps> = ({
 
       return () => clearTimeout(timer);
     }
-  }, [editModalOpen, setImportantTask]);
+  }, [editModalOpen]); // Remove setImportantTask from dependencies to prevent re-renders
 
   const isMobile = () => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(

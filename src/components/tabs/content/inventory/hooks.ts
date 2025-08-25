@@ -8,6 +8,7 @@ export function useInventorySearch() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -18,6 +19,7 @@ export function useInventorySearch() {
     debounce(async (query: unknown, page: unknown = 1) => {
       const searchQuery = query as string;
       const searchPage = page as number;
+      
       if (!searchQuery.trim()) {
         setSearchResults([]);
         setHasMore(false);
@@ -25,12 +27,16 @@ export function useInventorySearch() {
         return;
       }
 
-      setIsSearching(true);
+      if (searchPage === 1) {
+        setIsSearching(true);
+      } else {
+        setIsLoadingMore(true);
+      }
       setSearchError('');
 
       try {
         const response = await fetch(
-          `/api/inventory/search-elastic?q=${encodeURIComponent(searchQuery)}&page=${searchPage}&limit=20`,
+          `/api/inventory/search-typesense?q=${encodeURIComponent(searchQuery)}&page=${searchPage}&limit=20`,
           {
             headers: {
               Authorization: `Bearer ${sessionToken}`,
@@ -54,9 +60,26 @@ export function useInventorySearch() {
         }
 
         if (page === 1) {
-          setSearchResults(data.items || []);
+          // Deduplicate initial results to prevent duplicate keys
+          const items = data.items || [];
+          const uniqueItems = items.filter((item, index, self) => 
+            index === self.findIndex(t => t.id === item.id)
+          );
+          setSearchResults(uniqueItems);
         } else {
-          setSearchResults((prev) => [...prev, ...(data.items || [])]);
+          setSearchResults((prev) => {
+            // Deduplicate by ID to prevent duplicate keys
+            const existingIds = new Set(prev.map(item => item.id));
+            const newItems = (data.items || []).filter(item => !existingIds.has(item.id));
+            
+            // Final safety check: ensure no duplicates in the combined result
+            const combined = [...prev, ...newItems];
+            const finalUnique = combined.filter((item, index, self) => 
+              index === self.findIndex(t => t.id === item.id)
+            );
+            
+            return finalUnique;
+          });
         }
 
         setHasMore(data.hasMore || false);
@@ -67,7 +90,11 @@ export function useInventorySearch() {
         setSearchError('Có lỗi khi tìm kiếm sản phẩm');
         setSearchResults([]);
       } finally {
-        setIsSearching(false);
+        if (searchPage === 1) {
+          setIsSearching(false);
+        } else {
+          setIsLoadingMore(false);
+        }
       }
     }, 300),
     [sessionToken]
@@ -83,10 +110,10 @@ export function useInventorySearch() {
   );
 
   const loadMore = useCallback(() => {
-    if (hasMore && !isSearching) {
+    if (hasMore && !isSearching && !isLoadingMore) {
       debouncedSearch(searchQuery, currentPage + 1);
     }
-  }, [hasMore, isSearching, searchQuery, currentPage, debouncedSearch]);
+  }, [hasMore, isSearching, isLoadingMore, searchQuery, currentPage, debouncedSearch]);
 
   const clearSearch = useCallback(() => {
     setSearchQuery('');
@@ -101,6 +128,7 @@ export function useInventorySearch() {
     searchQuery,
     searchResults,
     isSearching,
+    isLoadingMore,
     searchError,
     hasMore,
     total,

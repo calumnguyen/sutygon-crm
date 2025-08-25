@@ -7,7 +7,7 @@ import {
   encryptInventorySizeData,
   encryptTagData,
 } from '@/lib/utils/inventoryEncryption';
-import { inventorySync } from '@/lib/elasticsearch/sync';
+import { typesenseInventorySync } from '@/lib/typesense/sync';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 
 export const PUT = withAuth(
@@ -211,9 +211,9 @@ export const PUT = withAuth(
         }
       }
 
-      // Sync to Elasticsearch (async, don't wait)
-      inventorySync.syncItemUpdate(itemId).catch((syncError) => {
-        console.error(`[${requestId}] ❌ Elasticsearch sync failed:`, {
+      // Sync to Typesense (async, don't wait)
+      typesenseInventorySync.syncItemUpdate(itemId).catch((syncError) => {
+        console.error(`[${requestId}] ❌ Typesense sync failed:`, {
           error: syncError instanceof Error ? syncError.message : String(syncError),
           itemId,
           timestamp: new Date().toISOString(),
@@ -259,9 +259,9 @@ export const DELETE = withAuth(
       // Delete the inventory item
       await db.delete(inventoryItems).where(eq(inventoryItems.id, itemId));
 
-      // Sync to Elasticsearch (async, don't wait)
-      inventorySync.syncItemDelete(itemId).catch((error) => {
-        console.error('Elasticsearch sync failed for deleted item:', error);
+      // Sync to Typesense (async, don't wait)
+      typesenseInventorySync.syncItemDelete(itemId).catch((error) => {
+        console.error('Typesense sync failed for deleted item:', error);
       });
 
       return NextResponse.json({ success: true });

@@ -35,9 +35,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [logoutDetails, setLogoutDetails] = useState<string>('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // Inactivity timeout (3 minutes)
-  const INACTIVITY_TIMEOUT = 3 * 60 * 1000; // 3 minutes in milliseconds
-  const WARNING_THRESHOLD = 2 * 60 * 1000; // Show warning at 2 minutes (1 minute left)
+  // Inactivity timeout (longer for mobile browsers)
+  const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const INACTIVITY_TIMEOUT = isMobileBrowser ? 10 * 60 * 1000 : 3 * 60 * 1000; // 10 minutes on mobile, 3 minutes on desktop
+  const WARNING_THRESHOLD = isMobileBrowser ? 8 * 60 * 1000 : 2 * 60 * 1000; // Show warning at 8 minutes on mobile, 2 minutes on desktop
 
   const validateSessionWithServer = async (token: string): Promise<User | null> => {
     const requestId = `client-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -192,6 +193,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       'keyup', // Additional input events
       'focus',
       'resize', // Window/app interaction events
+      'input', // Form input events (important for mobile typing)
+      'change', // Form change events
+      'paste', // Paste events
+      'select', // Text selection events
     ];
 
     events.forEach((event) => {
@@ -222,9 +227,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (timeSinceLastActivity >= INACTIVITY_TIMEOUT) {
         console.log('⏰ Session expired due to inactivity');
         setShowSessionWarning(false);
+        const timeoutMinutes = isMobileBrowser ? 10 : 3;
         logout(
           'timeout',
-          'Phiên đăng nhập đã hết hạn do không hoạt động trong 3 phút / Login session expired due to 3 minutes of inactivity'
+          `Phiên đăng nhập đã hết hạn do không hoạt động trong ${timeoutMinutes} phút / Login session expired due to ${timeoutMinutes} minutes of inactivity`
         );
       } else if (timeSinceLastActivity >= WARNING_THRESHOLD && !showSessionWarning) {
         // Show warning when 2 minutes of inactivity (1 minute left)
@@ -285,13 +291,22 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const browserSessionId = sessionStorage.getItem('browserSessionId');
     const hasStoredTokens = localStorage.getItem('sessionToken');
 
+    // More lenient session management for mobile browsers
+    const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     if (hasStoredTokens && !browserSessionId) {
-      // We have stored tokens but no browser session ID = fresh page load
-      console.log('🔄 Hard refresh detected - clearing session for security');
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('originalEmployeeKey');
-      setCurrentUser(null);
-      setSessionToken(null);
+      if (isMobileBrowser) {
+        // On mobile browsers, be more lenient - don't clear session immediately
+        // Just log the detection but continue with the session
+        console.log('📱 Mobile browser detected - preserving session despite refresh detection');
+      } else {
+        // On desktop browsers, clear session for security
+        console.log('🔄 Hard refresh detected - clearing session for security');
+        localStorage.removeItem('sessionToken');
+        localStorage.removeItem('originalEmployeeKey');
+        setCurrentUser(null);
+        setSessionToken(null);
+      }
     }
 
     // Set/refresh browser session ID (clears on hard refresh)
@@ -365,8 +380,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       validateCurrentSession();
     }
 
-    // Always set up interval for periodic validation (after 5 minutes)
-    const interval = setInterval(validateCurrentSession, 5 * 60 * 1000);
+    // Always set up interval for periodic validation (less frequent on mobile)
+    const validationInterval = isMobileBrowser ? 10 * 60 * 1000 : 5 * 60 * 1000; // 10 minutes on mobile, 5 minutes on desktop
+    const interval = setInterval(validateCurrentSession, validationInterval);
 
     return () => clearInterval(interval);
   }, [sessionToken, justLoggedIn, isWorkingOnImportantTask, hasValidatedSession]);

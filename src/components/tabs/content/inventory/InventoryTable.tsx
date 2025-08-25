@@ -46,6 +46,8 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
   loadMore,
   hasMore,
 }) => {
+
+
   // Memoize the inventory with deduplicated sizes to prevent recalculation on every render
   const processedInventory = useMemo(() => {
     return filteredInventory.map((item) => ({
@@ -78,7 +80,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
             {processedInventory.map((item, index) => {
               return (
                 <tr
-                  key={`${item.formattedId}-${index}`}
+                  key={`${item.id}-${index}`}
                   className="text-white hover:bg-gray-700/50"
                   ref={index === filteredInventory.length - 1 ? lastElementRef : undefined}
                 >

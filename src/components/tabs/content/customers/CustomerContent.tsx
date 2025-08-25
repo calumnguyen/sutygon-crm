@@ -39,9 +39,26 @@ export default function CustomerContent() {
   // Fetch customers on mount
   useEffect(() => {
     async function fetchCustomers() {
-      const res = await fetch('/api/customers');
-      const dbCustomers = await res.json();
-      setCustomers(dbCustomers);
+      try {
+        const sessionToken = localStorage.getItem('sessionToken');
+        const res = await fetch('/api/customers', {
+          headers: {
+            'Authorization': `Bearer ${sessionToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (!res.ok) {
+          console.error('Failed to fetch customers:', res.status, res.statusText);
+          setCustomers([]);
+          return;
+        }
+        const dbCustomers = await res.json();
+        // Ensure we always have an array
+        setCustomers(Array.isArray(dbCustomers) ? dbCustomers : []);
+      } catch (error) {
+        console.error('Error fetching customers:', error);
+        setCustomers([]);
+      }
     }
     fetchCustomers();
   }, []);
@@ -54,9 +71,13 @@ export default function CustomerContent() {
     notes?: string;
   }) => {
     try {
+      const sessionToken = localStorage.getItem('sessionToken');
       const res = await fetch('/api/customers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`,
+        },
         body: JSON.stringify({
           name: customerData.name,
           phone: customerData.phone,
@@ -212,7 +233,7 @@ export default function CustomerContent() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleAddCustomer}
-        existingPhones={customers.map((c) => c.phone)}
+        existingPhones={Array.isArray(customers) ? customers.map((c) => c.phone) : []}
       />
     </div>
   );

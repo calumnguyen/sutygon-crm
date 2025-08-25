@@ -55,23 +55,16 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
 
       return () => clearTimeout(timer);
     }
-  }, [isOpen, setImportantTask]);
+  }, [isOpen]); // Remove setImportantTask from dependencies to prevent re-renders
 
   const handleNext = () => {
-    console.log('DEBUG: handleNext called, currentStep:', currentStep);
-    console.log('DEBUG: Lightning mode:', lightningMode);
-
     if (currentStep === 1) {
-      console.log('DEBUG: Going from step 1 to step 2');
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      console.log('DEBUG: At step 2, lightning mode:', lightningMode);
       if (lightningMode) {
-        console.log('DEBUG: Lightning mode - calling handleAddItem and resetting for next item');
         // In lightning mode, call the handleAddItem prop and then reset for next item
         handleLightningAddAndReset();
       } else {
-        console.log('DEBUG: Normal mode - closing modal');
         handleSave();
       }
     }
@@ -79,7 +72,6 @@ const InventoryAddItemModal: React.FC<InventoryAddItemModalProps> = ({
 
   const handleLightningAddAndReset = async () => {
     try {
-      console.log('DEBUG: handleLightningAddAndReset called');
 
       // Save current category and tags for next item
       if (setLastCategory) {

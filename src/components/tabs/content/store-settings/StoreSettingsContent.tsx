@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { Settings, Key, Receipt, Store, Lock, Unlock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Settings, Key, Receipt, Store, Lock, Unlock, RefreshCw } from 'lucide-react';
 import Button from '@/components/common/dropdowns/Button';
 import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
 import AnimatedDots from '@/components/common/AnimatedDots';
@@ -184,14 +184,44 @@ const StoreSettingsContent: React.FC = () => {
   // Store open modal state
   const [storeOpenModalOpen, setStoreOpenModalOpen] = useState(false);
 
+  // Typesense sync state
+  const [typesenseStatus, setTypesenseStatus] = useState<'available' | 'unavailable' | 'loading'>('loading');
+  const [typesenseStats, setTypesenseStats] = useState<{
+    totalItems: number;
+    typesenseCount: number;
+    lastSync: string | null;
+  }>({ totalItems: 0, typesenseCount: 0, lastSync: null });
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+  const [syncError, setSyncError] = useState('');
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; percentage: number; startTime: number; estimatedTimeRemaining: string } | null>(null);
+  const [syncLogs, setSyncLogs] = useState<string[]>([]);
+  const syncStartTimeRef = useRef<number | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   // Load all store settings data on component mount
   useEffect(() => {
     const loadAllStoreSettings = async () => {
       // Load all data in parallel for better performance
-      await Promise.all([fetchStoreStatus(), fetchStoreCodeInfo(), fetchVATPercentage()]);
+      await Promise.all([
+        fetchStoreStatus(), 
+        fetchStoreCodeInfo(), 
+        fetchVATPercentage(),
+        fetchTypesenseStatus()
+      ]);
     };
 
     loadAllStoreSettings();
+  }, []);
+
+  // Cleanup countdown timer on component unmount
+  useEffect(() => {
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
   }, []);
 
   const fetchStoreStatus = async () => {
@@ -229,6 +259,215 @@ const StoreSettingsContent: React.FC = () => {
     } catch (error) {
       console.error('Failed to fetch VAT percentage:', error);
       setVatPercentage(8);
+    }
+  };
+
+  const fetchTypesenseStatus = async () => {
+    try {
+      const res = await fetch('/api/store-settings/typesense-sync');
+      const data = await res.json();
+      
+      if (res.ok) {
+        setTypesenseStatus(data.status);
+        setTypesenseStats({
+          totalItems: data.totalItems || 0,
+          typesenseCount: data.typesenseCount || 0,
+          lastSync: data.lastSync || null
+        });
+      } else {
+        setTypesenseStatus('unavailable');
+      }
+    } catch (error) {
+      console.error('Failed to fetch Typesense status:', error);
+      setTypesenseStatus('unavailable');
+    }
+  };
+
+  const startCountdownTimer = (totalRemainingMs: number) => {
+    // Clear any existing timer
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+    }
+
+    // Ensure we don't start with negative time
+    let remainingMs = Math.max(0, totalRemainingMs);
+    
+
+    
+    const updateCountdown = () => {
+      if (remainingMs <= 0) {
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+        setSyncProgress(prev => prev ? { ...prev, estimatedTimeRemaining: '0 giây' } : null);
+        return;
+      }
+
+      const formatTime = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        
+        if (hours > 0) {
+          return `${hours} giờ ${minutes % 60} phút`;
+        } else if (minutes > 0) {
+          return `${minutes} phút ${seconds % 60} giây`;
+        } else if (seconds > 0) {
+          return `${seconds} giây`;
+        } else {
+          return '0 giây';
+        }
+      };
+
+      setSyncProgress(prev => prev ? { ...prev, estimatedTimeRemaining: formatTime(remainingMs) } : null);
+      remainingMs -= 1000; // Decrease by 1 second
+    };
+
+    // Update immediately
+    updateCountdown();
+    
+    // Set interval for countdown
+    countdownIntervalRef.current = setInterval(updateCountdown, 1000);
+  };
+
+  const handleTypesenseSync = async () => {
+    // Prevent multiple simultaneous sync operations
+    if (syncLoading) {
+      return;
+    }
+    
+    setSyncLoading(true);
+    setSyncMessage('');
+    setSyncError('');
+    setSyncProgress(null);
+    setSyncLogs([]);
+
+    try {
+      // Initialize progress with start time
+      const startTime = Date.now();
+      syncStartTimeRef.current = startTime;
+      setSyncProgress({
+        current: 0,
+        total: 0,
+        percentage: 0,
+        startTime,
+        estimatedTimeRemaining: 'Đang tính toán...'
+      });
+      
+      // Add initial log
+      setSyncLogs(prev => [...prev, '🔄 Bắt đầu đồng bộ Typesense...']);
+
+      // Use fetch with streaming for real-time logs
+      const res = await fetch('/api/store-settings/typesense-sync', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
+        }
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Có lỗi xảy ra khi đồng bộ');
+      }
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('Không thể đọc response stream');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              switch (data.type) {
+                case 'log':
+                  setSyncLogs(prev => [...prev, data.message]);
+                  break;
+                                 case 'progress':
+                   const currentTime = Date.now();
+                   // Use the startTime from the ref to ensure it's preserved across state updates
+                   const startTime = syncStartTimeRef.current || currentTime;
+                   const elapsedTime = currentTime - startTime;
+                   
+                   // Only calculate time if we have meaningful progress and elapsed time
+                   if (data.percentage > 0 && elapsedTime > 1000 && !countdownIntervalRef.current) { // Wait at least 1 second and only start timer once
+                     // Calculate based on chunks: 23 chunks total, each taking ~15-30 seconds
+                     const totalChunks = 23;
+                     const completedChunks = Math.floor((data.percentage / 100) * totalChunks);
+                     const remainingChunks = totalChunks - completedChunks;
+                     const secondsPerChunk = 25; // Average time per chunk (15-30 seconds)
+                     const remainingTime = remainingChunks * secondsPerChunk * 1000;
+                     
+                     // Start countdown timer with the calculated remaining time (only once)
+                     startCountdownTimer(remainingTime);
+                   }
+                   
+                   setSyncProgress({
+                     current: data.current,
+                     total: data.total,
+                     percentage: data.percentage,
+                     startTime: startTime,
+                     estimatedTimeRemaining: syncProgress?.estimatedTimeRemaining || 'Đang tính toán...'
+                   });
+                   setSyncLogs(prev => [...prev, `📊 Tiến độ: ${data.percentage}%`]);
+                   break;
+                case 'complete':
+                  // Stop the countdown timer
+                  if (countdownIntervalRef.current) {
+                    clearInterval(countdownIntervalRef.current);
+                    countdownIntervalRef.current = null;
+                  }
+                  
+                  setSyncMessage(`Đồng bộ thành công: ${data.syncedCount} sản phẩm (${data.failedCount} lỗi)`);
+                  setSyncLogs(prev => [...prev, `✅ Hoàn thành: ${data.syncedCount}/${data.totalItems} sản phẩm đã đồng bộ thành công`]);
+                  
+                  // Set final time to 0 giây
+                  setSyncProgress(prev => prev ? { ...prev, estimatedTimeRemaining: '0 giây' } : null);
+                  
+                  // Stop loading state
+                  setSyncLoading(false);
+                  
+                  // Refresh status after sync
+                  setTimeout(() => {
+                    fetchTypesenseStatus();
+                  }, 1000);
+                  break;
+                case 'error':
+                  setSyncError(data.error);
+                  setSyncLogs(prev => [...prev, `❌ ${data.error}`]);
+                  break;
+              }
+            } catch (parseError) {
+              console.error('Error parsing SSE data:', parseError);
+            }
+          }
+        }
+      }
+
+    } catch (error) {
+      // Stop the countdown timer
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      
+      setSyncError('Có lỗi xảy ra khi đồng bộ');
+      setSyncLogs(prev => [...prev, '❌ Có lỗi xảy ra khi đồng bộ']);
+      setSyncLoading(false);
+      setSyncProgress(null);
     }
   };
 
@@ -630,6 +869,117 @@ const StoreSettingsContent: React.FC = () => {
             className="w-full sm:w-auto"
           >
             Cập Nhật VAT
+          </Button>
+        </div>
+
+        {/* Typesense Sync Card */}
+        <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700">
+          <div className="flex items-center gap-3 mb-4">
+            <RefreshCw className={`w-5 h-5 ${
+              typesenseStatus === 'available' ? 'text-green-500' : 
+              typesenseStatus === 'unavailable' ? 'text-red-500' : 'text-yellow-500'
+            }`} />
+            <h2 className="text-lg font-semibold text-white">Đồng Bộ Typesense</h2>
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-400">Trạng thái:</span>
+              <span className={`text-sm font-medium ${
+                typesenseStatus === 'available' ? 'text-green-400' : 
+                typesenseStatus === 'unavailable' ? 'text-red-400' : 'text-yellow-400'
+              }`}>
+                {typesenseStatus === 'available' ? 'Khả dụng' : 
+                 typesenseStatus === 'unavailable' ? 'Không khả dụng' : 'Đang kiểm tra...'}
+              </span>
+            </div>
+            
+            {typesenseStatus === 'available' && (
+              <>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gray-400">Sản phẩm trong DB:</span>
+                  <span className="text-sm text-white font-medium">{typesenseStats.totalItems}</span>
+                </div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gray-400">Sản phẩm trong Typesense:</span>
+                  <span className="text-sm text-white font-medium">{typesenseStats.typesenseCount}</span>
+                </div>
+                {typesenseStats.lastSync && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-400">Lần đồng bộ cuối:</span>
+                    <span className="text-sm text-white font-medium">
+                      {formatDateTime(new Date(typesenseStats.lastSync))}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {syncMessage && (
+            <div className="mb-3 p-2 bg-green-900 border border-green-700 rounded text-green-300 text-sm">
+              {syncMessage}
+            </div>
+          )}
+
+          {syncError && (
+            <div className="mb-3 p-2 bg-red-900 border border-red-700 rounded text-red-300 text-sm">
+              {syncError}
+            </div>
+          )}
+
+          {syncProgress && (
+            <div className="mb-3">
+              <div className="flex justify-between text-sm text-gray-400 mb-1">
+                <span>Tiến trình:</span>
+                <span>{syncProgress.percentage}%</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div 
+                  className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out relative"
+                  style={{ width: `${syncProgress.percentage}%` }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-pulse"></div>
+                </div>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Thời gian ước tính còn lại:</span>
+                <span>{syncProgress.estimatedTimeRemaining}</span>
+              </div>
+            </div>
+          )}
+
+          {syncLogs.length > 0 && (
+            <div className="mb-3">
+              <div className="text-sm text-gray-400 mb-2">Nhật ký đồng bộ:</div>
+              <div className="bg-gray-900 border border-gray-700 rounded p-3 max-h-32 overflow-y-auto">
+                {syncLogs.map((log, index) => (
+                  <div key={index} className="text-xs text-gray-300 mb-1 font-mono">
+                    {log}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleTypesenseSync}
+            disabled={syncLoading || typesenseStatus !== 'available'}
+            className="w-full sm:w-auto flex items-center gap-2"
+          >
+            {syncLoading ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Đang đồng bộ...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                Đồng Bộ Ngay
+              </>
+            )}
           </Button>
         </div>
       </div>

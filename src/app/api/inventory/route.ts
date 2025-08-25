@@ -16,7 +16,7 @@ import {
   encryptTagData,
   decryptTagData,
 } from '@/lib/utils/inventoryEncryption';
-import { inventorySync } from '@/lib/elasticsearch/sync';
+import { typesenseInventorySync } from '@/lib/typesense/sync';
 import { logInventoryError, logDatabaseError, logConnectionError } from '@/lib/utils/errorMonitor';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 
@@ -463,9 +463,9 @@ export const POST = withAuth(async (req: AuthenticatedRequest) => {
       // Continue with empty tags
     }
 
-    // Sync to Elasticsearch (async, don't wait)
-    inventorySync.syncItemCreate(item.id).catch((syncError) => {
-      console.error(`[${requestId}] ❌ Elasticsearch sync failed:`, {
+          // Sync to Typesense (async, don't wait)
+          typesenseInventorySync.syncItemCreate(item.id).catch((syncError) => {
+              console.error(`[${requestId}] ❌ Typesense sync failed:`, {
         error: syncError instanceof Error ? syncError.message : String(syncError),
         itemId: item.id,
         timestamp: new Date().toISOString(),

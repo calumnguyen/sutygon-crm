@@ -63,6 +63,7 @@ const InventoryContent: React.FC = () => {
     searchQuery,
     searchResults,
     isSearching,
+    isLoadingMore: searchLoadingMore,
     searchError,
     hasMore: searchHasMore,
     total: searchTotal,
@@ -74,7 +75,7 @@ const InventoryContent: React.FC = () => {
   // Determine which data to display based on search state
   const displayInventory = searchQuery.trim() ? searchResults : inventory;
   const displayLoading = searchQuery.trim() ? isSearching : loading;
-  const displayLoadingMore = searchQuery.trim() ? false : loadingMore;
+  const displayLoadingMore = searchQuery.trim() ? searchLoadingMore : loadingMore;
   const displayHasMore = searchQuery.trim() ? searchHasMore : hasMore;
   const displayLoadMore = searchQuery.trim() ? searchLoadMore : loadMore;
 
@@ -117,14 +118,14 @@ const InventoryContent: React.FC = () => {
 
   const lastElementRef = useCallback(
     (node: HTMLElement | null) => {
-      if (loading) return;
+      if (displayLoading) return;
 
       if (observerRef.current) observerRef.current.disconnect();
 
       observerRef.current = new IntersectionObserver(
         (entries) => {
-          if (entries[0].isIntersecting && hasMore && !loadingMore) {
-            loadMore();
+          if (entries[0].isIntersecting && displayHasMore && !displayLoadingMore) {
+            displayLoadMore();
           }
         },
         {
@@ -135,7 +136,7 @@ const InventoryContent: React.FC = () => {
 
       if (node) observerRef.current.observe(node);
     },
-    [loading, hasMore, loadingMore, loadMore]
+    [displayLoading, displayHasMore, displayLoadingMore, displayLoadMore]
   );
 
   // Cleanup observer on unmount
