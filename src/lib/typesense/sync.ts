@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { db } from '../db';
-import { inventoryItems, inventorySizes, inventoryTags, tags } from '../db/schema';
+import { inventoryItems, inventorySizes, inventoryTags, tags, aiTrainingData } from '../db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import {
   decryptInventoryData,
@@ -19,6 +19,53 @@ function normalizeVietnameseText(text: string): string {
     .replace(/[Đ]/g, 'D'); // Replace Đ with D
 }
 
+// Function to extract Vietnamese patterns from text
+function extractVietnamesePatterns(text: string): string[] {
+  const patterns: string[] = [];
+  const lowerText = text.toLowerCase();
+
+  // High-priority Vietnamese cultural patterns
+  const highPriorityPatterns = [
+    'gạch men',
+    'hoa sen',
+    'chim hạc',
+    'chữ thọ',
+    'tứ linh',
+    'tứ quý',
+    'bát bửu',
+    'phượng hoàng',
+    'rồng',
+    'lân',
+    'hoa mai',
+    'hoa đào',
+    'hoa cúc',
+    'hoa lan',
+    'hoa hồng',
+    'hoa huệ',
+    'hoa ly',
+    'mẫu đơn',
+    'kẻ ô',
+    'ô vuông',
+    'hình vuông',
+    'song long',
+    'long phụng',
+    'ngũ phúc',
+    'bát tiên',
+    'chữ phúc',
+    'chữ lộc',
+    'chữ khang',
+  ];
+
+  // Check for high-priority patterns first
+  for (const pattern of highPriorityPatterns) {
+    if (lowerText.includes(pattern)) {
+      patterns.push(pattern);
+    }
+  }
+
+  return patterns.slice(0, 10); // Limit to top 10 patterns
+}
+
 const INVENTORY_COLLECTION = 'inventory_items';
 
 export interface SyncInventoryItem {
@@ -30,6 +77,8 @@ export interface SyncInventoryItem {
   categoryNormalized?: string;
   imageUrl?: string | null;
   tags: string[];
+  description?: string;
+  patterns?: string[];
   createdAt: number;
   updatedAt: number;
   sizes: Array<{
@@ -212,7 +261,7 @@ class TypesenseInventorySync {
           onLog(`🔍 Đang xử lý sản phẩm đầu tiên: ${item.id}`);
         }
 
-        const doc = this.buildItemDocumentFromData(
+        const doc = await this.buildItemDocumentFromData(
           item,
           sizesByItemId[item.id] || [],
           tagsByItemId[item.id] || [],
@@ -360,7 +409,7 @@ class TypesenseInventorySync {
     }
   }
 
-  private buildItemDocumentFromData(
+  private async buildItemDocumentFromData(
     item: any,
     sizes: Array<{
       id: number;
@@ -372,11 +421,40 @@ class TypesenseInventorySync {
     }>,
     itemTags: string[],
     onLog?: (log: string) => void
-  ): SyncInventoryItem | null {
+  ): Promise<SyncInventoryItem | null> {
     try {
       // Decrypt data
       const decryptedItem = decryptInventoryData(item);
       const decryptedSizes = sizes.map((size) => decryptInventorySizeData(size));
+
+      // Get training data for this item
+      let trainingDescription = '';
+      let trainingPatterns: string[] = [];
+
+      try {
+        const trainingData = await db
+          .select({
+            description: aiTrainingData.description,
+            tags: aiTrainingData.tags,
+          })
+          .from(aiTrainingData)
+          .where(eq(aiTrainingData.itemId, item.id))
+          .limit(1);
+
+        if (trainingData.length > 0) {
+          trainingDescription = trainingData[0].description || '';
+          if (trainingData[0].tags) {
+            const tags = JSON.parse(trainingData[0].tags);
+            trainingPatterns = extractVietnamesePatterns(
+              trainingDescription + ' ' + tags.join(' ')
+            );
+          } else {
+            trainingPatterns = extractVietnamesePatterns(trainingDescription);
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to get training data for item ${item.id}:`, error);
+      }
 
       // Category code mapping for consistent IDs
       const CATEGORY_CODE_MAP: Record<string, string> = {
@@ -420,8 +498,10 @@ class TypesenseInventorySync {
         nameNormalized: normalizeVietnameseText(decryptedItem.name),
         category: decryptedItem.category,
         categoryNormalized: normalizeVietnameseText(decryptedItem.category),
-        imageUrl: item.imageUrl,
+        imageUrl: item.imageUrl ? 'has_image' : null,
         tags: itemTags,
+        description: trainingDescription,
+        patterns: trainingPatterns,
         createdAt: new Date(item.createdAt).getTime(),
         updatedAt: new Date(item.updatedAt).getTime(),
         sizes: decryptedSizes.map((size) => ({
@@ -499,6 +579,35 @@ class TypesenseInventorySync {
         const decryptedSizes = sizes.map((size) => decryptInventorySizeData(size));
         const decryptedTags = itemTags.map((tag) => decryptTagData({ name: tag.tagName }).name);
 
+        // Get training data for this item
+        let trainingDescription = '';
+        let trainingPatterns: string[] = [];
+
+        try {
+          const trainingData = await db
+            .select({
+              description: aiTrainingData.description,
+              tags: aiTrainingData.tags,
+            })
+            .from(aiTrainingData)
+            .where(eq(aiTrainingData.itemId, itemId))
+            .limit(1);
+
+          if (trainingData.length > 0) {
+            trainingDescription = trainingData[0].description || '';
+            if (trainingData[0].tags) {
+              const tags = JSON.parse(trainingData[0].tags);
+              trainingPatterns = extractVietnamesePatterns(
+                trainingDescription + ' ' + tags.join(' ')
+              );
+            } else {
+              trainingPatterns = extractVietnamesePatterns(trainingDescription);
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to get training data for item ${itemId}:`, error);
+        }
+
         // Category code mapping for consistent IDs
         const CATEGORY_CODE_MAP: Record<string, string> = {
           'Áo Dài': 'AD',
@@ -543,6 +652,8 @@ class TypesenseInventorySync {
           categoryNormalized: normalizeVietnameseText(decryptedItem.category),
           imageUrl: item.imageUrl ? 'has_image' : null, // Only store reference, not full base64 data
           tags: decryptedTags,
+          description: trainingDescription,
+          patterns: trainingPatterns,
           createdAt: new Date(item.createdAt).getTime(),
           updatedAt: new Date(item.updatedAt).getTime(),
           sizes: decryptedSizes.map((size) => ({

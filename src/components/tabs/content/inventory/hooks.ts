@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { InventoryItem, AddItemFormState } from '@/types/inventory';
 import { useUser } from '@/context/UserContext';
 
@@ -13,28 +13,92 @@ export function useInventorySearch() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
+  const currentSearchIdRef = useRef(0); // Use ref instead of state to avoid closure issues
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null); // Track timeout for cleanup
 
-  // Debounced search function
+  // Debug: Track search results changes
+  useEffect(() => {
+    console.log(`Search results updated: ${searchResults.length} items for query "${searchQuery}"`);
+    if (searchResults.length > 0) {
+      console.log('First result:', searchResults[0]);
+    }
+  }, [searchResults, searchQuery]);
+
+  // Debug: Track loading state changes
+  useEffect(() => {
+    console.log(
+      `Loading state changed: isSearching=${isSearching}, isLoadingMore=${isLoadingMore}`
+    );
+  }, [isSearching, isLoadingMore]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Simplified debounced search function with race condition protection
   const debouncedSearch = useCallback(
-    debounce(async (query: unknown, page: unknown = 1) => {
+    debounce(async (query: unknown, page: unknown = 1, searchId: unknown = 0) => {
       const searchQuery = query as string;
       const searchPage = page as number;
+      const requestSearchId = searchId as number;
 
+      console.log(
+        `Debounced search called: "${searchQuery}", page: ${searchPage}, searchId: ${requestSearchId}`
+      );
+
+      // Don't search if query is empty
       if (!searchQuery.trim()) {
         setSearchResults([]);
         setHasMore(false);
         setTotal(0);
+        setIsSearching(false);
+        setIsLoadingMore(false);
         return;
       }
 
+      // Set loading state
       if (searchPage === 1) {
         setIsSearching(true);
+        console.log('Setting isSearching to true');
+
+        // Clear any existing timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+
+        // Add timeout to clear loading state if search takes too long
+        timeoutRef.current = setTimeout(() => {
+          if (requestSearchId === currentSearchIdRef.current) {
+            console.log('Search timeout, clearing loading state');
+            setIsSearching(false);
+          }
+        }, 10000); // 10 second timeout
       } else {
         setIsLoadingMore(true);
+        console.log('Setting isLoadingMore to true');
+
+        // Clear any existing timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+
+        // Add timeout for load more as well
+        timeoutRef.current = setTimeout(() => {
+          if (requestSearchId === currentSearchIdRef.current) {
+            console.log('Load more timeout, clearing loading state');
+            setIsLoadingMore(false);
+          }
+        }, 10000); // 10 second timeout
       }
       setSearchError('');
 
       try {
+        console.log(`Making search request for: "${searchQuery}"`);
         const response = await fetch(
           `/api/inventory/search-typesense?q=${encodeURIComponent(searchQuery)}&page=${searchPage}&limit=20`,
           {
@@ -44,14 +108,29 @@ export function useInventorySearch() {
           }
         );
 
+        console.log(`Search response status: ${response.status}`);
         if (!response.ok) {
           throw new Error('Search failed');
         }
 
         const data = await response.json();
+        console.log(`Search response data:`, {
+          items: data.items?.length || 0,
+          total: data.total,
+          hasMore: data.hasMore,
+        });
 
-        // Check if API returned an error (like timeout)
+        // Check if this is still the current search using ref
+        if (requestSearchId !== currentSearchIdRef.current) {
+          console.log(
+            `Search outdated (${requestSearchId} vs ${currentSearchIdRef.current}), ignoring results`
+          );
+          return;
+        }
+
+        // Check if API returned an error
         if (data.error) {
+          console.log('Search API returned error:', data.error);
           setSearchError(data.error);
           setSearchResults([]);
           setHasMore(false);
@@ -59,30 +138,22 @@ export function useInventorySearch() {
           return;
         }
 
-        if (page === 1) {
-          // Deduplicate initial results to prevent duplicate keys
+        // Process results
+        if (searchPage === 1) {
           const items = data.items || [];
           const uniqueItems = items.filter(
             (item: InventoryItem, index: number, self: InventoryItem[]) =>
               index === self.findIndex((t) => t.id === item.id)
           );
           setSearchResults(uniqueItems);
+          console.log(`Search completed for "${searchQuery}": ${uniqueItems.length} results`);
         } else {
           setSearchResults((prev) => {
-            // Deduplicate by ID to prevent duplicate keys
             const existingIds = new Set(prev.map((item) => item.id));
             const newItems = (data.items || []).filter(
               (item: InventoryItem) => !existingIds.has(item.id)
             );
-
-            // Final safety check: ensure no duplicates in the combined result
-            const combined = [...prev, ...newItems];
-            const finalUnique = combined.filter(
-              (item: InventoryItem, index: number, self: InventoryItem[]) =>
-                index === self.findIndex((t) => t.id === item.id)
-            );
-
-            return finalUnique;
+            return [...prev, ...newItems];
           });
         }
 
@@ -93,29 +164,48 @@ export function useInventorySearch() {
         console.error('Search error:', error);
         setSearchError('Có lỗi khi tìm kiếm sản phẩm');
         setSearchResults([]);
+        setHasMore(false);
+        setTotal(0);
       } finally {
-        if (searchPage === 1) {
-          setIsSearching(false);
-        } else {
-          setIsLoadingMore(false);
+        // Only clear loading state if this is still the current search
+        if (requestSearchId === currentSearchIdRef.current) {
+          console.log('Clearing loading state');
+          // Clear timeout since search completed
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
+          if (searchPage === 1) {
+            setIsSearching(false);
+            console.log('Setting isSearching to false');
+          } else {
+            setIsLoadingMore(false);
+            console.log('Setting isLoadingMore to false');
+          }
         }
       }
-    }, 300),
+    }, 500), // Increased from 300ms to 500ms to prevent rapid searches
     [sessionToken]
   );
 
   const handleSearch = useCallback(
     (query: string) => {
+      console.log(`Search requested: "${query}"`);
       setSearchQuery(query);
       setCurrentPage(1);
-      debouncedSearch(query, 1);
+      // Generate new search ID to cancel any pending searches
+      const newSearchId = Date.now();
+      currentSearchIdRef.current = newSearchId;
+      debouncedSearch(query, 1, newSearchId);
     },
     [debouncedSearch]
   );
 
   const loadMore = useCallback(() => {
-    if (hasMore && !isSearching && !isLoadingMore) {
-      debouncedSearch(searchQuery, currentPage + 1);
+    if (hasMore && !isSearching && !isLoadingMore && searchQuery.trim()) {
+      const newSearchId = Date.now();
+      currentSearchIdRef.current = newSearchId;
+      debouncedSearch(searchQuery, currentPage + 1, newSearchId);
     }
   }, [hasMore, isSearching, isLoadingMore, searchQuery, currentPage, debouncedSearch]);
 
@@ -126,6 +216,10 @@ export function useInventorySearch() {
     setTotal(0);
     setCurrentPage(1);
     setSearchError('');
+    setIsSearching(false);
+    setIsLoadingMore(false);
+    // Cancel any pending searches
+    currentSearchIdRef.current = Date.now();
   }, []);
 
   return {

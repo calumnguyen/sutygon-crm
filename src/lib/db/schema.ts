@@ -312,3 +312,29 @@ export const orderNotes = pgTable(
     };
   }
 );
+
+export const aiTrainingData = pgTable(
+  'ai_training_data',
+  {
+    id: serial('id').primaryKey(),
+    itemId: integer('item_id').references(() => inventoryItems.id),
+    name: text('name').notNull(),
+    category: text('category').notNull(),
+    imageUrl: text('image_url'),
+    tags: text('tags'), // JSON string of tags
+    description: text('description').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      // Index for active training data
+      isActiveIdx: index('ai_training_data_is_active_idx').on(table.isActive),
+      // Index for item lookups
+      itemIdIdx: index('ai_training_data_item_id_idx').on(table.itemId),
+      // Index for category filtering
+      categoryIdx: index('ai_training_data_category_idx').on(table.category),
+    };
+  }
+);

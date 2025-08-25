@@ -23,9 +23,7 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
   loadMore,
   hasMore,
 }) => {
-
-
-    if (filteredInventory.length === 0) {
+  if (filteredInventory.length === 0) {
     return <div className="text-center text-gray-400 py-10">Chưa có sản phẩm nào trong kho.</div>;
   }
 
@@ -48,7 +46,19 @@ const InventoryGrid: React.FC<InventoryGridProps> = ({
                   // Fallback to no-image if the image fails to load
                   const target = e.target as HTMLImageElement;
                   target.src = '/no-image.png';
+                  target.onerror = null; // Prevent infinite loop
                 }}
+                onLoad={(e) => {
+                  // Check if image is too large (base64 data URLs can be huge)
+                  const target = e.target as HTMLImageElement;
+                  if (target.src && target.src.startsWith('data:') && target.src.length > 1000000) {
+                    // If base64 data URL is larger than 1MB, show a warning
+                    console.warn(
+                      `Large image detected for item ${item.id}: ${(target.src.length / 1024 / 1024).toFixed(2)}MB`
+                    );
+                  }
+                }}
+                loading="lazy"
               />
               <div className="absolute top-0 right-0 flex gap-1">
                 <Button

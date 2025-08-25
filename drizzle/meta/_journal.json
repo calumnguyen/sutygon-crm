@@ -99,6 +99,13 @@
       "when": 1753976396629,
       "tag": "0013_glorious_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1756110504631,
+      "tag": "0014_easy_earthquake",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,7 @@ import {
   encryptTagData,
   decryptTagData,
 } from '@/lib/utils/inventoryEncryption';
+
 import { typesenseInventorySync } from '@/lib/typesense/sync';
 import { logInventoryError, logDatabaseError, logConnectionError } from '@/lib/utils/errorMonitor';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
@@ -151,7 +152,7 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
         formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
         name: decryptedItem.name,
         category: decryptedItem.category,
-        imageUrl: item.imageUrl,
+        imageUrl: item.imageUrl, // Use as-is for now to avoid decryption issues
         tags: itemTags,
         sizes: decryptedSizes,
         createdAt: item.createdAt,
@@ -463,9 +464,9 @@ export const POST = withAuth(async (req: AuthenticatedRequest) => {
       // Continue with empty tags
     }
 
-          // Sync to Typesense (async, don't wait)
-          typesenseInventorySync.syncItemCreate(item.id).catch((syncError) => {
-              console.error(`[${requestId}] ❌ Typesense sync failed:`, {
+    // Sync to Typesense (async, don't wait)
+    typesenseInventorySync.syncItemCreate(item.id).catch((syncError) => {
+      console.error(`[${requestId}] ❌ Typesense sync failed:`, {
         error: syncError instanceof Error ? syncError.message : String(syncError),
         itemId: item.id,
         timestamp: new Date().toISOString(),

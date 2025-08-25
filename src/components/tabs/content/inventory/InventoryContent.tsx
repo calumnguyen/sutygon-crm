@@ -1,12 +1,23 @@
 'use client';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, List, Grid, Search, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import {
+  Plus,
+  List,
+  Grid,
+  Search,
+  SlidersHorizontal,
+  RefreshCw,
+  Sparkles,
+  X,
+  BookOpen,
+} from 'lucide-react';
 import Button from '@/components/common/dropdowns/Button';
 import { TRANSLATIONS } from '@/config/translations';
 import { AddItemFormState } from '@/types/inventory';
 import { InventoryItem } from '@/types/inventory';
 import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { useInventory } from './useInventory';
+import { useUser } from '@/context/UserContext';
 import { usePopper } from 'react-popper';
 import { useInventoryTable, useInventoryModals, useInventorySearch } from './hooks';
 import InventoryTable from './InventoryTable';
@@ -15,8 +26,11 @@ import InventoryFilterDropdown from './InventoryFilterDropdown';
 import InventoryPreviewModal from './InventoryPreviewModal';
 import InventoryAddItemModal from './InventoryAddItemModal';
 import InventoryEditModal from './InventoryEditModal';
+import AIVisualSearchModal from './AIVisualSearchModal';
+import SecureTrainingModal from './SecureTrainingModal';
 
 const InventoryContent: React.FC = () => {
+  const { sessionToken, currentUser } = useUser();
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const {
     inventory,
@@ -97,9 +111,25 @@ const InventoryContent: React.FC = () => {
     filteredInventory: filteredRegularInventory,
   } = useInventoryTable(displayInventory);
 
-  // Use search results directly when searching, otherwise use filtered inventory
-  const filteredInventory = searchQuery.trim() ? displayInventory : filteredRegularInventory;
+  // When searching, use search results directly. When not searching, use filtered inventory
+  const filteredInventory = searchQuery.trim() ? searchResults : filteredRegularInventory;
+
+  // Debug: Log what's being displayed
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      console.log(`Displaying search results for "${searchQuery}":`, {
+        searchResultsCount: searchResults.length,
+        searchTotal: searchTotal,
+        filteredInventoryCount: filteredInventory.length,
+        isSearching,
+        searchError,
+      });
+    }
+  }, [searchQuery, searchResults, searchTotal, filteredInventory.length, isSearching, searchError]);
+
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [secureTrainingModalOpen, setSecureTrainingModalOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
@@ -182,6 +212,25 @@ const InventoryContent: React.FC = () => {
     setSelectedItem(undefined);
   };
 
+  const [aiFilter, setAiFilter] = useState<string | null>(null);
+
+  const handleAISearchResults = (results: Record<string, unknown>[]) => {
+    // Store AI search results for reference
+    console.log('AI search results:', results);
+  };
+
+  const handleSelectAIResult = (result: Record<string, unknown>) => {
+    // Apply AI filter based on the selected result
+    const searchTerm = (result.name as string) || (result.category as string) || '';
+    setAiFilter(searchTerm);
+    handleSearch(searchTerm);
+  };
+
+  const clearAIFilter = () => {
+    setAiFilter(null);
+    clearSearch();
+  };
+
   return (
     <div className="p-3 sm:p-6">
       {/* Mobile Header */}
@@ -189,16 +238,95 @@ const InventoryContent: React.FC = () => {
         <h1 className="text-xl sm:text-2xl font-bold text-white">{TRANSLATIONS.inventory.title}</h1>
 
         {/* Mobile Search Bar */}
-        <div className="relative w-full sm:w-auto">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 w-full sm:w-64"
-          />
+        <div className="relative w-full sm:w-auto flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Tìm kiếm..."
+              value={searchQuery}
+              onChange={(e) => {
+                const value = e.target.value;
+                handleSearch(value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  clearSearch();
+                }
+              }}
+              className="pl-10 pr-10 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 w-full"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => clearSearch()}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                title="Xóa tìm kiếm"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* AI Search Button */}
+          <button
+            onClick={() => setAiModalOpen(true)}
+            className="p-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white rounded-md transition-all duration-300 hover:scale-110 hover:shadow-lg group"
+            title="AI Tìm kiếm"
+          >
+            <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
+          </button>
+
+          {/* AI Training Button - Admin Only */}
+          {currentUser?.role === 'admin' && (
+            <button
+              onClick={() => setSecureTrainingModalOpen(true)}
+              className="p-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-md transition-all duration-300 hover:scale-110 hover:shadow-lg group"
+              title="Secure AI Training (Admin Only)"
+            >
+              <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
+            </button>
+          )}
         </div>
+
+        {/* AI Filter Display */}
+        {aiFilter && (
+          <div className="flex items-center gap-2 bg-blue-100 border border-blue-300 rounded-lg px-3 py-2 mt-2">
+            <span className="text-blue-800 text-sm">🔍 AI: {aiFilter}</span>
+            <button
+              onClick={clearAIFilter}
+              className="text-blue-600 hover:text-blue-800 p-1"
+              title="Xóa bộ lọc AI"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* Search Status Indicator */}
+        {searchQuery.trim() && (
+          <div className="flex items-center gap-2 bg-blue-900/30 border border-blue-600 rounded-lg px-3 py-2 mt-2">
+            <Search className="w-4 h-4 text-blue-400" />
+            <span className="text-blue-300 text-sm">
+              {isSearching
+                ? 'Đang tìm kiếm...'
+                : `Tìm thấy ${searchTotal} kết quả cho "${searchQuery}"`}
+            </span>
+            {searchError && <span className="text-red-300 text-sm">- {searchError}</span>}
+            {isSearching && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                <div
+                  className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"
+                  style={{ animationDelay: '0.2s' }}
+                ></div>
+                <div
+                  className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"
+                  style={{ animationDelay: '0.4s' }}
+                ></div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Mobile Controls */}
@@ -373,6 +501,17 @@ const InventoryContent: React.FC = () => {
         isSaving={isSaving}
         setIsSaving={setIsSaving}
         isDeleting={isDeleting}
+      />
+      <AIVisualSearchModal
+        isOpen={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        onSearchResults={handleAISearchResults}
+        onSelectResult={handleSelectAIResult}
+      />
+      <SecureTrainingModal
+        isOpen={secureTrainingModalOpen}
+        onClose={() => setSecureTrainingModalOpen(false)}
+        function="training"
       />
     </div>
   );
