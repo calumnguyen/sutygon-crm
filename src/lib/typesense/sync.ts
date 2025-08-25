@@ -119,7 +119,17 @@ class TypesenseInventorySync {
     try {
       const doc = await this.buildItemDocument(itemId);
       if (doc) {
-        await typesenseService.indexDocument(INVENTORY_COLLECTION, doc);
+        // Add timeout protection for individual document indexing
+        await Promise.race([
+          typesenseService.indexDocument(INVENTORY_COLLECTION, doc),
+          new Promise((_, reject) =>
+            setTimeout(
+              () =>
+                reject(new Error(`Document indexing timeout after 30 seconds for item ${itemId}`)),
+              30000
+            )
+          ),
+        ]);
       }
     } catch (error) {
       console.error(`Failed to sync new item ${itemId}:`, error);
@@ -136,7 +146,17 @@ class TypesenseInventorySync {
       const doc = await this.buildItemDocument(itemId);
       if (doc) {
         // Typesense automatically updates if document exists
-        await typesenseService.indexDocument(INVENTORY_COLLECTION, doc);
+        // Add timeout protection for individual document indexing
+        await Promise.race([
+          typesenseService.indexDocument(INVENTORY_COLLECTION, doc),
+          new Promise((_, reject) =>
+            setTimeout(
+              () =>
+                reject(new Error(`Document indexing timeout after 30 seconds for item ${itemId}`)),
+              30000
+            )
+          ),
+        ]);
       }
     } catch (error) {
       console.error(`Failed to sync updated item ${itemId}:`, error);

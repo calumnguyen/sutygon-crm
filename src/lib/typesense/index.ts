@@ -15,7 +15,9 @@ class TypesenseService {
         },
       ],
       apiKey: process.env.TYPESENSE_API_KEY || '6MKMt05mWqspIfP2iYDJ5bmpPfTcdHqi',
-      connectionTimeoutSeconds: 30,
+      connectionTimeoutSeconds: 60, // Increased from 30 to 60 seconds
+      retryIntervalSeconds: 0.1,
+      numRetries: 3,
     };
 
     this.client = new Typesense.Client(config);
@@ -48,31 +50,31 @@ class TypesenseService {
           fields: [
             { name: 'id', type: 'string' },
             { name: 'formattedId', type: 'string' },
-            { 
-              name: 'name', 
+            {
+              name: 'name',
               type: 'string',
               facet: true,
               sort: true,
               infix: true, // Enable prefix/suffix matching
             },
-            { 
-              name: 'nameNormalized', 
+            {
+              name: 'nameNormalized',
               type: 'string',
               optional: true,
             },
-            { 
-              name: 'category', 
+            {
+              name: 'category',
               type: 'string',
               facet: true,
               sort: true,
             },
-            { 
-              name: 'categoryNormalized', 
+            {
+              name: 'categoryNormalized',
               type: 'string',
               optional: true,
             },
-            { 
-              name: 'tags', 
+            {
+              name: 'tags',
               type: 'string[]',
               facet: true,
               optional: true,
@@ -97,26 +99,28 @@ class TypesenseService {
     }
   }
 
-  async indexDocument(
-    collectionName: string,
-    document: Record<string, unknown>
-  ): Promise<void> {
+  async indexDocument(collectionName: string, document: Record<string, unknown>): Promise<void> {
     try {
-      // Use upsert to handle both create and update operations
-      await this.client
-        .collections(collectionName)
-        .documents()
-        .upsert(document);
+      // Use upsert to handle both create and update operations with timeout protection
+      await Promise.race([
+        this.client.collections(collectionName).documents().upsert(document),
+        new Promise((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(`Document indexing timeout after 30 seconds for document ${document.id}`)
+              ),
+            30000
+          )
+        ),
+      ]);
     } catch (error) {
       console.error(`Failed to index document ${document.id}:`, error);
       throw error;
     }
   }
 
-  async bulkIndex(
-    collectionName: string,
-    documents: Record<string, unknown>[]
-  ): Promise<void> {
+  async bulkIndex(collectionName: string, documents: Record<string, unknown>[]): Promise<void> {
     if (documents.length === 0) return;
 
     const maxRetries = 3;
@@ -124,46 +128,49 @@ class TypesenseService {
 
     while (retryCount < maxRetries) {
       try {
-        console.log(`Starting bulk upsert of ${documents.length} documents (attempt ${retryCount + 1}/${maxRetries})...`);
-        
+        console.log(
+          `Starting bulk upsert of ${documents.length} documents (attempt ${retryCount + 1}/${maxRetries})...`
+        );
+
         // Use upsert to update existing documents or create new ones
         const response = await Promise.race([
           this.client
             .collections(collectionName)
             .documents()
             .import(documents, { action: 'upsert' }),
-          new Promise((_, reject) => 
+          new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Bulk indexing timeout after 60 seconds')), 60000)
-          )
+          ),
         ]);
 
-        const failedItems = response.filter((item: Record<string, unknown>) => item.success === false);
+        const failedItems = response.filter(
+          (item: Record<string, unknown>) => item.success === false
+        );
         if (failedItems.length > 0) {
           console.error('Bulk indexing errors:', failedItems);
         } else {
           console.log(`✓ Bulk indexed ${documents.length} documents`);
         }
-        
+
         return; // Success, exit retry loop
-        
       } catch (error) {
         retryCount++;
         console.error(`Bulk indexing failed (attempt ${retryCount}/${maxRetries}):`, error);
-        
+
         if (retryCount >= maxRetries) {
           throw error; // Give up after max retries
         }
-        
+
         // Wait before retrying (exponential backoff)
         const waitTime = Math.pow(2, retryCount) * 1000; // 2s, 4s, 8s
         console.log(`Retrying in ${waitTime}ms...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
     }
   }
 
   async search(
-    collectionName: string, 
+    collectionName: string,
     searchParameters: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     try {
@@ -180,10 +187,7 @@ class TypesenseService {
 
   async deleteDocument(collectionName: string, id: string | number): Promise<void> {
     try {
-      await this.client
-        .collections(collectionName)
-        .documents(id)
-        .delete();
+      await this.client.collections(collectionName).documents(id).delete();
     } catch (error) {
       console.error(`Failed to delete document ${id}:`, error);
       throw error;

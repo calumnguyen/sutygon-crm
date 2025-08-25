@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
-import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { Resend } from 'resend';
 
 // Store verification codes in memory (in production, use Redis or database)
 const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
@@ -44,12 +42,50 @@ export const POST = withAuth(async (request: AuthenticatedRequest) => {
         ? 'huấn luyện AI cho Sutygon-bot'
         : 'sử dụng tính năng tìm kiếm AI';
 
-    // This part of the code was removed as per the edit hint.
-    // The original code used Resend, which was removed from imports.
-    // The new code uses a placeholder for sending emails.
-    // For the purpose of this edit, we'll keep the structure but remove the actual email sending logic.
-    // This will result in a placeholder response.
+    // Check if RESEND_API_KEY is set
+    if (!process.env.RESEND_API_KEY) {
+      console.error('RESEND_API_KEY is not set in environment variables');
+      return NextResponse.json(
+        {
+          error: 'Email service not configured. Please contact administrator.',
+        },
+        { status: 500 }
+      );
+    }
 
+    console.log('Attempting to send email with Resend...');
+    console.log('RESEND_API_KEY length:', process.env.RESEND_API_KEY?.length || 0);
+
+    // Initialize Resend
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    // Send email to Calum
+    const emailResult = await resend.emails.send({
+      from: 'Sutygon CRM <noreply@sutygon.com>',
+      to: ['calumengee@gmail.com'],
+      subject: `Mã xác thực ${functionDisplayName} - Sutygon CRM`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Mã xác thực ${functionDisplayName}</h2>
+          <p>Xin chào Calum,</p>
+          <p>Bạn có yêu cầu mới để ${functionDescription}.</p>
+          <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin: 0; color: #333;">Mã xác thực:</h3>
+            <p style="font-size: 24px; font-weight: bold; color: #007bff; margin: 10px 0;">${code}</p>
+            <p style="font-size: 14px; color: #666; margin: 0;">Mã này sẽ hết hạn sau 10 phút.</p>
+          </div>
+          <p><strong>Người yêu cầu:</strong> ${userName}</p>
+          <p><strong>Thời gian:</strong> ${new Date().toLocaleString('vi-VN')}</p>
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+          <p style="font-size: 12px; color: #666;">
+            Email này được gửi tự động từ hệ thống Sutygon CRM.<br>
+            Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.
+          </p>
+        </div>
+      `,
+    });
+
+    console.log('Email sent successfully:', emailResult);
     console.log(
       `✅ Mã xác thực ${functionDisplayName} đã được gửi đến calumengee@gmail.com (yêu cầu bởi: ${userName})`
     );
@@ -57,10 +93,35 @@ export const POST = withAuth(async (request: AuthenticatedRequest) => {
     return NextResponse.json({
       success: true,
       message: `Mã xác thực ${functionDisplayName} đã được gửi đến Calum`,
+      emailId: emailResult.data?.id,
     });
   } catch (error) {
     console.error('Send training code error:', error);
-    return NextResponse.json({ error: 'Không thể gửi mã xác thực' }, { status: 500 });
+
+    // Log detailed error information
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+
+    // Provide more specific error messages
+    let errorMessage = 'Không thể gửi mã xác thực';
+    if (error instanceof Error) {
+      if (error.message.includes('Unauthorized') || error.message.includes('401')) {
+        errorMessage = 'Email service authentication failed. Please check API key.';
+      } else if (error.message.includes('Forbidden') || error.message.includes('403')) {
+        errorMessage = 'Email service access denied. Please check permissions.';
+      } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+        errorMessage = 'Email service rate limit exceeded. Please try again later.';
+      } else if (error.message.includes('domain') || error.message.includes('sender')) {
+        errorMessage = 'Email domain not verified. Please check sender domain configuration.';
+      } else {
+        errorMessage = `Email sending failed: ${error.message}`;
+      }
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 });
 
