@@ -200,82 +200,297 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
     [regularUsers.map((u) => u.id).join(',')]
   );
 
-  // Helper functions
-  const getNetworkIcon = (networkInfo: NetworkInfo | null) => {
-    if (!networkInfo) return <Wifi className="w-4 h-4 text-gray-400" />;
+  const getDeviceIcon = (deviceType: string) => {
+    const deviceLower = deviceType.toLowerCase();
 
-    switch (networkInfo.type) {
-      case 'WiFi':
-        return <Wifi className="w-4 h-4 text-green-400" />;
-      case 'Ethernet':
-        return <Activity className="w-4 h-4 text-blue-400" />;
-      case 'Cellular':
-        return <Smartphone className="w-4 h-4 text-yellow-400" />;
-      default:
-        return <Wifi className="w-4 h-4 text-gray-400" />;
+    // Mobile devices
+    if (
+      deviceLower.includes('iphone') ||
+      deviceLower.includes('android') ||
+      deviceLower.includes('mobile')
+    ) {
+      return <Smartphone className="w-4 h-4" />;
+    }
+
+    // Tablet devices
+    if (deviceLower.includes('ipad') || deviceLower.includes('tablet')) {
+      return <Tablet className="w-4 h-4" />;
+    }
+
+    // Laptop devices
+    if (
+      deviceLower.includes('macbook') ||
+      deviceLower.includes('laptop') ||
+      deviceLower.includes('surface')
+    ) {
+      return <Laptop className="w-4 h-4" />;
+    }
+
+    // Desktop devices
+    if (
+      deviceLower.includes('mac') ||
+      deviceLower.includes('pc') ||
+      deviceLower.includes('desktop')
+    ) {
+      return <Monitor className="w-4 h-4" />;
+    }
+
+    // Default fallback
+    return <Monitor className="w-4 h-4" />;
+  };
+
+  const getDayNightIcon = () => {
+    // Simulate different time zones based on location
+    // In a real app, you'd get the actual timezone for each user's location
+    const hour = new Date().getHours();
+    const isDay = hour >= 6 && hour < 18;
+
+    return isDay ? (
+      <Sun className="w-3 h-3 text-yellow-400" />
+    ) : (
+      <Moon className="w-3 h-3 text-blue-400" />
+    );
+  };
+
+  const getLocalTime = (location: string): string => {
+    const now = new Date();
+    const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
+    let timezoneOffset = 0;
+
+    // Enhanced timezone detection for more locations
+    if (
+      location.includes('Vietnam') ||
+      location.includes('Ho Chi Minh') ||
+      location.includes('Hanoi') ||
+      location.includes('Da Nang')
+    ) {
+      timezoneOffset = 7;
+    } else if (location.includes('Japan') || location.includes('Tokyo')) {
+      timezoneOffset = 9;
+    } else if (location.includes('Singapore') || location.includes('Malaysia')) {
+      timezoneOffset = 8;
+    } else if (location.includes('Thailand') || location.includes('Bangkok')) {
+      timezoneOffset = 7;
+    } else if (
+      location.includes('Los Angeles') ||
+      location.includes('California') ||
+      location.includes('Huntington Beach') ||
+      location.includes('Orange County')
+    ) {
+      timezoneOffset = -7; // UTC-7 (PDT) - Pacific Daylight Time
+    } else if (location.includes('New York') || location.includes('USA')) {
+      timezoneOffset = -5;
+    } else if (location.includes('UK') || location.includes('London')) {
+      timezoneOffset = 0;
+    } else if (location.includes('Australia') || location.includes('Sydney')) {
+      timezoneOffset = 10;
+    } else {
+      timezoneOffset = 7; // Default to Vietnam timezone
+    }
+
+    const userTime = new Date(utcTime + timezoneOffset * 60 * 60 * 1000);
+    return userTime.toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  };
+
+  // Weather cache to prevent excessive API calls
+  const weatherCache = useRef<
+    Map<string, { data: WeatherData | null; timestamp: number; attempts: number; failed: boolean }>
+  >(new Map());
+  const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes cache
+  const lastFetchTime = useRef<Map<string, number>>(new Map());
+  const MIN_FETCH_INTERVAL = process.env.NODE_ENV === 'development' ? 30000 : 5000; // 30 seconds in dev, 5 seconds in prod
+  const MAX_RETRY_ATTEMPTS = 3;
+  const CACHE_KEY = 'weather_cache_v1';
+
+  // Initialize cache from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedCache = localStorage.getItem(CACHE_KEY);
+      if (savedCache) {
+        const parsedCache = JSON.parse(savedCache);
+        const map = new Map();
+
+        // Convert back to Map and filter out expired entries
+        Object.entries(parsedCache).forEach(([location, cacheData]: [string, unknown]) => {
+          const typedCacheData = cacheData as { timestamp: number };
+          if (Date.now() - typedCacheData.timestamp < CACHE_DURATION) {
+            map.set(location, cacheData);
+          }
+        });
+
+        weatherCache.current = map;
+        console.log('🌤️ Loaded weather cache from localStorage:', map.size, 'entries');
+      }
+    } catch (error) {
+      console.error('❌ Error loading weather cache from localStorage:', error);
+    }
+  }, []);
+
+  // Save cache to localStorage whenever it changes
+  const saveCacheToStorage = useCallback(() => {
+    try {
+      const cacheObject = Object.fromEntries(weatherCache.current);
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheObject));
+    } catch (error) {
+      console.error('❌ Error saving weather cache to localStorage:', error);
+    }
+  }, []);
+
+  const getWeatherData = async (location: string): Promise<WeatherData | null> => {
+    try {
+      // Check cache first
+      const cached = weatherCache.current.get(location);
+
+      // If we have cached data and it's not expired, use it
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION && !cached.failed) {
+        console.log('🌤️ Using cached weather data for:', location);
+        return cached.data;
+      }
+
+      // If we've already failed MAX_RETRY_ATTEMPTS times, don't try again
+      if (cached && cached.failed && cached.attempts >= MAX_RETRY_ATTEMPTS) {
+        console.log('🌤️ Skipping weather fetch for:', location, '- max retries reached');
+        return cached.data;
+      }
+
+      // Rate limiting - prevent too frequent requests for same location
+      const lastFetch = lastFetchTime.current.get(location) || 0;
+      if (Date.now() - lastFetch < MIN_FETCH_INTERVAL) {
+        console.log('🌤️ Rate limiting: skipping fetch for:', location);
+        return cached?.data || null;
+      }
+
+      // Update last fetch time
+      lastFetchTime.current.set(location, Date.now());
+
+      // Update attempt count
+      const currentAttempts = cached ? cached.attempts + 1 : 1;
+      console.log(
+        `🌤️ Fetching weather for city: ${location} (attempt ${currentAttempts}/${MAX_RETRY_ATTEMPTS})`
+      );
+
+      // Check for coordinates in location string (e.g., "Los Angeles, CA (34.0522, -118.2437)")
+      const coordMatch = location.match(/\(([-\d.]+),\s*([-\d.]+)\)/);
+
+      let weather: WeatherData | null = null;
+
+      if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lon = parseFloat(coordMatch[2]);
+
+        console.log('🌤️ Fetching weather for coordinates:', { lat, lon });
+        weather = await weatherService.getWeatherData(lat, lon);
+      } else {
+        // Try to get weather by city name
+        console.log('🌤️ Fetching weather for city:', location);
+        weather = await weatherService.getWeatherByCity(location);
+      }
+
+      // Cache the result with attempt count and failure status
+      const success = weather !== null;
+      weatherCache.current.set(location, {
+        data: weather,
+        timestamp: Date.now(),
+        attempts: currentAttempts,
+        failed: !success,
+      });
+
+      // Save to localStorage
+      saveCacheToStorage();
+
+      if (success) {
+        console.log('✅ Weather data cached successfully for:', location);
+      } else {
+        console.log(
+          `❌ Weather fetch failed for: ${location} (attempt ${currentAttempts}/${MAX_RETRY_ATTEMPTS})`
+        );
+      }
+
+      return weather;
+    } catch (error) {
+      console.error('❌ Error fetching weather data:', error);
+
+      // Cache the failure
+      const cached = weatherCache.current.get(location);
+      const currentAttempts = cached ? cached.attempts + 1 : 1;
+      weatherCache.current.set(location, {
+        data: cached?.data || null,
+        timestamp: Date.now(),
+        attempts: currentAttempts,
+        failed: true,
+      });
+
+      // Save to localStorage
+      saveCacheToStorage();
+
+      return null;
     }
   };
 
-  const getNetworkTypeWithDetails = (networkInfo: NetworkInfo | null) => {
-    if (!networkInfo) return 'Unknown';
+  const getLatencyColor = (quality: string) => {
+    switch (quality) {
+      case 'excellent':
+        return 'text-green-400';
+      case 'good':
+        return 'text-blue-400';
+      case 'fair':
+        return 'text-yellow-400';
+      case 'poor':
+        return 'text-red-400';
+      default:
+        return 'text-gray-400';
+    }
+  };
+
+  const getLatencyIcon = (quality: string) => {
+    switch (quality) {
+      case 'excellent':
+        return <Wifi className="w-3 h-3 text-green-400" />;
+      case 'good':
+        return <Wifi className="w-3 h-3 text-blue-400" />;
+      case 'fair':
+        return <Wifi className="w-3 h-3 text-yellow-400" />;
+      case 'poor':
+        return <Wifi className="w-3 h-3 text-red-400" />;
+      default:
+        return <Wifi className="w-3 h-3 text-gray-400" />;
+    }
+  };
+
+  const getNetworkIcon = (networkInfo: NetworkInfo) => {
+    switch (networkInfo.type) {
+      case 'WiFi':
+        return <Wifi className="w-4 h-4 text-blue-400" />;
+      case 'Cellular':
+        return <Smartphone className="w-4 h-4 text-green-400" />;
+      case 'Ethernet':
+        return <Monitor className="w-4 h-4 text-purple-400" />;
+      default:
+        return <Globe className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getNetworkDetails = (networkInfo: NetworkInfo): string => {
+    if (networkInfo.bandwidth > 0) {
+      if (networkInfo.bandwidth >= 100) {
+        return `Tốc độ: ${(networkInfo.bandwidth / 1000).toFixed(1)} Gbps`;
+      } else if (networkInfo.bandwidth >= 1) {
+        return `Tốc độ: ${networkInfo.bandwidth.toFixed(1)} Mbps`;
+      } else {
+        return `Tốc độ: ${(networkInfo.bandwidth * 1000).toFixed(0)} Kbps`;
+      }
+    }
+    return '';
+  };
+
+  const getNetworkTypeWithDetails = (networkInfo: NetworkInfo): string => {
     return webrtcNetworkDetector.getNetworkTypeString(networkInfo);
   };
 
-  const getNetworkDetails = (networkInfo: NetworkInfo | null) => {
-    if (!networkInfo) return 'No data';
-
-    const details = [];
-    if (networkInfo.latency > 0) {
-      details.push(`${networkInfo.latency}ms`);
-    }
-    if (networkInfo.bandwidth > 0) {
-      details.push(`${Math.round(networkInfo.bandwidth / 1000)}Mbps`);
-    }
-
-    return details.length > 0 ? details.join(' • ') : 'No data';
-  };
-
-  const getDeviceIcon = (deviceType: string) => {
-    switch (deviceType.toLowerCase()) {
-      case 'mobile':
-        return <Smartphone className="w-4 h-4" />;
-      case 'tablet':
-        return <Tablet className="w-4 h-4" />;
-      case 'laptop':
-        return <Laptop className="w-4 h-4" />;
-      default:
-        return <Monitor className="w-4 h-4" />;
-    }
-  };
-
-  const getLocalTime = (timezone: string) => {
-    try {
-      return new Date().toLocaleTimeString('vi-VN', {
-        timeZone: timezone,
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return new Date().toLocaleTimeString('vi-VN', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    }
-  };
-
-  // Weather cache and constants
-  const weatherCache = useRef<
-    Map<
-      string,
-      { data: WeatherData | null; timestamp: number; failed?: boolean; attempts?: number }
-    >
-  >(new Map());
-  const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
-  const MAX_RETRY_ATTEMPTS = 3;
-
-  // UserCard component with weather integration
   const UserCard: React.FC<{ user: OnlineUser }> = React.memo(({ user }) => {
     const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -311,7 +526,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
           }
 
           // If we've failed max retries, show cached data or nothing
-          if (cached && cached.failed && cached.attempts && cached.attempts >= MAX_RETRY_ATTEMPTS) {
+          if (cached && cached.failed && cached.attempts >= MAX_RETRY_ATTEMPTS) {
             if (isMounted) {
               setWeatherData(cached.data);
               weatherInitialized.current = true;
@@ -324,35 +539,15 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
             setIsLoading(true);
           }
 
-          const weather = await weatherService.getWeatherByCity(user.location);
+          const weather = await getWeatherData(user.location);
 
           if (isMounted) {
             setWeatherData(weather);
             setIsLoading(false);
             weatherInitialized.current = true;
-
-            // Cache the successful result
-            weatherCache.current.set(user.location, {
-              data: weather,
-              timestamp: Date.now(),
-              failed: false,
-              attempts: 0,
-            });
-            console.log('✅ Weather data cached successfully for:', user.location);
           }
         } catch (error) {
           console.error('❌ Error fetching weather:', error);
-
-          // Update cache with failure
-          const cached = weatherCache.current.get(user.location);
-          const attempts = (cached?.attempts || 0) + 1;
-          weatherCache.current.set(user.location, {
-            data: cached?.data || null,
-            timestamp: Date.now(),
-            failed: true,
-            attempts,
-          });
-
           if (isMounted) {
             setIsLoading(false);
             weatherInitialized.current = true;
@@ -376,86 +571,204 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
       };
     }, []); // Empty dependency array to run only once
 
-    const getWeatherIcon = (condition: string) => {
-      const conditionLower = condition.toLowerCase();
-      if (conditionLower.includes('rain') || conditionLower.includes('drizzle')) {
-        return <CloudRain className="w-4 h-4" />;
-      } else if (conditionLower.includes('cloud')) {
-        return <Cloud className="w-4 h-4" />;
-      } else if (conditionLower.includes('clear')) {
-        return <Sun className="w-4 h-4" />;
-      } else {
-        return <Cloud className="w-4 h-4" />;
+    const getLocalTime = (userLocation: string): string => {
+      try {
+        // Extract timezone from location or use a default
+        let timezone = 'Asia/Ho_Chi_Minh'; // Default to Vietnam
+
+        // Try to determine timezone from location
+        if (
+          userLocation.includes('Los Angeles') ||
+          userLocation.includes('Huntington Beach') ||
+          userLocation.includes('Orange County')
+        ) {
+          timezone = 'America/Los_Angeles';
+        } else if (userLocation.includes('New York')) {
+          timezone = 'America/New_York';
+        } else if (userLocation.includes('London')) {
+          timezone = 'Europe/London';
+        } else if (userLocation.includes('Tokyo')) {
+          timezone = 'Asia/Tokyo';
+        } else if (userLocation.includes('Sydney')) {
+          timezone = 'Australia/Sydney';
+        }
+
+        const now = new Date();
+        const userTime = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+
+        return userTime.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+      } catch (error) {
+        console.error('Error getting local time:', error);
+        return new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
       }
     };
 
-    const getWeatherColor = (condition: string) => {
-      const conditionLower = condition.toLowerCase();
-      if (conditionLower.includes('rain') || conditionLower.includes('drizzle')) {
-        return 'text-blue-400';
-      } else if (conditionLower.includes('cloud')) {
-        return 'text-gray-400';
-      } else if (conditionLower.includes('clear')) {
-        return 'text-yellow-400';
-      } else {
-        return 'text-gray-400';
+    const getDayNightStatus = (userLocation: string): 'day' | 'night' => {
+      try {
+        let timezone = 'Asia/Ho_Chi_Minh';
+
+        if (
+          userLocation.includes('Los Angeles') ||
+          userLocation.includes('Huntington Beach') ||
+          userLocation.includes('Orange County')
+        ) {
+          timezone = 'America/Los_Angeles';
+        } else if (userLocation.includes('New York')) {
+          timezone = 'America/New_York';
+        } else if (userLocation.includes('London')) {
+          timezone = 'Europe/London';
+        } else if (userLocation.includes('Tokyo')) {
+          timezone = 'Asia/Tokyo';
+        } else if (userLocation.includes('Sydney')) {
+          timezone = 'Australia/Sydney';
+        }
+
+        const now = new Date();
+        const userTime = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+        const hour = userTime.getHours();
+
+        return hour >= 6 && hour < 18 ? 'day' : 'night';
+      } catch (error) {
+        console.error('Error getting day/night status:', error);
+        return 'day';
       }
     };
+
+    const getWeatherIcon = () => {
+      if (!weatherData) return <Cloud className="w-4 h-4 text-gray-400" />;
+
+      const icon = weatherService.getWeatherIcon(weatherData.icon);
+      return <span className="text-2xl">{icon}</span>;
+    };
+
+    const userLatencyData = latencyData.get(user.id);
 
     return (
-      <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
+      <div className="bg-gray-700 rounded-lg p-4 border-l-4 border-blue-500">
         <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2">
-            {getDeviceIcon(user.deviceType)}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm font-medium">
+                {user.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
             <div>
-              <h4 className="text-white font-medium text-sm">{user.name}</h4>
-              <p className="text-gray-400 text-xs">
-                {user.role === 'admin' ? 'Quản trị viên' : 'Người dùng'}
-              </p>
+              <div className="flex items-center gap-2">
+                <h4 className="text-white font-medium text-sm">{user.name}</h4>
+                {user.role === 'admin' && <Shield className="w-4 h-4 text-yellow-400" />}
+              </div>
+              <div className="flex items-center gap-1 text-gray-400 text-xs mt-1">
+                {getDeviceIcon(user.deviceType)}
+                <span>{user.deviceType}</span>
+              </div>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-gray-300 text-xs">
-              {latencyData.get(user.id)?.ping ? `${latencyData.get(user.id)?.ping}ms` : 'N/A'}
+          <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0" />
+        </div>
+
+        {/* Time and Day/Night Status */}
+        <div className="mb-3">
+          <div className="text-gray-400 text-xs mb-1 font-medium">Thời gian & Trạng thái</div>
+          <div className="flex items-center justify-between p-2 bg-gray-600 rounded">
+            <div className="flex items-center gap-2">
+              <Clock className="w-3 h-3 text-gray-400" />
+              <span className="text-white text-sm font-mono">{getLocalTime(user.location)}</span>
             </div>
-            <div className="text-gray-400 text-xs">
-              {latencyData.get(user.id)?.connectionQuality || 'Unknown'}
+            <div className="flex items-center gap-1">
+              {getDayNightIcon()}
+              <span className="text-gray-400 text-xs">
+                {getDayNightStatus(user.location) === 'day' ? 'Ban ngày' : 'Ban đêm'}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Weather Section */}
-        {user.location && user.location !== 'Unknown' && (
-          <div className="mb-3 p-2 bg-gray-600 rounded">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+        {/* Weather Information */}
+        <div className="mb-3">
+          <div className="text-gray-400 text-xs mb-1 font-medium">Thời tiết hiện tại</div>
+          <div className="flex items-center justify-between p-2 bg-gray-600 rounded">
+            <div className="flex items-center gap-2">
+              {getWeatherIcon()}
+              <div>
                 {isLoading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <Cloud className="w-4 h-4" />
+                    <span>Đang tải thời tiết...</span>
+                  </div>
                 ) : weatherData ? (
-                  getWeatherIcon(weatherData.condition || 'Unknown')
+                  <>
+                    <div className="text-white text-sm font-medium">
+                      {weatherData.temperature}°C
+                    </div>
+                    <div className="text-gray-400 text-xs">
+                      {weatherService.getWeatherDescription(weatherData.condition)}
+                    </div>
+                  </>
                 ) : (
-                  <Cloud className="w-4 h-4 text-gray-400" />
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <Cloud className="w-4 h-4" />
+                    <span>Không có dữ liệu</span>
+                  </div>
                 )}
-                <span className="text-white text-sm">
-                  {isLoading
-                    ? 'Đang tải thời tiết...'
-                    : weatherData
-                      ? `${weatherData.temperature}°C`
-                      : 'Không có dữ liệu'}
+              </div>
+            </div>
+            <div className="text-right space-y-1">
+              <div className="flex items-center gap-1">
+                <Droplets className="w-3 h-3 text-blue-400" />
+                <span className="text-gray-300 text-xs">
+                  Độ ẩm: {weatherData?.humidity || '--'}%
                 </span>
               </div>
-              {weatherData && (
-                <div className={`text-xs ${getWeatherColor(weatherData.condition || 'Unknown')}`}>
-                  {weatherData.description || 'Unknown'}
-                </div>
+              <div className="flex items-center gap-1">
+                <Wind className="w-3 h-3 text-gray-400" />
+                <span className="text-gray-300 text-xs">
+                  Gió: {weatherData?.windSpeed || '--'} km/h
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Connection Latency */}
+        <div className="mb-3">
+          <div className="text-gray-400 text-xs mb-1 font-medium">Chất lượng kết nối</div>
+          <div className="flex items-center justify-between p-2 bg-gray-600 rounded">
+            <div className="flex items-center gap-2">
+              <Activity className="w-3 h-3 text-gray-400" />
+              <span className="text-white text-sm font-mono">
+                {userLatencyData ? `${userLatencyData.ping}ms` : '--ms'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              {userLatencyData ? (
+                <>
+                  {getLatencyIcon(userLatencyData.connectionQuality)}
+                  <span className={`text-xs ${getLatencyColor(userLatencyData.connectionQuality)}`}>
+                    {userLatencyData.connectionQuality === 'excellent'
+                      ? 'Tuyệt vời'
+                      : userLatencyData.connectionQuality === 'good'
+                        ? 'Tốt'
+                        : userLatencyData.connectionQuality === 'fair'
+                          ? 'Khá'
+                          : 'Kém'}
+                  </span>
+                </>
+              ) : (
+                <span className="text-gray-400 text-xs">Đang đo...</span>
               )}
             </div>
           </div>
-        )}
 
-        {/* Network Information */}
-        {networkInfo && (
-          <div className="mb-3">
+          {/* Network Type */}
+          {networkInfo && (
             <div className="flex items-center justify-between p-2 bg-gray-600 rounded mt-2">
               <div className="flex items-center gap-2">
                 {getNetworkIcon(networkInfo)}
@@ -465,17 +778,17 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
                 <div className="text-gray-300 text-xs">{getNetworkDetails(networkInfo)}</div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="space-y-1">
-          <div className="flex items-center gap-1 text-gray-400 text-xs">
+          <div className="flex items-center gap-2 text-gray-400 text-xs">
             <MapPin className="w-3 h-3" />
-            <span className="truncate">{user.location}</span>
+            <span>{user.location}</span>
           </div>
-          <div className="flex items-center gap-1 text-gray-400 text-xs">
+          <div className="flex items-center gap-2 text-gray-400 text-xs">
             <Globe className="w-3 h-3" />
-            <span className="truncate">{user.browser}</span>
+            <span>{user.browser}</span>
           </div>
         </div>
       </div>
@@ -485,11 +798,12 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
   UserCard.displayName = 'UserCard';
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-gray-800 rounded-lg border border-gray-700">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-700">
         <div className="flex items-center gap-2">
           <Users className="w-5 h-5 text-blue-400" />
-          <h3 className="text-lg font-medium text-white">Người dùng đang online</h3>
+          <h3 className="text-white font-semibold">Người dùng online</h3>
         </div>
         <div className="flex items-center gap-2">
           <div
@@ -504,19 +818,14 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
       {stableOnlineUsers.length === 0 ? (
         <div className="text-center py-12">
           <WifiOff className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Không có người dùng nào đang online</p>
+          <p className="text-gray-400">Không có người dùng online</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Admins Section */}
+        <div className="p-4 space-y-4">
+          {/* Admins */}
           {memoizedAdmins.length > 0 && (
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Shield className="w-4 h-4 text-yellow-400" />
-                <h4 className="text-white font-medium text-sm">
-                  Quản trị viên ({memoizedAdmins.length})
-                </h4>
-              </div>
+              <h4 className="text-gray-300 text-sm font-medium mb-3">Quản trị viên</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {memoizedAdmins.map((user) => (
                   <UserCard key={user.id} user={user} />
@@ -525,15 +834,10 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
             </div>
           )}
 
-          {/* Regular Users Section */}
+          {/* Regular Users */}
           {memoizedRegularUsers.length > 0 && (
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="w-4 h-4 text-blue-400" />
-                <h4 className="text-white font-medium text-sm">
-                  Người dùng ({memoizedRegularUsers.length})
-                </h4>
-              </div>
+              <h4 className="text-gray-300 text-sm font-medium mb-3">Người dùng</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {memoizedRegularUsers.map((user) => (
                   <UserCard key={user.id} user={user} />
@@ -541,23 +845,24 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
               </div>
             </div>
           )}
+
+          {/* Summary */}
+          <div className="pt-4 border-t border-gray-700 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-400">Tổng số người online:</span>
+              <span className="text-white font-medium">{stableOnlineUsers.length}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span className="text-gray-400">Quản trị viên:</span>
+              <span className="text-white font-medium">{memoizedAdmins.length}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span className="text-gray-400">Người dùng:</span>
+              <span className="text-white font-medium">{memoizedRegularUsers.length}</span>
+            </div>
+          </div>
         </div>
       )}
-
-      <div className="mt-6 pt-4 border-t border-gray-700">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">Tổng số người online:</span>
-          <span className="text-white font-medium">{stableOnlineUsers.length}</span>
-        </div>
-        <div className="flex items-center justify-between text-sm mt-1">
-          <span className="text-gray-400">Quản trị viên:</span>
-          <span className="text-yellow-400 font-medium">{admins.length}</span>
-        </div>
-        <div className="flex items-center justify-between text-sm mt-1">
-          <span className="text-gray-400">Người dùng:</span>
-          <span className="text-blue-400 font-medium">{regularUsers.length}</span>
-        </div>
-      </div>
     </div>
   );
 });
