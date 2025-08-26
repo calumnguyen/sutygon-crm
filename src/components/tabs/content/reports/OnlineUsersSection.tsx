@@ -75,33 +75,37 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
 
         // Enhanced hotspot detection
         const isLikelyHotspot = () => {
+          // Only consider it a hotspot if it's very slow AND on mobile
+          if (!isMobile) return false;
+
           // Very slow speed is a strong indicator
-          if (downlink < 2) return true;
+          if (downlink < 1) return true;
 
-          // Mobile device with slow WiFi
-          if (isMobile && connection?.type === 'wifi' && downlink < 10) return true;
+          // Mobile device with very slow WiFi (likely tethering)
+          if (isMobile && connection?.type === 'wifi' && downlink < 2) return true;
 
-          // High RTT with slow speed
-          if (rtt > 100 && downlink < 5) return true;
+          // High RTT with very slow speed
+          if (rtt > 200 && downlink < 2) return true;
 
           return false;
         };
 
         // Enhanced network type detection
         const getDetailedNetworkType = () => {
-          // Personal Hotspot detection
+          // Personal Hotspot detection - only for very slow connections
           if (isLikelyHotspot()) {
             if (isIOS) return 'iPhone Hotspot';
             if (isAndroid) return 'Android Hotspot';
             return 'Personal Hotspot';
           }
 
-          // WiFi detection
+          // WiFi detection - most common case
           if (connection?.type === 'wifi') {
             if (downlink >= 100) return 'WiFi (Fast)';
             if (downlink >= 50) return 'WiFi (Good)';
             if (downlink >= 20) return 'WiFi (Normal)';
-            return 'WiFi (Slow)';
+            if (downlink >= 10) return 'WiFi (Slow)';
+            return 'WiFi (Very Slow)';
           }
 
           // Cellular detection
@@ -300,51 +304,48 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
     );
   };
 
-  const getLocalTime = (userLocation: string) => {
-    // Calculate time based on user's location
-    // Get current UTC time
+  const getLocalTime = (location: string): string => {
     const now = new Date();
     const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
-
-    // Simple timezone offset based on location (this is a demo - in real app use proper timezone data)
     let timezoneOffset = 0;
 
-    // Map locations to approximate timezone offsets
+    // Enhanced timezone detection for more locations
     if (
-      userLocation.includes('Vietnam') ||
-      userLocation.includes('Ho Chi Minh') ||
-      userLocation.includes('Hanoi')
+      location.includes('Vietnam') ||
+      location.includes('Ho Chi Minh') ||
+      location.includes('Hanoi') ||
+      location.includes('Da Nang')
     ) {
-      timezoneOffset = 7; // UTC+7
-    } else if (userLocation.includes('Japan') || userLocation.includes('Tokyo')) {
-      timezoneOffset = 9; // UTC+9
-    } else if (userLocation.includes('Singapore') || userLocation.includes('Malaysia')) {
-      timezoneOffset = 8; // UTC+8
-    } else if (userLocation.includes('Thailand') || userLocation.includes('Bangkok')) {
-      timezoneOffset = 7; // UTC+7
-    } else if (userLocation.includes('Los Angeles') || userLocation.includes('California')) {
-      timezoneOffset = -7; // UTC-7 (PDT) - Los Angeles is currently in daylight saving time
-    } else if (userLocation.includes('New York') || userLocation.includes('USA')) {
-      timezoneOffset = -5; // UTC-5 (EST)
-    } else if (userLocation.includes('UK') || userLocation.includes('London')) {
-      timezoneOffset = 0; // UTC+0
-    } else if (userLocation.includes('Australia') || userLocation.includes('Sydney')) {
-      timezoneOffset = 10; // UTC+10
-    } else {
-      // Default to Vietnam timezone if location is unknown
       timezoneOffset = 7;
+    } else if (location.includes('Japan') || location.includes('Tokyo')) {
+      timezoneOffset = 9;
+    } else if (location.includes('Singapore') || location.includes('Malaysia')) {
+      timezoneOffset = 8;
+    } else if (location.includes('Thailand') || location.includes('Bangkok')) {
+      timezoneOffset = 7;
+    } else if (
+      location.includes('Los Angeles') ||
+      location.includes('California') ||
+      location.includes('Huntington Beach') ||
+      location.includes('Orange County')
+    ) {
+      timezoneOffset = -7; // UTC-7 (PDT) - Pacific Daylight Time
+    } else if (location.includes('New York') || location.includes('USA')) {
+      timezoneOffset = -5;
+    } else if (location.includes('UK') || location.includes('London')) {
+      timezoneOffset = 0;
+    } else if (location.includes('Australia') || location.includes('Sydney')) {
+      timezoneOffset = 10;
+    } else {
+      timezoneOffset = 7; // Default to Vietnam timezone
     }
 
-    // Calculate the time for the user's timezone
     const userTime = new Date(utcTime + timezoneOffset * 60 * 60 * 1000);
-
-    const timeString = userTime.toLocaleTimeString('vi-VN', {
+    return userTime.toLocaleTimeString('vi-VN', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
     });
-
-    return timeString;
   };
 
   const getMockWeatherData = (userLocation: string): UserWeatherData => {
@@ -461,13 +462,13 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
     // Fallback to basic detection
     const baseType = getNetworkTypeText(networkInfo.type, networkInfo.effectiveType);
 
-    // Detect personal hotspot based on slow WiFi
-    if (networkInfo.type === 'wifi' && networkInfo.downlink < 10) {
+    // Only detect personal hotspot for very slow connections
+    if (networkInfo.type === 'wifi' && networkInfo.downlink < 2) {
       return 'Personal Hotspot';
     }
 
-    // Detect slow cellular as likely hotspot
-    if (networkInfo.type === 'cellular' && networkInfo.downlink < 5) {
+    // Only detect mobile hotspot for very slow cellular
+    if (networkInfo.type === 'cellular' && networkInfo.downlink < 2) {
       return 'Mobile Hotspot';
     }
 
@@ -487,7 +488,8 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
     if (
       user.location.includes('Vietnam') ||
       user.location.includes('Ho Chi Minh') ||
-      user.location.includes('Hanoi')
+      user.location.includes('Hanoi') ||
+      user.location.includes('Da Nang')
     ) {
       timezoneOffset = 7;
     } else if (user.location.includes('Japan') || user.location.includes('Tokyo')) {
@@ -496,8 +498,13 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
       timezoneOffset = 8;
     } else if (user.location.includes('Thailand') || user.location.includes('Bangkok')) {
       timezoneOffset = 7;
-    } else if (user.location.includes('Los Angeles') || user.location.includes('California')) {
-      timezoneOffset = -7; // UTC-7 (PDT) - Los Angeles is currently in daylight saving time
+    } else if (
+      user.location.includes('Los Angeles') ||
+      user.location.includes('California') ||
+      user.location.includes('Huntington Beach') ||
+      user.location.includes('Orange County')
+    ) {
+      timezoneOffset = -7; // UTC-7 (PDT) - Pacific Daylight Time
     } else if (user.location.includes('New York') || user.location.includes('USA')) {
       timezoneOffset = -5;
     } else if (user.location.includes('UK') || user.location.includes('London')) {

@@ -32,7 +32,7 @@ class LatencyTracker {
 
     const interval = setInterval(() => {
       this.measureServerLatency(userId);
-    }, 30000); // Measure every 30 seconds instead of 5
+    }, 60000); // Measure every 60 seconds instead of 30 to reduce spam
 
     this.pingIntervals.set(userId, interval);
   }
@@ -56,12 +56,14 @@ class LatencyTracker {
     const startTime = Date.now();
 
     try {
-      // Use a lighter endpoint for latency measurement
+      // Use a simple, lightweight endpoint for latency measurement
       const response = await fetch('/api/pusher/user-presence', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        // Add cache control to prevent browser caching
+        cache: 'no-cache',
       });
 
       const endTime = Date.now();
@@ -81,14 +83,18 @@ class LatencyTracker {
           timestamp: endTime,
         };
 
-        this.latencyData.set(userId, latencyData);
+        // Only update if the ping has changed significantly (more than 10ms difference)
+        const existingData = this.latencyData.get(userId);
+        if (!existingData || Math.abs(existingData.ping - ping) > 10) {
+          this.latencyData.set(userId, latencyData);
 
-        if (this.onLatencyUpdate) {
-          this.onLatencyUpdate(userId, latencyData);
+          if (this.onLatencyUpdate) {
+            this.onLatencyUpdate(userId, latencyData);
+          }
         }
       }
     } catch (error) {
-      // Silent error handling
+      // Silent error handling - don't update latency on error
     }
   }
 
