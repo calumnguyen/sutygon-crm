@@ -133,13 +133,17 @@ export const PUT = withAuth(
         try {
           console.log(`[${requestId}] 🏷️ Processing ${tagNames.length} tags...`);
 
+          // Deduplicate tag names to prevent duplicate insertions
+          const uniqueTagNames = [...new Set(tagNames as string[])];
+          console.log(`[${requestId}] 🔍 Deduplicated to ${uniqueTagNames.length} unique tags`);
+
           // Delete existing tags
           await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
           console.log(`[${requestId}] 🗑️ Deleted existing tag associations`);
 
           // Create or find tags and get their IDs
           const tagIds: number[] = [];
-          for (const tagName of tagNames) {
+          for (const tagName of uniqueTagNames) {
             const encryptedTagName = encryptTagData({ name: tagName }).name;
 
             let [tag] = await db.select().from(tags).where(eq(tags.name, encryptedTagName));

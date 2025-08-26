@@ -1,269 +1,247 @@
-import React, { RefObject } from 'react';
-import Button from '@/components/common/dropdowns/Button';
+import React, { RefObject, useState, useCallback, useRef, useEffect } from 'react';
+import { ImageFilter } from './hooks';
 
 interface InventoryFilterDropdownProps {
-  priceSort: string | null;
-  setPriceSort: (v: 'asc' | 'desc' | null) => void;
-  priceRange: { min: string; max: string };
-  setPriceRange: (v: { min: string; max: string }) => void;
-  priceRangeInvalid: boolean | string;
   CATEGORY_OPTIONS: string[];
   selectedCategories: string[];
   setSelectedCategories: (v: string[]) => void;
   categoryDropdownOpen: boolean;
   setCategoryDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   categoryDropdownRef: RefObject<HTMLDivElement>;
-  lastModifiedSort: string | null;
-  setLastModifiedSort: (v: 'asc' | 'desc' | null) => void;
-  nameSort: string | null;
-  setNameSort: (v: 'asc' | 'desc' | null) => void;
-  idSort: string | null;
-  setIdSort: (v: 'asc' | 'desc' | null) => void;
+  imageFilter: ImageFilter;
+  setImageFilter: (v: ImageFilter) => void;
+  sortBy: 'newest' | 'oldest' | 'none';
+  setSortBy: (v: 'newest' | 'oldest' | 'none') => void;
 }
 
 const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
-  priceSort,
-  setPriceSort,
-  priceRange,
-  setPriceRange,
-  priceRangeInvalid,
   CATEGORY_OPTIONS,
   selectedCategories,
   setSelectedCategories,
   categoryDropdownOpen,
   setCategoryDropdownOpen,
   categoryDropdownRef,
-  lastModifiedSort,
-  setLastModifiedSort,
-  nameSort,
-  setNameSort,
-  idSort,
-  setIdSort,
-}) => (
-  <div className="z-50 w-full sm:w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg p-3 sm:p-4 space-y-3 sm:space-y-4 text-sm max-h-[80vh] overflow-y-auto">
-    <div className="flex justify-between items-center mb-2">
-      <span className="font-semibold text-white">Bộ lọc & Sắp xếp</span>
-      <button
-        className="text-xs text-blue-400 hover:underline"
-        onClick={() => {
-          setPriceSort(null);
-          setPriceRange({ min: '', max: '' });
-          setSelectedCategories([]);
-          setLastModifiedSort(null);
-          setNameSort(null);
-          setIdSort(null);
-        }}
-      >
-        Xoá tất cả
-      </button>
-    </div>
-    {/* Price Sort */}
-    <div>
-      <div className="font-medium text-gray-200 mb-1">Sắp xếp giá</div>
-      <div className="flex flex-wrap gap-1 sm:gap-2">
-        <Button
-          variant={priceSort === 'asc' ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setPriceSort('asc')}
-          className="text-xs"
+  imageFilter,
+  setImageFilter,
+  sortBy,
+  setSortBy,
+}) => {
+  const [dropdownPosition, setDropdownPosition] = useState<'top' | 'bottom'>('bottom');
+  const [localDropdownOpen, setLocalDropdownOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Use local state for mobile, external state for desktop
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+  const actualDropdownOpen = isMobile ? localDropdownOpen : categoryDropdownOpen;
+  const setActualDropdownOpen = isMobile ? setLocalDropdownOpen : setCategoryDropdownOpen;
+
+  // Determine dropdown position based on available space
+  useEffect(() => {
+    if (actualDropdownOpen && buttonRef.current) {
+      const buttonRect = buttonRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - buttonRect.bottom;
+      const dropdownHeight = 240; // Approximate height of dropdown
+
+      // Only position above if there's really not enough space below
+      if (spaceBelow < dropdownHeight + 20) {
+        setDropdownPosition('top');
+      } else {
+        setDropdownPosition('bottom');
+      }
+    }
+  }, [actualDropdownOpen]);
+
+  // Simple escape key handler
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && actualDropdownOpen) {
+        setActualDropdownOpen(false);
+      }
+    };
+
+    if (actualDropdownOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('keydown', handleEscape);
+      };
+    }
+  }, [actualDropdownOpen, setActualDropdownOpen]);
+
+  const clearCategoryFilters = () => {
+    setSelectedCategories([]);
+  };
+
+  const clearImageFilter = () => {
+    setImageFilter({ hasImage: 'all' });
+  };
+
+  const clearSort = () => {
+    setSortBy('none');
+  };
+
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-lg p-4 space-y-4 text-sm">
+      <div className="flex justify-between items-center mb-2">
+        <span className="font-semibold text-white">Bộ lọc</span>
+        <button
+          className="text-xs text-blue-400 hover:underline"
+          onClick={() => {
+            setSelectedCategories([]);
+            setImageFilter({ hasImage: 'all' });
+            setSortBy('none');
+          }}
         >
-          Tăng
-        </Button>
-        <Button
-          variant={priceSort === 'desc' ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setPriceSort('desc')}
-          className="text-xs"
-        >
-          Giảm
-        </Button>
-        <Button
-          variant={!priceSort ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setPriceSort(null)}
-          className="text-xs"
-        >
-          Không
-        </Button>
+          Xoá tất cả
+        </button>
       </div>
-    </div>
-    {/* Price Range */}
-    <div>
-      <div className="font-medium text-gray-200 mb-1">Khoảng giá (VNĐ)</div>
-      <div className="flex gap-2">
-        <input
-          type="number"
-          min="0"
-          placeholder="Tối thiểu"
-          className={`flex-1 sm:w-24 px-2 py-1 rounded bg-gray-800 border ${priceRangeInvalid ? 'border-red-500' : 'border-gray-700'} text-white text-xs sm:text-sm`}
-          value={priceRange.min}
-          onChange={(e) => setPriceRange({ min: e.target.value, max: priceRange.max })}
-        />
-        <span className="text-gray-400">-</span>
-        <input
-          type="number"
-          min="0"
-          placeholder="Tối đa"
-          className={`flex-1 sm:w-24 px-2 py-1 rounded bg-gray-800 border ${priceRangeInvalid ? 'border-red-500' : 'border-gray-700'} text-white text-xs sm:text-sm`}
-          value={priceRange.max}
-          onChange={(e) => setPriceRange({ min: priceRange.min, max: e.target.value })}
-        />
-      </div>
-      {priceRangeInvalid && (
-        <div className="text-xs text-red-400 mt-1">
-          Giá tối đa phải lớn hơn hoặc bằng giá tối thiểu.
-        </div>
-      )}
-    </div>
-    {/* Category Dropdown Multi-select */}
-    <div className="relative" ref={categoryDropdownRef}>
-      <div className="font-medium text-gray-200 mb-1">Danh mục</div>
-      <button
-        type="button"
-        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-left text-gray-200 flex items-center justify-between hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
-        onClick={() => setCategoryDropdownOpen((v: boolean) => !v)}
-      >
-        <span>
-          {selectedCategories.length === 0
-            ? 'Chọn danh mục...'
-            : selectedCategories.length === 1
-              ? selectedCategories[0]
-              : `${selectedCategories.length} danh mục`}
-        </span>
-        <svg
-          className={`w-4 h-4 ml-2 transition-transform ${categoryDropdownOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {categoryDropdownOpen && (
-        <div className="absolute left-0 mt-2 w-full bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50 p-2 max-h-60 overflow-y-auto">
-          {CATEGORY_OPTIONS.map((cat) => (
-            <label
-              key={cat}
-              className="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-gray-800 rounded"
-            >
-              <input
-                type="checkbox"
-                checked={selectedCategories.includes(cat)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setSelectedCategories([...selectedCategories, cat]);
-                  } else {
-                    setSelectedCategories(selectedCategories.filter((c) => c !== cat));
-                  }
-                }}
-                className="accent-blue-500"
-              />
-              <span className="text-gray-200 text-sm">{cat}</span>
-            </label>
-          ))}
-        </div>
-      )}
-      {selectedCategories.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {selectedCategories.map((cat) => (
-            <span key={cat} className="bg-blue-700 text-white text-xs px-2 py-0.5 rounded-full">
-              {cat}
+
+      {/* Category Filter */}
+      <div>
+        <div className="font-medium text-gray-200 mb-3">Lọc theo danh mục</div>
+        <div className="relative" ref={categoryDropdownRef}>
+          <button
+            ref={buttonRef}
+            type="button"
+            className="w-full flex items-center justify-between px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700 focus:outline-none focus:border-blue-500"
+            onClick={() => setActualDropdownOpen(!actualDropdownOpen)}
+          >
+            <span className={selectedCategories.length > 0 ? 'text-white' : 'text-gray-400'}>
+              {selectedCategories.length > 0
+                ? `${selectedCategories.length} danh mục đã chọn`
+                : 'Chọn danh mục...'}
             </span>
-          ))}
+            <svg
+              className="w-4 h-4 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+
+          {actualDropdownOpen && (
+            <div
+              className={`absolute left-0 w-full bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-[9999] p-2 max-h-60 overflow-y-auto ${dropdownPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`}
+            >
+              {CATEGORY_OPTIONS.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className="w-full flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-gray-800 rounded text-left"
+                  onClick={() => {
+                    const isSelected = selectedCategories.includes(cat);
+                    if (isSelected) {
+                      setSelectedCategories(selectedCategories.filter((c) => c !== cat));
+                    } else {
+                      setSelectedCategories([...selectedCategories, cat]);
+                    }
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(cat)}
+                    readOnly
+                    className="accent-blue-500 pointer-events-none"
+                  />
+                  <span className="text-gray-200 text-sm flex-1">{cat}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-    </div>
-    {/* Last Modified Sort */}
-    <div>
-      <div className="font-medium text-gray-200 mb-1">Sắp xếp ngày thêm</div>
-      <div className="flex flex-wrap gap-1 sm:gap-2">
-        <Button
-          variant={lastModifiedSort === 'asc' ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setLastModifiedSort('asc')}
-          className="text-xs"
-        >
-          Cũ → Mới
-        </Button>
-        <Button
-          variant={lastModifiedSort === 'desc' ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setLastModifiedSort('desc')}
-          className="text-xs"
-        >
-          Mới → Cũ
-        </Button>
-        <Button
-          variant={!lastModifiedSort ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setLastModifiedSort(null)}
-          className="text-xs"
-        >
-          Không
-        </Button>
+        {selectedCategories.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {selectedCategories.map((cat) => (
+              <span key={cat} className="bg-blue-700 text-white text-xs px-2 py-0.5 rounded-full">
+                {cat}
+              </span>
+            ))}
+            <button
+              onClick={clearCategoryFilters}
+              className="text-xs text-blue-400 hover:underline"
+            >
+              Xóa danh mục
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Image Filter */}
+      <div>
+        <div className="font-medium text-gray-200 mb-3">Lọc theo hình ảnh</div>
+        <div className="relative">
+          <select
+            value={imageFilter.hasImage}
+            onChange={(e) =>
+              setImageFilter({ hasImage: e.target.value as 'all' | 'with_image' | 'without_image' })
+            }
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700 focus:outline-none focus:border-blue-500 appearance-none cursor-pointer"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+              backgroundPosition: 'right 0.5rem center',
+              backgroundRepeat: 'no-repeat',
+              backgroundSize: '1.5em 1.5em',
+              paddingRight: '2.5rem',
+            }}
+          >
+            <option value="all">Tất cả sản phẩm</option>
+            <option value="with_image">Có hình ảnh</option>
+            <option value="without_image">Không có hình ảnh</option>
+          </select>
+        </div>
+        {imageFilter.hasImage !== 'all' && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            <span className="bg-green-700 text-white text-xs px-2 py-0.5 rounded-full">
+              {imageFilter.hasImage === 'with_image' ? 'Có hình ảnh' : 'Không có hình ảnh'}
+            </span>
+            <button onClick={clearImageFilter} className="text-xs text-green-400 hover:underline">
+              Xóa bộ lọc
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Sort by Date Added */}
+      <div>
+        <div className="font-medium text-gray-200 mb-3">Sắp xếp theo ngày thêm</div>
+        <div className="relative">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'none')}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700 focus:outline-none focus:border-blue-500 appearance-none cursor-pointer"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+              backgroundPosition: 'right 0.5rem center',
+              backgroundRepeat: 'no-repeat',
+              backgroundSize: '1.5em 1.5em',
+              paddingRight: '2.5rem',
+            }}
+          >
+            <option value="none">Không sắp xếp</option>
+            <option value="newest">Mới nhất trước</option>
+            <option value="oldest">Cũ nhất trước</option>
+          </select>
+        </div>
+        {sortBy !== 'none' && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            <span className="bg-blue-700 text-white text-xs px-2 py-0.5 rounded-full">
+              {sortBy === 'newest' ? 'Mới nhất trước' : 'Cũ nhất trước'}
+            </span>
+            <button onClick={clearSort} className="text-xs text-blue-400 hover:underline">
+              Xóa sắp xếp
+            </button>
+          </div>
+        )}
       </div>
     </div>
-    {/* Name Sort */}
-    <div>
-      <div className="font-medium text-gray-200 mb-1">Sắp xếp tên</div>
-      <div className="flex flex-wrap gap-1 sm:gap-2">
-        <Button
-          variant={nameSort === 'asc' ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setNameSort('asc')}
-          className="text-xs"
-        >
-          A → Z
-        </Button>
-        <Button
-          variant={nameSort === 'desc' ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setNameSort('desc')}
-          className="text-xs"
-        >
-          Z → A
-        </Button>
-        <Button
-          variant={!nameSort ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setNameSort(null)}
-          className="text-xs"
-        >
-          Không
-        </Button>
-      </div>
-    </div>
-    {/* ID Sort */}
-    <div>
-      <div className="font-medium text-gray-200 mb-1">Sắp xếp ID</div>
-      <div className="flex flex-wrap gap-1 sm:gap-2">
-        <Button
-          variant={idSort === 'asc' ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setIdSort('asc')}
-          className="text-xs"
-        >
-          A → Z
-        </Button>
-        <Button
-          variant={idSort === 'desc' ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setIdSort('desc')}
-          className="text-xs"
-        >
-          Z → A
-        </Button>
-        <Button
-          variant={!idSort ? 'primary' : 'secondary'}
-          size="sm"
-          onClick={() => setIdSort(null)}
-          className="text-xs"
-        >
-          Không
-        </Button>
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
 export default InventoryFilterDropdown;

@@ -371,7 +371,12 @@ export const POST = withAuth(async (req: AuthenticatedRequest) => {
     if (tagNames && tagNames.length) {
       try {
         console.log(`[${requestId}] 🏷️ Processing ${tagNames.length} tags...`);
-        for (const tagName of tagNames) {
+
+        // Deduplicate tag names to prevent duplicate insertions
+        const uniqueTagNames = [...new Set(tagNames as string[])];
+        console.log(`[${requestId}] 🔍 Deduplicated to ${uniqueTagNames.length} unique tags`);
+
+        for (const tagName of uniqueTagNames) {
           // Encrypt tag name for lookup
           const encryptedTagName = encryptTagData({ name: tagName }).name;
 

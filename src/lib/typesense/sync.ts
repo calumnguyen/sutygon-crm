@@ -75,6 +75,7 @@ export interface SyncInventoryItem {
   nameNormalized?: string;
   category: string;
   categoryNormalized?: string;
+  categoryCounter: number;
   imageUrl?: string | null;
   tags: string[];
   description?: string;
@@ -518,6 +519,7 @@ class TypesenseInventorySync {
         nameNormalized: normalizeVietnameseText(decryptedItem.name),
         category: decryptedItem.category,
         categoryNormalized: normalizeVietnameseText(decryptedItem.category),
+        categoryCounter: item.categoryCounter, // Add category counter for sorting
         imageUrl: item.imageUrl ? 'has_image' : null,
         tags: itemTags,
         description: trainingDescription,
@@ -670,6 +672,7 @@ class TypesenseInventorySync {
           nameNormalized: normalizeVietnameseText(decryptedItem.name),
           category: decryptedItem.category,
           categoryNormalized: normalizeVietnameseText(decryptedItem.category),
+          categoryCounter: item.categoryCounter, // Add category counter for sorting
           imageUrl: item.imageUrl ? 'has_image' : null, // Only store reference, not full base64 data
           tags: decryptedTags,
           description: trainingDescription,

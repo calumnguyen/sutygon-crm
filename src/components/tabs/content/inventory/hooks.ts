@@ -42,172 +42,189 @@ export function useInventorySearch() {
 
   // Simplified debounced search function with race condition protection
   const debouncedSearch = useCallback(
-    debounce(async (query: unknown, page: unknown = 1, searchId: unknown = 0) => {
-      const searchQuery = query as string;
-      const searchPage = page as number;
-      const requestSearchId = searchId as number;
+    debounce(
+      async (
+        query: unknown,
+        page: unknown = 1,
+        searchId: unknown = 0,
+        sortBy: unknown = 'none'
+      ) => {
+        const searchQuery = query as string;
+        const searchPage = page as number;
+        const requestSearchId = searchId as number;
+        const searchSortBy = sortBy as string;
 
-      console.log(
-        `Debounced search called: "${searchQuery}", page: ${searchPage}, searchId: ${requestSearchId}`
-      );
-
-      // Don't search if query is empty
-      if (!searchQuery.trim()) {
-        setSearchResults([]);
-        setHasMore(false);
-        setTotal(0);
-        setIsSearching(false);
-        setIsLoadingMore(false);
-        return;
-      }
-
-      // Set loading state
-      if (searchPage === 1) {
-        setIsSearching(true);
-        console.log('Setting isSearching to true');
-
-        // Clear any existing timeout
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-
-        // Add timeout to clear loading state if search takes too long
-        timeoutRef.current = setTimeout(() => {
-          if (requestSearchId === currentSearchIdRef.current) {
-            console.log('Search timeout, clearing loading state');
-            setIsSearching(false);
-          }
-        }, 10000); // 10 second timeout
-      } else {
-        setIsLoadingMore(true);
-        console.log('Setting isLoadingMore to true');
-
-        // Clear any existing timeout
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-
-        // Add timeout for load more as well
-        timeoutRef.current = setTimeout(() => {
-          if (requestSearchId === currentSearchIdRef.current) {
-            console.log('Load more timeout, clearing loading state');
-            setIsLoadingMore(false);
-          }
-        }, 10000); // 10 second timeout
-      }
-      setSearchError('');
-
-      try {
-        console.log(`Making search request for: "${searchQuery}"`);
-        const response = await fetch(
-          `/api/inventory/search-typesense?q=${encodeURIComponent(searchQuery)}&page=${searchPage}&limit=20`,
-          {
-            headers: {
-              Authorization: `Bearer ${sessionToken}`,
-            },
-          }
+        console.log(
+          `Debounced search called: "${searchQuery}", page: ${searchPage}, searchId: ${requestSearchId}, sortBy: ${searchSortBy}`
         );
 
-        console.log(`Search response status: ${response.status}`);
-        if (!response.ok) {
-          throw new Error('Search failed');
-        }
-
-        const data = await response.json();
-        console.log(`Search response data:`, {
-          items: data.items?.length || 0,
-          total: data.total,
-          hasMore: data.hasMore,
-        });
-
-        // Check if this is still the current search using ref
-        if (requestSearchId !== currentSearchIdRef.current) {
-          console.log(
-            `Search outdated (${requestSearchId} vs ${currentSearchIdRef.current}), ignoring results`
-          );
-          return;
-        }
-
-        // Check if API returned an error
-        if (data.error) {
-          console.log('Search API returned error:', data.error);
-          setSearchError(data.error);
+        // Don't search if query is empty
+        if (!searchQuery.trim()) {
           setSearchResults([]);
           setHasMore(false);
           setTotal(0);
+          setIsSearching(false);
+          setIsLoadingMore(false);
           return;
         }
 
-        // Process results
+        // Set loading state
         if (searchPage === 1) {
-          const items = data.items || [];
-          const uniqueItems = items.filter(
-            (item: InventoryItem, index: number, self: InventoryItem[]) =>
-              index === self.findIndex((t) => t.id === item.id)
-          );
-          setSearchResults(uniqueItems);
-          console.log(`Search completed for "${searchQuery}": ${uniqueItems.length} results`);
-        } else {
-          setSearchResults((prev) => {
-            const existingIds = new Set(prev.map((item) => item.id));
-            const newItems = (data.items || []).filter(
-              (item: InventoryItem) => !existingIds.has(item.id)
-            );
-            return [...prev, ...newItems];
-          });
-        }
+          setIsSearching(true);
+          console.log('Setting isSearching to true');
 
-        setHasMore(data.hasMore || false);
-        setTotal(data.total || 0);
-        setCurrentPage(data.page || 1);
-      } catch (error) {
-        console.error('Search error:', error);
-        setSearchError('Có lỗi khi tìm kiếm sản phẩm');
-        setSearchResults([]);
-        setHasMore(false);
-        setTotal(0);
-      } finally {
-        // Only clear loading state if this is still the current search
-        if (requestSearchId === currentSearchIdRef.current) {
-          console.log('Clearing loading state');
-          // Clear timeout since search completed
+          // Clear any existing timeout
           if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
           }
+
+          // Add timeout to clear loading state if search takes too long
+          timeoutRef.current = setTimeout(() => {
+            if (requestSearchId === currentSearchIdRef.current) {
+              console.log('Search timeout, clearing loading state');
+              setIsSearching(false);
+            }
+          }, 10000); // 10 second timeout
+        } else {
+          setIsLoadingMore(true);
+          console.log('Setting isLoadingMore to true');
+
+          // Clear any existing timeout
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+          }
+
+          // Add timeout for load more as well
+          timeoutRef.current = setTimeout(() => {
+            if (requestSearchId === currentSearchIdRef.current) {
+              console.log('Load more timeout, clearing loading state');
+              setIsLoadingMore(false);
+            }
+          }, 10000); // 10 second timeout
+        }
+        setSearchError('');
+
+        try {
+          console.log(`Making search request for: "${searchQuery}" with sortBy: ${searchSortBy}`);
+          const searchUrl = new URL('/api/inventory/search-typesense', window.location.origin);
+          searchUrl.searchParams.set('q', searchQuery);
+          searchUrl.searchParams.set('page', searchPage.toString());
+          searchUrl.searchParams.set('limit', '20');
+          if (searchSortBy && searchSortBy !== 'none') {
+            searchUrl.searchParams.set('sortBy', searchSortBy);
+          }
+
+          const response = await fetch(searchUrl.toString(), {
+            headers: {
+              Authorization: `Bearer ${sessionToken}`,
+            },
+          });
+
+          console.log(`Search response status: ${response.status}`);
+          if (!response.ok) {
+            throw new Error('Search failed');
+          }
+
+          const data = await response.json();
+          console.log(`Search response data:`, {
+            items: data.items?.length || 0,
+            total: data.total,
+            hasMore: data.hasMore,
+          });
+
+          // Check if this is still the current search using ref
+          if (requestSearchId !== currentSearchIdRef.current) {
+            console.log(
+              `Search outdated (${requestSearchId} vs ${currentSearchIdRef.current}), ignoring results`
+            );
+            return;
+          }
+
+          // Check if API returned an error
+          if (data.error) {
+            console.log('Search API returned error:', data.error);
+            setSearchError(data.error);
+            setSearchResults([]);
+            setHasMore(false);
+            setTotal(0);
+            return;
+          }
+
+          // Process results
           if (searchPage === 1) {
-            setIsSearching(false);
-            console.log('Setting isSearching to false');
+            const items = data.items || [];
+            const uniqueItems = items.filter(
+              (item: InventoryItem, index: number, self: InventoryItem[]) =>
+                index === self.findIndex((t) => t.id === item.id)
+            );
+            setSearchResults(uniqueItems);
+            console.log(`Search completed for "${searchQuery}": ${uniqueItems.length} results`);
           } else {
-            setIsLoadingMore(false);
-            console.log('Setting isLoadingMore to false');
+            setSearchResults((prev) => {
+              const existingIds = new Set(prev.map((item) => item.id));
+              const newItems = (data.items || []).filter(
+                (item: InventoryItem) => !existingIds.has(item.id)
+              );
+              return [...prev, ...newItems];
+            });
+          }
+
+          setHasMore(data.hasMore || false);
+          setTotal(data.total || 0);
+          setCurrentPage(data.page || 1);
+        } catch (error) {
+          console.error('Search error:', error);
+          setSearchError('Có lỗi khi tìm kiếm sản phẩm');
+          setSearchResults([]);
+          setHasMore(false);
+          setTotal(0);
+        } finally {
+          // Only clear loading state if this is still the current search
+          if (requestSearchId === currentSearchIdRef.current) {
+            console.log('Clearing loading state');
+            // Clear timeout since search completed
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
+            if (searchPage === 1) {
+              setIsSearching(false);
+              console.log('Setting isSearching to false');
+            } else {
+              setIsLoadingMore(false);
+              console.log('Setting isLoadingMore to false');
+            }
           }
         }
-      }
-    }, 500), // Increased from 300ms to 500ms to prevent rapid searches
+      },
+      500
+    ), // Increased from 300ms to 500ms to prevent rapid searches
     [sessionToken]
   );
 
   const handleSearch = useCallback(
-    (query: string) => {
-      console.log(`Search requested: "${query}"`);
+    (query: string, sortBy: string = 'none') => {
+      console.log(`Search requested: "${query}" with sortBy: ${sortBy}`);
       setSearchQuery(query);
       setCurrentPage(1);
       // Generate new search ID to cancel any pending searches
       const newSearchId = Date.now();
       currentSearchIdRef.current = newSearchId;
-      debouncedSearch(query, 1, newSearchId);
+      debouncedSearch(query, 1, newSearchId, sortBy);
     },
     [debouncedSearch]
   );
 
-  const loadMore = useCallback(() => {
-    if (hasMore && !isSearching && !isLoadingMore && searchQuery.trim()) {
-      const newSearchId = Date.now();
-      currentSearchIdRef.current = newSearchId;
-      debouncedSearch(searchQuery, currentPage + 1, newSearchId);
-    }
-  }, [hasMore, isSearching, isLoadingMore, searchQuery, currentPage, debouncedSearch]);
+  const loadMore = useCallback(
+    (sortBy: string = 'none') => {
+      if (hasMore && !isSearching && !isLoadingMore && searchQuery.trim()) {
+        const newSearchId = Date.now();
+        currentSearchIdRef.current = newSearchId;
+        debouncedSearch(searchQuery, currentPage + 1, newSearchId, sortBy);
+      }
+    },
+    [hasMore, isSearching, isLoadingMore, searchQuery, currentPage, debouncedSearch]
+  );
 
   const clearSearch = useCallback(() => {
     setSearchQuery('');
@@ -245,6 +262,34 @@ function debounce(
   return (...args: unknown[]) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
+// Image filter interface
+export interface ImageFilter {
+  hasImage: 'all' | 'with_image' | 'without_image';
+}
+
+// New hook for filtering and sorting
+export function useInventoryFilter(inventory: InventoryItem[]) {
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [imageFilter, setImageFilter] = useState<ImageFilter>({ hasImage: 'all' });
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'none'>('none');
+
+  const filteredInventory = useMemo(() => {
+    // When using server-side filtering and sorting, just return the inventory as-is
+    // The filtering and sorting is handled by the server
+    return inventory;
+  }, [inventory]);
+
+  return {
+    selectedCategories,
+    setSelectedCategories,
+    imageFilter,
+    setImageFilter,
+    sortBy,
+    setSortBy,
+    filteredInventory: filteredInventory,
   };
 }
 

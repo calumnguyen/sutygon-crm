@@ -1,10 +1,42 @@
 import { NextResponse } from 'next/server';
 import typesenseService from '@/lib/typesense';
 import { db } from '@/lib/db';
-import { inventoryItems, inventoryTags, tags } from '@/lib/db/schema';
+import { inventoryItems, inventorySizes, inventoryTags, tags } from '@/lib/db/schema';
 import { inArray, eq } from 'drizzle-orm';
 import { decryptTagData } from '@/lib/utils/inventoryEncryption';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
+
+// Category code mapping for consistent IDs
+const CATEGORY_CODE_MAP: Record<string, string> = {
+  'Áo Dài': 'AD',
+  Áo: 'AO',
+  Quần: 'QU',
+  'Văn Nghệ': 'VN',
+  'Đồ Tây': 'DT',
+  Giầy: 'GI',
+  'Dụng Cụ': 'DC',
+  'Đầm Dạ Hội': 'DH',
+};
+
+// Helper: get formatted ID (e.g., AD-000001)
+function getFormattedId(category: string, categoryCounter: number) {
+  let code = CATEGORY_CODE_MAP[category];
+  if (!code) {
+    // Fallback for unknown categories - generate from first letters
+    code = (category || 'XX')
+      .split(' ')
+      .map((w: string) => w[0])
+      .join('');
+    // Replace Đ/đ with D/d, then remove diacritics
+    code = code.replace(/Đ/g, 'D').replace(/đ/g, 'd');
+    code = code
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/\u0300-\u036f/g, '');
+    code = code.toUpperCase().slice(0, 2);
+  }
+  return `${code}-${String(categoryCounter).padStart(6, '0')}`;
+}
 
 export const GET = withAuth(async (request: AuthenticatedRequest) => {
   try {
@@ -14,8 +46,9 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
     const limit = parseInt(searchParams.get('limit') || '20');
     const category = searchParams.get('category') || '';
     const mode = searchParams.get('mode') || 'auto'; // 'exact', 'fuzzy', 'broad', 'auto'
+    const sortBy = searchParams.get('sortBy'); // Get sortBy parameter
 
-    console.log('Typesense search API called with:', { query, page, limit, category });
+    console.log('Typesense search API called with:', { query, page, limit, category, sortBy });
 
     // Normalize Vietnamese text for better search
     function normalizeVietnamese(text: string): string {
@@ -30,6 +63,143 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
     const normalizedQuery = normalizeVietnamese(query);
     console.log(`🔍 Original query: "${query}"`);
     console.log(`🔍 Normalized query: "${normalizedQuery}"`);
+
+    // If sorting by oldest, use direct database queries for proper chronological order
+    if (sortBy === 'oldest' && query.trim()) {
+      console.log('🔄 Using direct database query for oldest sorting in search');
+
+      try {
+        // Import necessary functions for database queries
+        const {
+          decryptInventoryData,
+          decryptInventorySizeData,
+          decryptTagData,
+          encryptInventoryData,
+        } = await import('@/lib/utils/inventoryEncryption');
+        const { inArray, sql } = await import('drizzle-orm');
+
+        // Build database query conditions
+        const whereConditions: Array<ReturnType<typeof sql>> = [];
+
+        // Add category filter if provided
+        if (category) {
+          const encryptedCategory = encryptInventoryData({ name: '', category }).category;
+          whereConditions.push(sql`${inventoryItems.category} = ${encryptedCategory}`);
+        }
+
+        // Get ALL items matching the search criteria
+        const items = await db.select().from(inventoryItems);
+
+        // Filter items by search query (client-side filtering for oldest sorting)
+        const searchQuery = query.trim().toLowerCase();
+        const normalizedSearchQuery = normalizeVietnamese(searchQuery);
+
+        // Decrypt and filter items
+        const filteredItems = [];
+        for (const item of items) {
+          const decryptedItem = decryptInventoryData(item);
+
+          // Check if item matches search query
+          const itemName = decryptedItem.name.toLowerCase();
+          const itemCategory = decryptedItem.category.toLowerCase();
+          const normalizedItemName = normalizeVietnamese(itemName);
+          const normalizedItemCategory = normalizeVietnamese(itemCategory);
+
+          // Check various search criteria
+          const matchesName =
+            itemName.includes(searchQuery) || normalizedItemName.includes(normalizedSearchQuery);
+          const matchesCategory =
+            itemCategory.includes(searchQuery) ||
+            normalizedItemCategory.includes(normalizedSearchQuery);
+          const matchesId = item.id.toString().includes(searchQuery);
+
+          // Check formatted ID
+          const formattedId = getFormattedId(decryptedItem.category, item.categoryCounter);
+          const matchesFormattedId = formattedId.toLowerCase().includes(searchQuery);
+
+          if (matchesName || matchesCategory || matchesId || matchesFormattedId) {
+            filteredItems.push(item);
+          }
+        }
+
+        // Sort by createdAt ascending (oldest first)
+        filteredItems.sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+
+        console.log('🔍 Database search results for oldest sorting:', {
+          total: filteredItems.length,
+          query: searchQuery,
+          sortBy,
+        });
+
+        // Apply pagination
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + limit;
+        const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+        // Process items with decryption
+        const processedItems = await Promise.all(
+          paginatedItems.map(async (item) => {
+            const decryptedItem = decryptInventoryData(item);
+
+            // Get sizes for this item
+            const sizes = await db
+              .select()
+              .from(inventorySizes)
+              .where(sql`item_id = ${item.id}`);
+            const decryptedSizes = sizes.map((size) => {
+              const decryptedSize = decryptInventorySizeData(size);
+              return {
+                title: decryptedSize.title,
+                quantity: decryptedSize.quantity,
+                onHand: decryptedSize.onHand,
+                price: decryptedSize.price,
+              };
+            });
+
+            // Get tags for this item
+            const invTags = await db
+              .select()
+              .from(inventoryTags)
+              .where(sql`item_id = ${item.id}`);
+            const tagIds = invTags.map((t) => t.tagId);
+            const allTags = tagIds.length
+              ? await db.select().from(tags).where(inArray(tags.id, tagIds))
+              : [];
+            const itemTags = allTags.map((t) => {
+              const decryptedTag = decryptTagData(t);
+              return decryptedTag.name;
+            });
+
+            return {
+              id: item.id,
+              formattedId: getFormattedId(decryptedItem.category, item.categoryCounter),
+              name: decryptedItem.name,
+              category: decryptedItem.category,
+              imageUrl: item.imageUrl,
+              tags: itemTags,
+              sizes: decryptedSizes,
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+            };
+          })
+        );
+
+        return NextResponse.json({
+          items: processedItems,
+          total: filteredItems.length,
+          page,
+          totalPages: Math.ceil(filteredItems.length / limit),
+          hasMore: endIndex < filteredItems.length,
+          typesense: false,
+          database: true,
+        });
+      } catch (error) {
+        console.error('Database search error:', error);
+        // Fall back to Typesense search
+      }
+    }
 
     // const offset = (page - 1) * limit; // Not used in Typesense search
 
@@ -79,7 +249,7 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
     const searchParameters: Record<string, unknown> = {
       q: query.trim() || '*',
       query_by: 'name,category,tags,formattedId',
-      sort_by: 'updatedAt:desc',
+      sort_by: sortBy === 'oldest' ? 'createdAt:asc' : 'updatedAt:desc', // Use createdAt for oldest sorting
       per_page: limit,
       page: page,
       facet_by: 'category',
@@ -88,62 +258,74 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
       prefix: true, // Enable prefix matching for better results
     };
 
-    // If query has Vietnamese characters, also try normalized version
+    // Enhanced Vietnamese text search with multiple strategies
     let response: Record<string, unknown>;
     let searchTime: number;
 
     if (query.trim() && query !== normalizedQuery) {
-      // Instead of combining, try the original query first, then fallback to normalized
+      console.log(`🔍 Vietnamese text detected, using enhanced search strategy`);
+
+      // Strategy 1: Try original Vietnamese query
       searchParameters.q = query.trim();
-      console.log(`🔍 Using original Vietnamese query: "${searchParameters.q}"`);
+      console.log(`🔍 Strategy 1: Original Vietnamese query: "${searchParameters.q}"`);
 
-      // If original query fails, we'll try normalized version as fallback
-      const originalSearchParams = { ...searchParameters };
-
-      // Execute search with original query
       const startTime = Date.now();
-      const originalResponse = await typesenseService.search(
-        'inventory_items',
-        originalSearchParams
-      );
+      const originalResponse = await typesenseService.search('inventory_items', searchParameters);
       searchTime = Date.now() - startTime;
 
-      // If original query returns no results, try normalized version
-      if (
-        !originalResponse.hits ||
-        (originalResponse.hits as Record<string, unknown>[]).length === 0
-      ) {
-        console.log(
-          `🔍 Original query returned no results, trying normalized: "${normalizedQuery}"`
-        );
-        searchParameters.q = normalizedQuery;
+      const originalHits = (originalResponse.hits as Record<string, unknown>[]) || [];
+      console.log(`🔍 Strategy 1 results: ${originalHits.length} hits`);
 
-        // Execute search with normalized query
-        const normalizedStartTime = Date.now();
-        const normalizedResponse = await typesenseService.search(
-          'inventory_items',
-          searchParameters
-        );
-        searchTime = Date.now() - normalizedStartTime;
+      // Strategy 2: Try normalized query (without diacritics)
+      searchParameters.q = normalizedQuery;
+      console.log(`🔍 Strategy 2: Normalized query: "${searchParameters.q}"`);
 
-        // Use normalized results if they exist
-        if (
-          normalizedResponse.hits &&
-          (normalizedResponse.hits as Record<string, unknown>[]).length > 0
-        ) {
-          console.log(
-            `🔍 Normalized query found ${(normalizedResponse.hits as Record<string, unknown>[]).length} results`
-          );
-          response = normalizedResponse;
+      const normalizedResponse = await typesenseService.search('inventory_items', searchParameters);
+      const normalizedHits = (normalizedResponse.hits as Record<string, unknown>[]) || [];
+      console.log(`🔍 Strategy 2 results: ${normalizedHits.length} hits`);
+
+      // Strategy 3: Try partial word matching for Vietnamese
+      const words = query.trim().split(/\s+/);
+      if (words.length > 1) {
+        // Try searching with just the first word
+        searchParameters.q = words[0];
+        console.log(`🔍 Strategy 3: First word only: "${searchParameters.q}"`);
+
+        const partialResponse = await typesenseService.search('inventory_items', searchParameters);
+        const partialHits = (partialResponse.hits as Record<string, unknown>[]) || [];
+        console.log(`🔍 Strategy 3 results: ${partialHits.length} hits`);
+
+        // Combine all results and deduplicate by ID
+        const allHits = [...originalHits, ...normalizedHits, ...partialHits];
+        const uniqueHits = allHits.filter(
+          (hit, index, self) =>
+            index ===
+            self.findIndex(
+              (h) =>
+                (h.document as Record<string, unknown>).id ===
+                (hit.document as Record<string, unknown>).id
+            )
+        );
+
+        console.log(`🔍 Combined unique results: ${uniqueHits.length} hits`);
+
+        // Use the response with the most hits, or combine them
+        if (uniqueHits.length > originalHits.length) {
+          response = {
+            ...originalResponse,
+            hits: uniqueHits,
+            found: uniqueHits.length,
+          };
         } else {
-          console.log(`🔍 Both original and normalized queries returned no results`);
           response = originalResponse;
         }
       } else {
-        console.log(
-          `🔍 Original query found ${(originalResponse.hits as Record<string, unknown>[]).length} results`
-        );
-        response = originalResponse;
+        // Single word, use the best result
+        if (normalizedHits.length > originalHits.length) {
+          response = normalizedResponse;
+        } else {
+          response = originalResponse;
+        }
       }
     } else {
       // No Vietnamese characters, proceed with normal search
@@ -186,13 +368,21 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
         searchParameters.min_score = 2.0; // Higher minimum score for product IDs
         console.log(`Product ID search detected for "${searchQuery}"`);
       } else {
-        // Use very flexible search parameters for text searches to find existing patterns
+        // Use very flexible search parameters for Vietnamese text searches
         searchParameters.prefix = true;
         searchParameters.infix = 'off'; // Disable infix to prevent errors
-        searchParameters.num_typos = 3; // Allow 3 typos for better matching
-        searchParameters.min_score = 0.01; // Very very low minimum score to catch all matches
+        searchParameters.num_typos = 2; // Allow 2 typos for Vietnamese text
+        searchParameters.min_score = 0.001; // Very low minimum score for Vietnamese text
         searchParameters.query_by = 'name,category,tags,formattedId';
-        console.log(`Very flexible text search for "${searchQuery}" to find existing patterns`);
+
+        // For Vietnamese text, also try without diacritics
+        if (query !== normalizedQuery) {
+          console.log(
+            `Vietnamese text search: "${searchQuery}" (will also try normalized: "${normalizedQuery}")`
+          );
+        } else {
+          console.log(`Standard text search for "${searchQuery}"`);
+        }
       }
     }
 
@@ -339,24 +529,94 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
       return result;
     });
 
-    // Filter results to ensure they actually match the search query
+    // More lenient filtering for Vietnamese text search
     const searchQuery = query.trim().toLowerCase();
+    const normalizedSearchQuery = normalizeVietnamese(searchQuery);
+
+    console.log(
+      `🔍 Filtering with query: "${searchQuery}" (normalized: "${normalizedSearchQuery}")`
+    );
+    console.log(`🔍 Total items before filtering: ${items.length}`);
+
+    // Split search query into individual words for more flexible matching
+    const searchWords = searchQuery.split(/\s+/).filter((word) => word.length > 0);
+    const normalizedSearchWords = normalizedSearchQuery
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+
+    console.log(`🔍 Search words: ${JSON.stringify(searchWords)}`);
+    console.log(`🔍 Normalized search words: ${JSON.stringify(normalizedSearchWords)}`);
+
     const filteredItems = items.filter((item) => {
       const itemName = (item.name as string).toLowerCase();
       const itemFormattedId = (item.formattedId as string).toLowerCase();
       const itemTags = (item.tags as string[]).map((tag) => tag.toLowerCase());
       const itemCategory = (item.category as string).toLowerCase();
 
-      // Check if the search query appears in any of the searchable fields
-      const matchesName = itemName.includes(searchQuery);
-      const matchesId = itemFormattedId.includes(searchQuery);
-      const matchesTags = itemTags.some((tag) => tag.includes(searchQuery));
-      const matchesCategory = itemCategory.includes(searchQuery);
+      // Also check normalized versions for Vietnamese text
+      const normalizedItemName = normalizeVietnamese(itemName);
+      const normalizedItemCategory = normalizeVietnamese(itemCategory);
+      const normalizedItemTags = itemTags.map((tag) => normalizeVietnamese(tag));
 
-      const matches = matchesName || matchesId || matchesTags || matchesCategory;
+      // More flexible matching: check if ANY word from the search query appears in ANY field
+      let matches = false;
+      let matchReason = '';
+
+      for (const word of searchWords) {
+        if (itemName.includes(word)) {
+          matches = true;
+          matchReason = `name contains "${word}"`;
+          break;
+        }
+        if (itemFormattedId.includes(word)) {
+          matches = true;
+          matchReason = `ID contains "${word}"`;
+          break;
+        }
+        if (itemTags.some((tag) => tag.includes(word))) {
+          matches = true;
+          matchReason = `tags contain "${word}"`;
+          break;
+        }
+        if (itemCategory.includes(word)) {
+          matches = true;
+          matchReason = `category contains "${word}"`;
+          break;
+        }
+      }
+
+      // If no match with original words, try normalized words
+      if (!matches) {
+        for (const normalizedWord of normalizedSearchWords) {
+          if (normalizedItemName.includes(normalizedWord)) {
+            matches = true;
+            matchReason = `normalized name contains "${normalizedWord}"`;
+            break;
+          }
+          if (normalizedItemTags.some((tag) => tag.includes(normalizedWord))) {
+            matches = true;
+            matchReason = `normalized tags contain "${normalizedWord}"`;
+            break;
+          }
+          if (normalizedItemCategory.includes(normalizedWord)) {
+            matches = true;
+            matchReason = `normalized category contains "${normalizedWord}"`;
+            break;
+          }
+        }
+      }
 
       if (!matches) {
-        console.log(`Filtering out item ${item.id} - no match for "${searchQuery}"`);
+        console.log(`🔍 Filtering out item ${item.id} - no match for "${searchQuery}"`, {
+          itemName: itemName.substring(0, 50),
+          normalizedItemName: normalizedItemName.substring(0, 50),
+          itemTags: itemTags.slice(0, 3),
+          normalizedItemTags: normalizedItemTags.slice(0, 3),
+          itemCategory,
+          normalizedItemCategory,
+        });
+      } else {
+        console.log(`✅ Item ${item.id} matches "${searchQuery}" (${matchReason})`);
       }
 
       return matches;
@@ -377,9 +637,17 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
       tookMs: response.search_time_ms || 0,
     };
 
+    // For debugging: temporarily disable filtering to see all results
+    const debugMode = searchParams.get('debug') === 'true';
+    const finalItems = debugMode ? items : filteredItems;
+
+    console.log(
+      `🔍 Debug mode: ${debugMode}, using ${finalItems.length} items (filtered: ${filteredItems.length}, original: ${items.length})`
+    );
+
     const responseData = {
-      items: filteredItems, // Use filteredItems here
-      total: totalHits,
+      items: finalItems, // Use finalItems (either filtered or all)
+      total: totalHits, // Keep original total for now
       page,
       totalPages,
       hasMore: page < totalPages,
@@ -389,14 +657,21 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
       category: category || '',
       optimizedForLargeDataset: totalHits > 1000,
       facets: response.facet_counts || {},
+      // Include filtered count for debugging
+      filteredCount: filteredItems.length,
+      debugMode: debugMode,
     };
 
     console.log('Returning search response:', {
-      itemsCount: filteredItems.length, // Log the count of filtered items
+      itemsCount: finalItems.length, // Log the count of final items
       total: totalHits,
+      filteredCount: filteredItems.length,
+      originalCount: items.length,
+      debugMode: debugMode,
       page,
       totalPages,
       hasMore: page < totalPages,
+      searchQuery: query.trim(),
     });
 
     return NextResponse.json(responseData);

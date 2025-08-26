@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus,
   List,
@@ -19,7 +19,7 @@ import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { useInventory } from './useInventory';
 import { useUser } from '@/context/UserContext';
 import { usePopper } from 'react-popper';
-import { useInventoryTable, useInventoryModals, useInventorySearch } from './hooks';
+import { useInventoryModals, useInventorySearch, useInventoryFilter } from './hooks';
 import InventoryTable from './InventoryTable';
 import InventoryGrid from './InventoryGrid';
 import InventoryFilterDropdown from './InventoryFilterDropdown';
@@ -86,46 +86,95 @@ const InventoryContent: React.FC = () => {
     clearSearch,
   } = useInventorySearch();
 
+  // Use new filter hook for filtering and sorting - always apply to original inventory
+  const {
+    selectedCategories,
+    setSelectedCategories,
+    imageFilter,
+    setImageFilter,
+    sortBy,
+    setSortBy,
+    filteredInventory: filteredRegularInventory,
+  } = useInventoryFilter(inventory);
+
   // Determine which data to display based on search state
-  const displayInventory = searchQuery.trim() ? searchResults : inventory;
+  const displayInventory = searchQuery.trim() ? searchResults : filteredRegularInventory;
   const displayLoading = searchQuery.trim() ? isSearching : loading;
   const displayLoadingMore = searchQuery.trim() ? searchLoadingMore : loadingMore;
   const displayHasMore = searchQuery.trim() ? searchHasMore : hasMore;
-  const displayLoadMore = searchQuery.trim() ? searchLoadMore : loadMore;
 
-  // Use frontend filtering for non-search scenarios
-  const {
-    priceSort,
-    setPriceSort,
-    priceRange,
-    setPriceRange,
-    selectedCategories,
-    setSelectedCategories,
-    lastModifiedSort,
-    setLastModifiedSort,
-    nameSort,
-    setNameSort,
-    idSort,
-    setIdSort,
-    priceRangeInvalid,
-    filteredInventory: filteredRegularInventory,
-  } = useInventoryTable(displayInventory);
-
-  // When searching, use search results directly. When not searching, use filtered inventory
+  // Use filtered inventory (server-side filtering for regular view, client-side for search)
   const filteredInventory = searchQuery.trim() ? searchResults : filteredRegularInventory;
+
+  // Create a loadMore function that includes current filters
+  const loadMoreWithFilters = useCallback(() => {
+    const filters = {
+      categories: selectedCategories,
+      imageFilter: imageFilter,
+      sortBy: sortBy,
+    };
+    loadMore(filters);
+  }, [selectedCategories, imageFilter, sortBy, loadMore]);
+
+  // Create a search function that includes current sort
+  const handleSearchWithSort = useCallback(
+    (query: string) => {
+      handleSearch(query, sortBy);
+    },
+    [handleSearch, sortBy]
+  );
+
+  // Update displayLoadMore to use the filtered version
+  const displayLoadMore = searchQuery.trim() ? () => searchLoadMore(sortBy) : loadMoreWithFilters;
+
+  // Refresh inventory when filters change
+  useEffect(() => {
+    const filters = {
+      categories: selectedCategories,
+      imageFilter: imageFilter,
+      sortBy: sortBy,
+    };
+    console.log(
+      '🔄 Filter changed, refreshing with categories:',
+      selectedCategories,
+      'sortBy:',
+      sortBy
+    );
+
+    // Add a small delay to prevent rapid changes from causing issues
+    const timeoutId = setTimeout(() => {
+      refreshInventory(filters);
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedCategories, imageFilter, sortBy]); // Don't include refreshInventory in dependencies
 
   // Debug: Log what's being displayed
   useEffect(() => {
     if (searchQuery.trim()) {
-      console.log(`Displaying search results for "${searchQuery}":`, {
+      console.log(`🔍 Search Debug:`, {
+        searchQuery: searchQuery.trim(),
         searchResultsCount: searchResults.length,
-        searchTotal: searchTotal,
         filteredInventoryCount: filteredInventory.length,
-        isSearching,
-        searchError,
+        searchHasMore,
+        searchLoadingMore,
       });
     }
-  }, [searchQuery, searchResults, searchTotal, filteredInventory.length, isSearching, searchError]);
+  }, [
+    searchQuery,
+    searchResults.length,
+    filteredInventory.length,
+    searchHasMore,
+    searchLoadingMore,
+  ]);
+
+  // Re-search when sort changes (if there's an active search)
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      console.log('🔄 Sort changed during search, re-searching with new sort:', sortBy);
+      handleSearchWithSort(searchQuery);
+    }
+  }, [sortBy, searchQuery, handleSearchWithSort]);
 
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
@@ -247,7 +296,7 @@ const InventoryContent: React.FC = () => {
               value={searchQuery}
               onChange={(e) => {
                 const value = e.target.value;
-                handleSearch(value);
+                handleSearchWithSort(value);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
@@ -351,51 +400,16 @@ const InventoryContent: React.FC = () => {
           </Button>
         </div>
 
-        {/* Filter Button */}
-        <div className="relative w-full sm:w-auto">
-          <Button
-            ref={filterButtonRef}
-            variant="secondary"
-            className="p-2 border-blue-500 text-blue-400 hover:bg-blue-900/30 hover:text-blue-300 focus:ring-2 focus:ring-blue-500 border w-full sm:w-auto"
-            title="Sắp xếp/Lọc"
-            onClick={() => {
-              setShowFilter((v) => !v);
-              setReferenceElement(filterButtonRef.current);
-              setTimeout(() => update && update(), 0);
-            }}
-          >
-            <SlidersHorizontal className="w-5 h-5" />
-            <span className="ml-2 sm:hidden">Sắp xếp/Lọc</span>
-          </Button>
-          {showFilter && (
-            <div
-              ref={setPopperElement}
-              style={styles.popper}
-              {...attributes.popper}
-              className="z-50 w-full sm:w-auto"
-            >
-              <InventoryFilterDropdown
-                priceSort={priceSort}
-                setPriceSort={setPriceSort}
-                priceRange={priceRange}
-                setPriceRange={setPriceRange}
-                priceRangeInvalid={priceRangeInvalid}
-                CATEGORY_OPTIONS={CATEGORY_OPTIONS}
-                selectedCategories={selectedCategories}
-                setSelectedCategories={setSelectedCategories}
-                categoryDropdownOpen={Boolean(categoryDropdownOpen)}
-                setCategoryDropdownOpen={setCategoryDropdownOpen}
-                categoryDropdownRef={categoryDropdownRef as React.RefObject<HTMLDivElement>}
-                lastModifiedSort={lastModifiedSort}
-                setLastModifiedSort={setLastModifiedSort}
-                nameSort={nameSort}
-                setNameSort={setNameSort}
-                idSort={idSort}
-                setIdSort={setIdSort}
-              />
-            </div>
-          )}
-        </div>
+        {/* Filter Toggle Button */}
+        <Button
+          variant={showFilter ? 'primary' : 'secondary'}
+          className="p-2 border-blue-500 text-blue-400 hover:bg-blue-900/30 hover:text-blue-300 focus:ring-2 focus:ring-blue-500 border w-full sm:w-auto"
+          title="Hiển thị/Ẩn bộ lọc"
+          onClick={() => setShowFilter((v) => !v)}
+        >
+          <SlidersHorizontal className="w-5 h-5" />
+          <span className="ml-2 sm:hidden">Bộ lọc</span>
+        </Button>
 
         {/* Add Item Button */}
         <Button
@@ -415,12 +429,8 @@ const InventoryContent: React.FC = () => {
             refreshInventory();
             // Clear all filters and search
             clearSearch();
-            setPriceSort(null);
-            setPriceRange({ min: '', max: '' });
             setSelectedCategories([]);
-            setLastModifiedSort(null);
-            setNameSort(null);
-            setIdSort(null);
+            setImageFilter({ hasImage: 'all' });
           }}
           leftIcon={
             isRefreshing ? (
@@ -438,38 +448,101 @@ const InventoryContent: React.FC = () => {
         </Button>
       </div>
 
-      <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-        {searchError && (
-          <div className="bg-red-900/50 border border-red-600 rounded-lg p-4 mb-4 mx-4 mt-4">
-            <div className="text-red-300 text-sm font-medium">Lỗi tìm kiếm:</div>
-            <div className="text-red-200 text-sm mt-1">{searchError}</div>
+      {/* Mobile Filter Overlay */}
+      {showFilter && (
+        <div className="fixed inset-0 z-[9999] lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={(e) => {
+              // Only close if clicking directly on the backdrop, not on dropdown content
+              if (e.target === e.currentTarget) {
+                setShowFilter(false);
+              }
+            }}
+          />
+          {/* Filter Panel */}
+          <div className="absolute left-0 top-0 h-full w-full bg-gray-900 shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800 sticky top-0 z-10">
+              <h3 className="text-lg font-semibold text-white">Bộ lọc</h3>
+              <button
+                onClick={() => setShowFilter(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto h-[calc(100vh-80px)]">
+              <InventoryFilterDropdown
+                CATEGORY_OPTIONS={CATEGORY_OPTIONS}
+                selectedCategories={selectedCategories}
+                setSelectedCategories={setSelectedCategories}
+                categoryDropdownOpen={Boolean(categoryDropdownOpen)}
+                setCategoryDropdownOpen={setCategoryDropdownOpen}
+                categoryDropdownRef={categoryDropdownRef as React.RefObject<HTMLDivElement>}
+                imageFilter={imageFilter}
+                setImageFilter={setImageFilter}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-4">
+        {/* Desktop Filter Panel - Fixed on the left */}
+        {showFilter && (
+          <div className="hidden lg:block w-80 flex-shrink-0">
+            <InventoryFilterDropdown
+              CATEGORY_OPTIONS={CATEGORY_OPTIONS}
+              selectedCategories={selectedCategories}
+              setSelectedCategories={setSelectedCategories}
+              categoryDropdownOpen={Boolean(categoryDropdownOpen)}
+              setCategoryDropdownOpen={setCategoryDropdownOpen}
+              categoryDropdownRef={categoryDropdownRef as React.RefObject<HTMLDivElement>}
+              imageFilter={imageFilter}
+              setImageFilter={setImageFilter}
+              sortBy={sortBy}
+              setSortBy={setSortBy}
+            />
           </div>
         )}
-        {displayLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-blue-400 text-lg">Đang tải dữ liệu kho...</div>
-          </div>
-        ) : viewMode === 'list' ? (
-          <InventoryTable
-            filteredInventory={filteredInventory}
-            setPreviewOpen={handlePreviewOpen}
-            handleEditItem={handleEditItem}
-            lastElementRef={lastElementRef}
-            loadingMore={displayLoadingMore}
-            loadMore={displayLoadMore}
-            hasMore={displayHasMore}
-          />
-        ) : (
-          <InventoryGrid
-            filteredInventory={filteredInventory}
-            setPreviewOpen={handlePreviewOpen}
-            handleEditItem={handleEditItem}
-            lastElementRef={lastElementRef}
-            loadingMore={displayLoadingMore}
-            loadMore={displayLoadMore}
-            hasMore={displayHasMore}
-          />
-        )}
+
+        {/* Main Content Area */}
+        <div className="flex-1 bg-gray-800 rounded-lg shadow-lg overflow-hidden min-h-[400px]">
+          {searchError && (
+            <div className="bg-red-900/50 border border-red-600 rounded-lg p-4 mb-4 mx-4 mt-4">
+              <div className="text-red-300 text-sm font-medium">Lỗi tìm kiếm:</div>
+              <div className="text-red-200 text-sm mt-1">{searchError}</div>
+            </div>
+          )}
+          {displayLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-blue-400 text-lg">Đang tải dữ liệu kho...</div>
+            </div>
+          ) : viewMode === 'list' ? (
+            <InventoryTable
+              filteredInventory={filteredInventory}
+              setPreviewOpen={handlePreviewOpen}
+              handleEditItem={handleEditItem}
+              lastElementRef={lastElementRef}
+              loadingMore={displayLoadingMore}
+              loadMore={displayLoadMore}
+              hasMore={displayHasMore}
+            />
+          ) : (
+            <InventoryGrid
+              filteredInventory={filteredInventory}
+              setPreviewOpen={handlePreviewOpen}
+              handleEditItem={handleEditItem}
+              lastElementRef={lastElementRef}
+              loadingMore={displayLoadingMore}
+              loadMore={displayLoadMore}
+              hasMore={displayHasMore}
+            />
+          )}
+        </div>
       </div>
       <InventoryPreviewModal
         previewOpen={previewOpen}

@@ -28,4 +28,6 @@ export interface InventoryItem {
     onHand: number;
     price: number;
   }[];
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }
