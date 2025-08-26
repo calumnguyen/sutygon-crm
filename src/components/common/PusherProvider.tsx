@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { pusherClient } from '@/lib/pusher';
 import { useUser } from '@/context/UserContext';
 import { detectDeviceType, getLocationFromIP, getBrowserInfo } from '@/lib/utils/deviceDetection';
@@ -16,6 +16,9 @@ const PusherProvider: React.FC<PusherProviderProps> = ({ children }) => {
     browser: 'Unknown',
   });
   const [deviceInfoReady, setDeviceInfoReady] = useState(false);
+  const hasAnnouncedJoin = useRef(false);
+  const channelRef = useRef<ReturnType<typeof pusherClient.subscribe> | null>(null);
+  const wasHidden = useRef(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -53,7 +56,7 @@ const PusherProvider: React.FC<PusherProviderProps> = ({ children }) => {
       return;
     }
 
-    console.log('Setting up Pusher for user:', currentUser);
+    console.log('Setting up Pusher for user:', currentUser.name);
     console.log('Device info ready:', deviceInfo);
 
     // Set up Pusher authentication
@@ -67,46 +70,51 @@ const PusherProvider: React.FC<PusherProviderProps> = ({ children }) => {
 
     // Subscribe to regular channel (no authentication required)
     const channel = pusherClient.subscribe('online-users');
+    channelRef.current = channel;
 
     channel.bind('pusher:subscription_succeeded', async () => {
       console.log('Successfully subscribed to online-users channel');
 
-      // Announce that this user has joined
-      try {
-        console.log('Announcing user join:', currentUser);
-        console.log('Making API call to /api/pusher/user-presence...');
+      // Announce that this user has joined (only once, unless rejoining)
+      if (!hasAnnouncedJoin.current || wasHidden.current) {
+        try {
+          console.log('Announcing user join:', currentUser.name);
+          console.log('Making API call to /api/pusher/user-presence...');
 
-        const response = await fetch('/api/pusher/user-presence', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            action: 'join',
-            user: {
-              id: currentUser.id.toString(),
-              name: currentUser.name,
-              email: '', // Empty email
-              role: currentUser.role,
-              deviceType: deviceInfo.deviceType,
-              location: deviceInfo.location,
-              browser: deviceInfo.browser,
+          const response = await fetch('/api/pusher/user-presence', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
-          }),
-        });
+            body: JSON.stringify({
+              action: 'join',
+              user: {
+                id: currentUser.id.toString(),
+                name: currentUser.name,
+                email: '', // Empty email
+                role: currentUser.role,
+                deviceType: deviceInfo.deviceType,
+                location: deviceInfo.location,
+                browser: deviceInfo.browser,
+              },
+            }),
+          });
 
-        console.log('API response status:', response.status);
+          console.log('API response status:', response.status);
 
-        if (response.ok) {
-          const result = await response.json();
-          console.log('API response:', result);
-          console.log('Successfully announced user presence');
-        } else {
-          const errorText = await response.text();
-          console.error('Failed to announce user presence:', response.status, errorText);
+          if (response.ok) {
+            const result = await response.json();
+            console.log('API response:', result);
+            console.log('Successfully announced user presence');
+            hasAnnouncedJoin.current = true;
+            wasHidden.current = false;
+          } else {
+            const errorText = await response.text();
+            console.error('Failed to announce user presence:', response.status, errorText);
+          }
+        } catch (error) {
+          console.error('Failed to announce user presence:', error);
         }
-      } catch (error) {
-        console.error('Failed to announce user presence:', error);
       }
     });
 
@@ -114,10 +122,65 @@ const PusherProvider: React.FC<PusherProviderProps> = ({ children }) => {
       console.error('Pusher subscription error:', status);
     });
 
+    // Cleanup function
     return () => {
+      console.log('PusherProvider cleanup for user:', currentUser.name);
+
       // Announce that this user is leaving
-      if (currentUser) {
-        console.log('Announcing user leave:', currentUser);
+      if (currentUser && hasAnnouncedJoin.current) {
+        console.log('Announcing user leave:', currentUser.name);
+        fetch('/api/pusher/user-presence', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'leave',
+            user: {
+              id: currentUser.id.toString(),
+            },
+          }),
+        })
+          .then(() => {
+            console.log('Successfully announced user leave');
+          })
+          .catch((error) => {
+            console.error('Failed to announce user leave:', error);
+          });
+      }
+
+      // Unsubscribe from channel
+      if (channelRef.current) {
+        pusherClient.unsubscribe('online-users');
+        channelRef.current = null;
+      }
+
+      hasAnnouncedJoin.current = false;
+    };
+  }, [currentUser?.id, currentUser?.name, deviceInfoReady, deviceInfo]);
+
+  // Handle page unload/visibility change
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (currentUser && hasAnnouncedJoin.current) {
+        console.log('Page unloading, announcing user leave:', currentUser.name);
+        // Use sendBeacon for more reliable delivery during page unload
+        if (navigator.sendBeacon) {
+          const data = JSON.stringify({
+            action: 'leave',
+            user: {
+              id: currentUser.id.toString(),
+            },
+          });
+          navigator.sendBeacon('/api/pusher/user-presence', data);
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && currentUser && hasAnnouncedJoin.current) {
+        console.log('Page hidden, announcing user leave:', currentUser.name);
+        wasHidden.current = true;
         fetch('/api/pusher/user-presence', {
           method: 'POST',
           headers: {
@@ -130,11 +193,56 @@ const PusherProvider: React.FC<PusherProviderProps> = ({ children }) => {
             },
           }),
         }).catch(console.error);
-      }
+      } else if (document.visibilityState === 'visible' && currentUser && wasHidden.current) {
+        console.log('Page visible again, rejoining user:', currentUser.name);
+        // Trigger a rejoin by forcing a new subscription
+        if (channelRef.current) {
+          pusherClient.unsubscribe('online-users');
+          const channel = pusherClient.subscribe('online-users');
+          channelRef.current = channel;
 
-      pusherClient.unsubscribe('online-users');
+          channel.bind('pusher:subscription_succeeded', async () => {
+            console.log('Rejoined online-users channel, announcing presence');
+            try {
+              const response = await fetch('/api/pusher/user-presence', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  action: 'join',
+                  user: {
+                    id: currentUser.id.toString(),
+                    name: currentUser.name,
+                    email: '',
+                    role: currentUser.role,
+                    deviceType: deviceInfo.deviceType,
+                    location: deviceInfo.location,
+                    browser: deviceInfo.browser,
+                  },
+                }),
+              });
+
+              if (response.ok) {
+                console.log('Successfully rejoined user presence');
+                wasHidden.current = false;
+              }
+            } catch (error) {
+              console.error('Failed to rejoin user presence:', error);
+            }
+          });
+        }
+      }
     };
-  }, [currentUser, deviceInfoReady, deviceInfo]);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentUser?.id, currentUser?.name, deviceInfo]);
 
   return <>{children}</>;
 };

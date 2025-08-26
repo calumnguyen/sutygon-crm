@@ -149,7 +149,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
         (window as any).detailedNetworkType = networkType;
       };
 
-      detectNetworkType();
+      getNetworkInfo();
     };
 
     getNetworkInfo();
@@ -300,15 +300,47 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
     );
   };
 
-  const getLocalTime = () => {
-    // Simulate different time zones based on location
-    // In a real app, you'd get the actual timezone for each user's location
+  const getLocalTime = (userLocation: string) => {
+    // Calculate time based on user's location
+    // This is a simplified timezone calculation - in production you'd use a proper timezone library
     const now = new Date();
-    const timeString = now.toLocaleTimeString('vi-VN', {
+
+    // Simple timezone offset based on location (this is a demo - in real app use proper timezone data)
+    let timezoneOffset = 0;
+
+    // Map locations to approximate timezone offsets (UTC+7 for Vietnam, etc.)
+    if (
+      userLocation.includes('Vietnam') ||
+      userLocation.includes('Ho Chi Minh') ||
+      userLocation.includes('Hanoi')
+    ) {
+      timezoneOffset = 7; // UTC+7
+    } else if (userLocation.includes('Japan') || userLocation.includes('Tokyo')) {
+      timezoneOffset = 9; // UTC+9
+    } else if (userLocation.includes('Singapore') || userLocation.includes('Malaysia')) {
+      timezoneOffset = 8; // UTC+8
+    } else if (userLocation.includes('Thailand') || userLocation.includes('Bangkok')) {
+      timezoneOffset = 7; // UTC+7
+    } else if (userLocation.includes('USA') || userLocation.includes('New York')) {
+      timezoneOffset = -5; // UTC-5 (EST)
+    } else if (userLocation.includes('UK') || userLocation.includes('London')) {
+      timezoneOffset = 0; // UTC+0
+    } else if (userLocation.includes('Australia') || userLocation.includes('Sydney')) {
+      timezoneOffset = 10; // UTC+10
+    } else {
+      // Default to Vietnam timezone if location is unknown
+      timezoneOffset = 7;
+    }
+
+    // Calculate the time for the user's timezone
+    const userTime = new Date(now.getTime() + timezoneOffset * 60 * 60 * 1000);
+
+    const timeString = userTime.toLocaleTimeString('vi-VN', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
     });
+
     return timeString;
   };
 
@@ -441,8 +473,38 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
 
   const UserCard = ({ user }: { user: OnlineUser }) => {
     const weatherData = getMockWeatherData(user.location);
-    const localTime = getLocalTime();
-    const isDayTime = new Date().getHours() >= 6 && new Date().getHours() < 18;
+    const localTime = getLocalTime(user.location);
+
+    // Calculate day/night based on user's local time
+    const now = new Date();
+    let timezoneOffset = 0;
+
+    // Use the same timezone logic as getLocalTime
+    if (
+      user.location.includes('Vietnam') ||
+      user.location.includes('Ho Chi Minh') ||
+      user.location.includes('Hanoi')
+    ) {
+      timezoneOffset = 7;
+    } else if (user.location.includes('Japan') || user.location.includes('Tokyo')) {
+      timezoneOffset = 9;
+    } else if (user.location.includes('Singapore') || user.location.includes('Malaysia')) {
+      timezoneOffset = 8;
+    } else if (user.location.includes('Thailand') || user.location.includes('Bangkok')) {
+      timezoneOffset = 7;
+    } else if (user.location.includes('USA') || user.location.includes('New York')) {
+      timezoneOffset = -5;
+    } else if (user.location.includes('UK') || user.location.includes('London')) {
+      timezoneOffset = 0;
+    } else if (user.location.includes('Australia') || user.location.includes('Sydney')) {
+      timezoneOffset = 10;
+    } else {
+      timezoneOffset = 7;
+    }
+
+    const userTime = new Date(now.getTime() + timezoneOffset * 60 * 60 * 1000);
+    const isDayTime = userTime.getHours() >= 6 && userTime.getHours() < 18;
+
     const userLatencyData = latencyData.get(user.id);
 
     return (

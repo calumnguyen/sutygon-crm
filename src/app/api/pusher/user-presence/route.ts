@@ -15,7 +15,24 @@ let onlineUsers: Array<{
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, user } = await request.json();
+    let body;
+
+    // Handle both regular JSON and sendBeacon requests
+    const contentType = request.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      body = await request.json();
+    } else {
+      // Handle sendBeacon request (text/plain)
+      const text = await request.text();
+      try {
+        body = JSON.parse(text);
+      } catch {
+        console.error('Failed to parse sendBeacon data:', text);
+        return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+      }
+    }
+
+    const { action, user } = body;
     console.log('Pusher user-presence API called:', { action, user });
 
     if (action === 'join') {
@@ -33,6 +50,19 @@ export async function POST(request: NextRequest) {
           joinedAt: new Date(),
         });
         console.log('Added user to online list:', user.name);
+      } else {
+        // Update existing user info
+        onlineUsers[existingUserIndex] = {
+          ...onlineUsers[existingUserIndex],
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          deviceType: user.deviceType,
+          location: user.location,
+          browser: user.browser,
+          joinedAt: new Date(),
+        };
+        console.log('Updated existing user in online list:', user.name);
       }
 
       // Broadcast that user joined
@@ -49,8 +79,9 @@ export async function POST(request: NextRequest) {
       console.log('Successfully broadcasted user-joined event');
     } else if (action === 'leave') {
       // Remove user from online list
+      const userToRemove = onlineUsers.find((u) => u.id === user.id);
       onlineUsers = onlineUsers.filter((u) => u.id !== user.id);
-      console.log('Removed user from online list:', user.id);
+      console.log('Removed user from online list:', user.id, userToRemove?.name);
 
       // Broadcast that user left
       console.log('Broadcasting user-left event for:', user.id);
@@ -70,7 +101,13 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   // Remove users who haven't been active for more than 5 minutes
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const beforeCleanup = onlineUsers.length;
   onlineUsers = onlineUsers.filter((user) => user.joinedAt > fiveMinutesAgo);
+  const afterCleanup = onlineUsers.length;
+
+  if (beforeCleanup !== afterCleanup) {
+    console.log(`Cleaned up ${beforeCleanup - afterCleanup} inactive users`);
+  }
 
   console.log('GET /api/pusher/user-presence - returning', onlineUsers.length, 'users');
   return NextResponse.json(onlineUsers);

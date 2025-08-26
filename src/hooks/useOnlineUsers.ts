@@ -15,12 +15,18 @@ export const useOnlineUsers = (currentUser: OnlineUser | null) => {
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const setupComplete = useRef(false);
+  const channelRef = useRef<ReturnType<typeof pusherClient.subscribe> | null>(null);
 
   useEffect(() => {
-    if (!currentUser || setupComplete.current) return;
+    if (!currentUser) {
+      console.log('useOnlineUsers: No current user, clearing state');
+      setOnlineUsers([]);
+      setIsConnected(false);
+      setupComplete.current = false;
+      return;
+    }
 
     console.log('useOnlineUsers: Setting up for user:', currentUser.name);
-    setupComplete.current = true;
 
     // Check if already connected
     const checkConnection = () => {
@@ -44,39 +50,51 @@ export const useOnlineUsers = (currentUser: OnlineUser | null) => {
 
     checkConnection();
 
-    // Get the existing channel subscription
-    const channel = pusherClient.channel('online-users');
+    // Subscribe to the channel
+    const channel = pusherClient.subscribe('online-users');
+    channelRef.current = channel;
 
-    if (channel) {
-      console.log('useOnlineUsers: Found existing channel, binding events');
+    console.log('useOnlineUsers: Subscribing to online-users channel');
 
-      // Handle user joining
-      channel.bind('user-joined', (data: OnlineUser) => {
-        console.log('useOnlineUsers: User joined:', data.name);
-        setOnlineUsers((prev) => {
-          const exists = prev.find((user) => user.id === data.id);
-          if (exists) return prev;
-          return [...prev, data];
-        });
+    // Handle user joining
+    const handleUserJoined = (data: OnlineUser) => {
+      console.log('useOnlineUsers: User joined:', data.name);
+      setOnlineUsers((prev) => {
+        const exists = prev.find((user) => user.id === data.id);
+        if (exists) {
+          console.log('useOnlineUsers: User already exists, updating:', data.name);
+          return prev.map((user) => (user.id === data.id ? data : user));
+        }
+        console.log('useOnlineUsers: Adding new user:', data.name);
+        return [...prev, data];
       });
+    };
 
-      // Handle user leaving
-      channel.bind('user-left', (data: { id: string }) => {
-        console.log('useOnlineUsers: User left:', data.id);
-        setOnlineUsers((prev) => prev.filter((user) => user.id !== data.id));
+    // Handle user leaving
+    const handleUserLeft = (data: { id: string }) => {
+      console.log('useOnlineUsers: User left:', data.id);
+      setOnlineUsers((prev) => {
+        const user = prev.find((u) => u.id === data.id);
+        if (user) {
+          console.log('useOnlineUsers: Removing user:', user.name);
+        }
+        return prev.filter((user) => user.id !== data.id);
       });
+    };
 
-      // Handle initial users list
-      channel.bind('users-list', (users: OnlineUser[]) => {
-        console.log('useOnlineUsers: Received users list:', users.length, 'users');
-        setOnlineUsers(users);
-      });
-    } else {
-      console.log('useOnlineUsers: No existing channel found');
-    }
+    // Handle initial users list
+    const handleUsersList = (users: OnlineUser[]) => {
+      console.log('useOnlineUsers: Received users list:', users.length, 'users');
+      setOnlineUsers(users);
+    };
+
+    // Bind events
+    channel.bind('user-joined', handleUserJoined);
+    channel.bind('user-left', handleUserLeft);
+    channel.bind('users-list', handleUsersList);
 
     // Listen for connection events
-    pusherClient.connection.bind('connected', () => {
+    const handleConnected = () => {
       setIsConnected(true);
       console.log('useOnlineUsers: Connected to Pusher');
 
@@ -90,22 +108,34 @@ export const useOnlineUsers = (currentUser: OnlineUser | null) => {
         .catch((error) => {
           console.error('useOnlineUsers: Failed to fetch online users:', error);
         });
-    });
-
-    pusherClient.connection.bind('disconnected', () => {
-      setIsConnected(false);
-    });
-
-    // Cleanup
-    return () => {
-      setupComplete.current = false;
-      if (channel) {
-        channel.unbind('user-joined');
-        channel.unbind('user-left');
-        channel.unbind('users-list');
-      }
     };
-  }, [currentUser?.id]); // Only depend on user ID, not the entire user object
+
+    const handleDisconnected = () => {
+      setIsConnected(false);
+      console.log('useOnlineUsers: Disconnected from Pusher');
+    };
+
+    pusherClient.connection.bind('connected', handleConnected);
+    pusherClient.connection.bind('disconnected', handleDisconnected);
+
+    // Cleanup function
+    return () => {
+      console.log('useOnlineUsers: Cleaning up for user:', currentUser.name);
+
+      if (channelRef.current) {
+        channelRef.current.unbind('user-joined', handleUserJoined);
+        channelRef.current.unbind('user-left', handleUserLeft);
+        channelRef.current.unbind('users-list', handleUsersList);
+        pusherClient.unsubscribe('online-users');
+        channelRef.current = null;
+      }
+
+      pusherClient.connection.unbind('connected', handleConnected);
+      pusherClient.connection.unbind('disconnected', handleDisconnected);
+
+      setupComplete.current = false;
+    };
+  }, [currentUser?.id, currentUser?.name]); // Depend on both ID and name to ensure proper updates
 
   return { onlineUsers, isConnected };
 };
