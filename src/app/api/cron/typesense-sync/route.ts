@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { inventoryItems } from '@/lib/db/schema';
 import typesenseService from '@/lib/typesense';
 import { typesenseInventorySync } from '@/lib/typesense/sync';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log('🕕 Starting scheduled Typesense sync...');
 
@@ -12,15 +12,12 @@ export async function GET(request: NextRequest) {
     const connected = await typesenseService.connect();
     if (!connected) {
       console.log('❌ Typesense not available, skipping scheduled sync');
-      return NextResponse.json(
-        { error: 'Typesense không khả dụng' },
-        { status: 503 }
-      );
+      return NextResponse.json({ error: 'Typesense không khả dụng' }, { status: 503 });
     }
 
     // Get all inventory item IDs
     const items = await db.select({ id: inventoryItems.id }).from(inventoryItems);
-    const itemIds = items.map(item => item.id);
+    const itemIds = items.map((item) => item.id);
 
     if (itemIds.length === 0) {
       console.log('ℹ️ No items to sync');
@@ -40,9 +37,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       message: 'Đồng bộ Typesense theo lịch thành công',
       syncedCount: itemIds.length,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error('❌ Scheduled Typesense sync error:', error);
     return NextResponse.json(

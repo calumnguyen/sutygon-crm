@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import elasticsearchService from '@/lib/elasticsearch';
 import { db } from '@/lib/db';
 import { inventoryItems, inventoryTags, tags } from '@/lib/db/schema';

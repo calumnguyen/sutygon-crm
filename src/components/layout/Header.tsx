@@ -1,6 +1,5 @@
 'use client';
 import React from 'react';
-import { useRouter } from 'next/navigation';
 import Logo from '@/components/common/Logo';
 import SearchBar from '@/components/common/SearchBar';
 import SignOutButton from '@/components/common/buttons/SignOutButton';
@@ -11,8 +10,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ onSearch }) => {
-  const router = useRouter();
-  const { currentUser, logout } = useUser();
+  const { currentUser } = useUser();
 
   return (
     <header className="w-full bg-transparent pt-6">

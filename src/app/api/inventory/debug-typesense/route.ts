@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/utils/authMiddleware';
-import { AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 import { typesenseService } from '@/lib/typesense';
 
 export const GET = withAuth(async () => {

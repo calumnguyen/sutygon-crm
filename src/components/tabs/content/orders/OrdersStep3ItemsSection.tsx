@@ -6,6 +6,7 @@ import OrderStep3SearchResultsModal from './OrderStep3SearchResultsModal';
 import OrderStep3SizeSelectModal from './OrderStep3SizeSelectModal';
 import OrderStep3DeleteConfirmModal from './OrderStep3DeleteConfirmModal';
 import OrderStep3AddedItemsList from './OrderStep3AddedItemsList';
+import InventoryLoading from '@/components/common/InventoryLoading';
 
 interface OrdersStep3ItemsSectionProps {
   orderItems: OrderItem[];
@@ -77,8 +78,8 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
 
   if (inventoryLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-blue-400 text-lg">
-        Đang tải dữ liệu kho...
+      <div className="flex-1 flex items-center justify-center">
+        <InventoryLoading />
       </div>
     );
   }

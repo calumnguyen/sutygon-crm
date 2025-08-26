@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getAllCustomers, createCustomer, getCustomerByPhone } from '@/lib/actions/customers';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 

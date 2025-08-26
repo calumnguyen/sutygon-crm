@@ -5,19 +5,6 @@ import { inventoryItems, tags, inventoryTags, aiTrainingData } from '@/lib/db/sc
 import { eq, inArray } from 'drizzle-orm';
 import { decryptTagData } from '@/lib/utils/inventoryEncryption';
 
-interface TrainingItem {
-  id: number;
-  name: string;
-  category: string;
-  tags: string[];
-  description: string;
-}
-
-interface BulkTrainingRequest {
-  itemIds: number[];
-  trainingData: TrainingItem[];
-}
-
 // Global training session state
 let trainingSession = {
   isActive: false,

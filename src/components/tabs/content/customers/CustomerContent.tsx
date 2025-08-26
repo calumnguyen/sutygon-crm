@@ -43,7 +43,7 @@ export default function CustomerContent() {
         const sessionToken = localStorage.getItem('sessionToken');
         const res = await fetch('/api/customers', {
           headers: {
-            'Authorization': `Bearer ${sessionToken}`,
+            Authorization: `Bearer ${sessionToken}`,
             'Content-Type': 'application/json',
           },
         });
@@ -74,9 +74,9 @@ export default function CustomerContent() {
       const sessionToken = localStorage.getItem('sessionToken');
       const res = await fetch('/api/customers', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`,
+          Authorization: `Bearer ${sessionToken}`,
         },
         body: JSON.stringify({
           name: customerData.name,
@@ -105,11 +105,11 @@ export default function CustomerContent() {
 
   const handleIdentitySuccess = () => {
     if (pendingAction.type === 'edit' && pendingAction.customerId !== null) {
-      const customerToEdit = customers.find(
+      const foundCustomer = customers.find(
         (_customer) => _customer.id === pendingAction.customerId
       );
-      if (customerToEdit) {
-        setCustomerToEdit(customerToEdit);
+      if (foundCustomer) {
+        setCustomerToEdit(foundCustomer);
         setIsModalOpen(true);
       }
     } else if (pendingAction.type === 'delete' && pendingAction.customerId !== null) {

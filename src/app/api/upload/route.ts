@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 
 export const POST = withAuth(async (request: AuthenticatedRequest) => {

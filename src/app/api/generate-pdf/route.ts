@@ -19,23 +19,6 @@ interface PaymentHistory {
   amount: number;
 }
 
-interface SettlementInfo {
-  remainingBalance: number;
-  depositReturned: number;
-  depositReturnedDate?: string;
-  documentType?: string;
-  documentReturned: boolean;
-  documentReturnedDate?: string;
-}
-
-// Helper function to format date with Vietnamese day names
-function formatVietnameseDate(dateString: string): string {
-  const date = new Date(dateString);
-  const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-  const dayName = days[date.getDay()];
-  return `${dayName}, ${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
-}
-
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();

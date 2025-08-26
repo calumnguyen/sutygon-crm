@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withAuth } from '@/lib/utils/authMiddleware';
 import typesenseInventorySync from '@/lib/typesense/sync';
 import typesenseService from '@/lib/typesense';
 import { db } from '@/lib/db';
@@ -110,7 +109,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const onProgress = (current: number, total: number) => {
+      const onProgress = () => {
         // Progress tracking for non-streaming mode
       };
 

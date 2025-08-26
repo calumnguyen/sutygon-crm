@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { X, Camera, Upload, Save, Loader2, BookOpen, Play } from 'lucide-react';
+import { X, Camera, Upload, Loader2, BookOpen, Play } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 

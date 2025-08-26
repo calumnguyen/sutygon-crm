@@ -13,6 +13,7 @@ import InventoryContent from '@/components/tabs/content/inventory/InventoryConte
 import StoreSettingsContent from '@/components/tabs/content/store-settings/StoreSettingsContent';
 import ReportsContent from '@/components/tabs/content/reports/ReportsContent';
 import InventoryAddingReport from '@/components/tabs/content/reports/InventoryAddingReport';
+import SystemActivityReport from '@/components/tabs/content/reports/SystemActivityReport';
 
 const contentComponents = {
   home: HomeContent,
@@ -139,6 +140,8 @@ const TabContent: React.FC = () => {
           // Map specific reports to their components
           if (reportId === 'inventory-adding-per-head-count-2025') {
             ReportComponent = InventoryAddingReport;
+          } else if (reportId === 'trailing-audit-report') {
+            ReportComponent = SystemActivityReport;
           }
 
           return (

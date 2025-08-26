@@ -73,15 +73,8 @@ import { createTabId } from '@/types/tabTypes';
  * @see {@link SecondLevelTabComponent} for more information about second-level tabs
  * @see {@link DEFAULT_TAB_OPTIONS} for default dropdown options
  */
-interface BrowserTabBarProps {
-  selectedDropdownOption?: TabOption;
-  onDropdownSelect?: (option: TabOption) => void;
-}
 
-export default function BrowserTabBar({
-  selectedDropdownOption,
-  onDropdownSelect,
-}: BrowserTabBarProps) {
+export default function BrowserTabBar() {
   const {
     firstLevelTabs,
     secondLevelTabs,

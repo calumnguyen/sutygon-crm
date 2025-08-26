@@ -3,9 +3,9 @@ import { db } from '@/lib/db';
 import { inventoryItems, inventorySizes } from '@/lib/db/schema';
 import { count } from 'drizzle-orm';
 import { decryptInventorySizeData } from '@/lib/utils/inventoryEncryption';
-import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
+import { withAuth } from '@/lib/utils/authMiddleware';
 
-export const GET = withAuth(async (request: AuthenticatedRequest) => {
+export const GET = withAuth(async () => {
   try {
     // Get total unique items (models)
     const [totalModelsResult] = await db.select({ count: count() }).from(inventoryItems);

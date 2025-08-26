@@ -28,6 +28,7 @@ import InventoryAddItemModal from './InventoryAddItemModal';
 import InventoryEditModal from './InventoryEditModal';
 import AIVisualSearchModal from './AIVisualSearchModal';
 import SecureTrainingModal from './SecureTrainingModal';
+import InventoryLoading from '@/components/common/InventoryLoading';
 
 const InventoryContent: React.FC = () => {
   const { currentUser } = useUser();
@@ -571,9 +572,7 @@ const InventoryContent: React.FC = () => {
             </div>
           )}
           {displayLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-blue-400 text-lg">Đang tải dữ liệu kho...</div>
-            </div>
+            <InventoryLoading />
           ) : viewMode === 'list' ? (
             <InventoryTable
               filteredInventory={filteredInventory}

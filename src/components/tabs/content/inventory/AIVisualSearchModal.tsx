@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { X, Camera, Upload, Search, Loader2, RefreshCw, MessageCircle, Shield } from 'lucide-react';
+import { X, Camera, Upload, Search, Loader2, RefreshCw, MessageCircle } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 import SecureTrainingModal from './SecureTrainingModal';
 
@@ -49,9 +49,6 @@ export default function AIVisualSearchModal({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
-  // Check if user is admin
-  const isAdmin = currentUser?.role === 'admin';
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -129,29 +126,6 @@ export default function AIVisualSearchModal({
       checkVerificationStatus();
     }
   }, [isOpen, checkVerificationStatus]);
-
-  const handleVerificationSuccess = useCallback(() => {
-    console.log('🎉 Verification success callback triggered');
-    setIsVerified(true);
-    setShowVerificationModal(false);
-  }, []);
-
-  const handleVerificationClose = useCallback(() => {
-    console.log('❌ Verification modal closed');
-    setShowVerificationModal(false);
-    // After verification modal closes, check if verification was successful
-    setTimeout(() => {
-      console.log('🔄 Checking verification status after modal close');
-      checkVerificationStatus();
-    }, 1000); // Wait a bit for the API to update
-  }, [checkVerificationStatus]);
-
-  // Add a force close handler for when user clicks X
-  const handleForceClose = useCallback(() => {
-    console.log('❌ Force close button clicked');
-    resetModal();
-    onClose();
-  }, [resetModal, onClose]);
 
   // Debug effect to log state changes
   React.useEffect(() => {

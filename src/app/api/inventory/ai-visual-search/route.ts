@@ -634,7 +634,7 @@ QUAN TRỌNG:
         } else {
           throw new Error('No JSON found in response');
         }
-      } catch (parseError) {
+      } catch {
         console.error('Failed to parse AI response:', aiResponse);
         return NextResponse.json(
           {
@@ -693,7 +693,7 @@ export const PUT = withAuth(async (request: AuthenticatedRequest) => {
     let body: Record<string, unknown> = {};
     try {
       body = await request.json();
-    } catch (error) {
+    } catch {
       console.log('⚠️ No JSON body in PUT request, using empty object');
     }
 

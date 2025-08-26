@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
-import OpenAI from 'openai';
 import { db } from '@/lib/db';
 import { aiTrainingData } from '@/lib/db/schema';
 import { eq, desc, and, ilike } from 'drizzle-orm';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 // Function to check for similar training data
 async function checkForSimilarTraining(description: string, category: string) {
@@ -218,7 +213,7 @@ export const DELETE = withAuth(async (request: AuthenticatedRequest) => {
       .where(eq(aiTrainingData.isActive, true));
 
     // Delete all active training data
-    const result = await db.delete(aiTrainingData).where(eq(aiTrainingData.isActive, true));
+    await db.delete(aiTrainingData).where(eq(aiTrainingData.isActive, true));
 
     return NextResponse.json({
       success: true,

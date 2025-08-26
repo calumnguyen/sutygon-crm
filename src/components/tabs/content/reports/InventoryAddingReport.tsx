@@ -46,6 +46,10 @@ const InventoryAddingReport: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Local state for date input values
+  const [fromDateInput, setFromDateInput] = useState<string>('');
+  const [toDateInput, setToDateInput] = useState<string>('');
+
   // Use ref to track current date range for auto-refresh
   const dateRangeRef = useRef<DateRange>(dateRange);
   dateRangeRef.current = dateRange;
@@ -638,10 +642,13 @@ const InventoryAddingReport: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={formatDateForDisplay(dateRange.from)}
+                  value={fromDateInput || formatDateForDisplay(dateRange.from)}
                   onChange={(e) => {
+                    const value = e.target.value;
+                    setFromDateInput(value);
+
                     // Parse DD/MM/YYYY format
-                    const parts = e.target.value.split('/');
+                    const parts = value.split('/');
                     if (parts.length === 3) {
                       const day = parseInt(parts[0]);
                       const month = parseInt(parts[1]) - 1; // Month is 0-indexed
@@ -652,6 +659,16 @@ const InventoryAddingReport: React.FC = () => {
                           setDateRange((prev) => ({ ...prev, from: newDate }));
                         }
                       }
+                    }
+                  }}
+                  onFocus={() => {
+                    if (!fromDateInput) {
+                      setFromDateInput(formatDateForDisplay(dateRange.from));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!fromDateInput || fromDateInput === '') {
+                      setFromDateInput('');
                     }
                   }}
                   placeholder="DD/MM/YYYY"
@@ -666,10 +683,13 @@ const InventoryAddingReport: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={formatDateForDisplay(dateRange.to)}
+                  value={toDateInput || formatDateForDisplay(dateRange.to)}
                   onChange={(e) => {
+                    const value = e.target.value;
+                    setToDateInput(value);
+
                     // Parse DD/MM/YYYY format
-                    const parts = e.target.value.split('/');
+                    const parts = value.split('/');
                     if (parts.length === 3) {
                       const day = parseInt(parts[0]);
                       const month = parseInt(parts[1]) - 1; // Month is 0-indexed
@@ -680,6 +700,16 @@ const InventoryAddingReport: React.FC = () => {
                           setDateRange((prev) => ({ ...prev, to: newDate }));
                         }
                       }
+                    }
+                  }}
+                  onFocus={() => {
+                    if (!toDateInput) {
+                      setToDateInput(formatDateForDisplay(dateRange.to));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!toDateInput || toDateInput === '') {
+                      setToDateInput('');
                     }
                   }}
                   placeholder="DD/MM/YYYY"
@@ -699,6 +729,8 @@ const InventoryAddingReport: React.FC = () => {
                       const lastWeek = new Date(today);
                       lastWeek.setDate(today.getDate() - 7);
                       setDateRange({ from: lastWeek, to: today });
+                      setFromDateInput('');
+                      setToDateInput('');
                     }}
                     className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-md transition-colors"
                   >
@@ -710,6 +742,8 @@ const InventoryAddingReport: React.FC = () => {
                       const lastMonth = new Date(today);
                       lastMonth.setDate(today.getDate() - 30);
                       setDateRange({ from: lastMonth, to: today });
+                      setFromDateInput('');
+                      setToDateInput('');
                     }}
                     className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-md transition-colors"
                   >
@@ -720,6 +754,8 @@ const InventoryAddingReport: React.FC = () => {
                       const today = new Date();
                       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
                       setDateRange({ from: startOfMonth, to: today });
+                      setFromDateInput('');
+                      setToDateInput('');
                     }}
                     className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-md transition-colors"
                   >
@@ -730,6 +766,8 @@ const InventoryAddingReport: React.FC = () => {
                       const today = new Date();
                       const startOfYear = new Date(today.getFullYear(), 0, 1);
                       setDateRange({ from: startOfYear, to: today });
+                      setFromDateInput('');
+                      setToDateInput('');
                     }}
                     className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-md transition-colors"
                   >
@@ -742,7 +780,11 @@ const InventoryAddingReport: React.FC = () => {
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 mt-6">
               <button
-                onClick={() => setShowDatePicker(false)}
+                onClick={() => {
+                  setShowDatePicker(false);
+                  setFromDateInput('');
+                  setToDateInput('');
+                }}
                 className="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 px-4 rounded-md transition-colors"
               >
                 Hủy
@@ -755,6 +797,8 @@ const InventoryAddingReport: React.FC = () => {
                     return;
                   }
                   setShowDatePicker(false);
+                  setFromDateInput('');
+                  setToDateInput('');
                   // The useEffect will automatically trigger a refresh when dateRange changes
                 }}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors"

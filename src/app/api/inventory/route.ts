@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import {
   inventoryItems,
@@ -18,7 +18,7 @@ import {
 } from '@/lib/utils/inventoryEncryption';
 
 import { typesenseInventorySync } from '@/lib/typesense/sync';
-import { logInventoryError, logDatabaseError, logConnectionError } from '@/lib/utils/errorMonitor';
+import { logDatabaseError } from '@/lib/utils/errorMonitor';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 
 // Define a minimal InventoryItem type for this context
