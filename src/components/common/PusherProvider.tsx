@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { pusherClient } from '@/lib/pusher';
 import { useUser } from '@/context/UserContext';
-import { detectDeviceType, getLocationFromIP, getBrowserInfo } from '@/lib/utils/deviceDetection';
+import { detectDeviceType, getAccurateLocation, getBrowserInfo } from '@/lib/utils/deviceDetection';
 
 interface PusherProviderProps {
   children: React.ReactNode;
@@ -33,8 +33,8 @@ const PusherProvider: React.FC<PusherProviderProps> = ({ children }) => {
       }));
 
       // Get real location
-      getLocationFromIP()
-        .then((location) => {
+      getAccurateLocation()
+        .then((location: string) => {
           setDeviceInfo((prev) => ({
             ...prev,
             location,
