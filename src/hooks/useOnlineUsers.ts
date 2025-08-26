@@ -58,7 +58,7 @@ export const useOnlineUsers = (currentUser: OnlineUser | null) => {
 
     // Handle user joining
     const handleUserJoined = (data: OnlineUser) => {
-      console.log('useOnlineUsers: User joined:', data.name);
+      console.log('useOnlineUsers: User joined:', data.name, 'ID:', data.id);
       setOnlineUsers((prev) => {
         const exists = prev.find((user) => user.id === data.id);
         if (exists) {
@@ -72,13 +72,18 @@ export const useOnlineUsers = (currentUser: OnlineUser | null) => {
 
     // Handle user leaving
     const handleUserLeft = (data: { id: string }) => {
-      console.log('useOnlineUsers: User left:', data.id);
+      console.log('useOnlineUsers: User left event received:', data.id);
       setOnlineUsers((prev) => {
         const user = prev.find((u) => u.id === data.id);
         if (user) {
-          console.log('useOnlineUsers: Removing user:', user.name);
+          console.log('useOnlineUsers: Removing user from list:', user.name, 'ID:', user.id);
+          const newList = prev.filter((user) => user.id !== data.id);
+          console.log('useOnlineUsers: Updated list has', newList.length, 'users');
+          return newList;
+        } else {
+          console.log('useOnlineUsers: User not found in list for removal:', data.id);
+          return prev;
         }
-        return prev.filter((user) => user.id !== data.id);
       });
     };
 
@@ -92,6 +97,11 @@ export const useOnlineUsers = (currentUser: OnlineUser | null) => {
     channel.bind('user-joined', handleUserJoined);
     channel.bind('user-left', handleUserLeft);
     channel.bind('users-list', handleUsersList);
+
+    // Test event to verify Pusher is working
+    channel.bind('pusher:subscription_succeeded', () => {
+      console.log('useOnlineUsers: Successfully subscribed to online-users channel');
+    });
 
     // Listen for connection events
     const handleConnected = () => {
@@ -115,8 +125,34 @@ export const useOnlineUsers = (currentUser: OnlineUser | null) => {
       console.log('useOnlineUsers: Disconnected from Pusher');
     };
 
+    // Also listen for subscription succeeded to ensure we're properly connected
+    const handleSubscriptionSucceeded = () => {
+      console.log('useOnlineUsers: Successfully subscribed to online-users channel');
+      // Only fetch users list once when subscription succeeds, not on every connection
+      if (!setupComplete.current) {
+        fetch('/api/pusher/user-presence')
+          .then((res) => res.json())
+          .then((users) => {
+            console.log(
+              'useOnlineUsers: Fetched online users after subscription:',
+              users.length,
+              'users'
+            );
+            setOnlineUsers(users);
+            setupComplete.current = true;
+          })
+          .catch((error) => {
+            console.error(
+              'useOnlineUsers: Failed to fetch online users after subscription:',
+              error
+            );
+          });
+      }
+    };
+
     pusherClient.connection.bind('connected', handleConnected);
     pusherClient.connection.bind('disconnected', handleDisconnected);
+    channel.bind('pusher:subscription_succeeded', handleSubscriptionSucceeded);
 
     // Cleanup function
     return () => {
@@ -126,12 +162,14 @@ export const useOnlineUsers = (currentUser: OnlineUser | null) => {
         channelRef.current.unbind('user-joined', handleUserJoined);
         channelRef.current.unbind('user-left', handleUserLeft);
         channelRef.current.unbind('users-list', handleUsersList);
+        channelRef.current.unbind('pusher:subscription_succeeded');
         pusherClient.unsubscribe('online-users');
         channelRef.current = null;
       }
 
       pusherClient.connection.unbind('connected', handleConnected);
       pusherClient.connection.unbind('disconnected', handleDisconnected);
+      channel.unbind('pusher:subscription_succeeded', handleSubscriptionSucceeded);
 
       setupComplete.current = false;
     };

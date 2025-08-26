@@ -302,13 +302,14 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
 
   const getLocalTime = (userLocation: string) => {
     // Calculate time based on user's location
-    // This is a simplified timezone calculation - in production you'd use a proper timezone library
+    // Get current UTC time
     const now = new Date();
+    const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
 
     // Simple timezone offset based on location (this is a demo - in real app use proper timezone data)
     let timezoneOffset = 0;
 
-    // Map locations to approximate timezone offsets (UTC+7 for Vietnam, etc.)
+    // Map locations to approximate timezone offsets
     if (
       userLocation.includes('Vietnam') ||
       userLocation.includes('Ho Chi Minh') ||
@@ -321,7 +322,9 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
       timezoneOffset = 8; // UTC+8
     } else if (userLocation.includes('Thailand') || userLocation.includes('Bangkok')) {
       timezoneOffset = 7; // UTC+7
-    } else if (userLocation.includes('USA') || userLocation.includes('New York')) {
+    } else if (userLocation.includes('Los Angeles') || userLocation.includes('California')) {
+      timezoneOffset = -7; // UTC-7 (PDT) - Los Angeles is currently in daylight saving time
+    } else if (userLocation.includes('New York') || userLocation.includes('USA')) {
       timezoneOffset = -5; // UTC-5 (EST)
     } else if (userLocation.includes('UK') || userLocation.includes('London')) {
       timezoneOffset = 0; // UTC+0
@@ -333,7 +336,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
     }
 
     // Calculate the time for the user's timezone
-    const userTime = new Date(now.getTime() + timezoneOffset * 60 * 60 * 1000);
+    const userTime = new Date(utcTime + timezoneOffset * 60 * 60 * 1000);
 
     const timeString = userTime.toLocaleTimeString('vi-VN', {
       hour: '2-digit',
@@ -477,6 +480,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
 
     // Calculate day/night based on user's local time
     const now = new Date();
+    const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
     let timezoneOffset = 0;
 
     // Use the same timezone logic as getLocalTime
@@ -492,7 +496,9 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
       timezoneOffset = 8;
     } else if (user.location.includes('Thailand') || user.location.includes('Bangkok')) {
       timezoneOffset = 7;
-    } else if (user.location.includes('USA') || user.location.includes('New York')) {
+    } else if (user.location.includes('Los Angeles') || user.location.includes('California')) {
+      timezoneOffset = -7; // UTC-7 (PDT) - Los Angeles is currently in daylight saving time
+    } else if (user.location.includes('New York') || user.location.includes('USA')) {
       timezoneOffset = -5;
     } else if (user.location.includes('UK') || user.location.includes('London')) {
       timezoneOffset = 0;
@@ -502,7 +508,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
       timezoneOffset = 7;
     }
 
-    const userTime = new Date(now.getTime() + timezoneOffset * 60 * 60 * 1000);
+    const userTime = new Date(utcTime + timezoneOffset * 60 * 60 * 1000);
     const isDayTime = userTime.getHours() >= 6 && userTime.getHours() < 18;
 
     const userLatencyData = latencyData.get(user.id);

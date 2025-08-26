@@ -179,7 +179,7 @@ const PusherProvider: React.FC<PusherProviderProps> = ({ children }) => {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && currentUser && hasAnnouncedJoin.current) {
-        console.log('Page hidden, announcing user leave:', currentUser.name);
+        console.log('Page hidden, announcing user leave:', currentUser.name, 'ID:', currentUser.id);
         wasHidden.current = true;
         fetch('/api/pusher/user-presence', {
           method: 'POST',
@@ -192,46 +192,55 @@ const PusherProvider: React.FC<PusherProviderProps> = ({ children }) => {
               id: currentUser.id.toString(),
             },
           }),
-        }).catch(console.error);
+        })
+          .then((response) => {
+            if (response.ok) {
+              console.log('Successfully sent leave announcement for:', currentUser.name);
+            } else {
+              console.error('Failed to send leave announcement:', response.status);
+            }
+          })
+          .catch((error) => {
+            console.error('Error sending leave announcement:', error);
+          });
       } else if (document.visibilityState === 'visible' && currentUser && wasHidden.current) {
         console.log('Page visible again, rejoining user:', currentUser.name);
-        // Trigger a rejoin by forcing a new subscription
-        if (channelRef.current) {
-          pusherClient.unsubscribe('online-users');
-          const channel = pusherClient.subscribe('online-users');
-          channelRef.current = channel;
 
-          channel.bind('pusher:subscription_succeeded', async () => {
-            console.log('Rejoined online-users channel, announcing presence');
-            try {
-              const response = await fetch('/api/pusher/user-presence', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  action: 'join',
-                  user: {
-                    id: currentUser.id.toString(),
-                    name: currentUser.name,
-                    email: '',
-                    role: currentUser.role,
-                    deviceType: deviceInfo.deviceType,
-                    location: deviceInfo.location,
-                    browser: deviceInfo.browser,
-                  },
-                }),
+        // Force a rejoin by sending the join request directly
+        fetch('/api/pusher/user-presence', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'join',
+            user: {
+              id: currentUser.id.toString(),
+              name: currentUser.name,
+              email: '',
+              role: currentUser.role,
+              deviceType: deviceInfo?.deviceType || 'Unknown',
+              location: deviceInfo?.location || 'Unknown',
+              browser: deviceInfo?.browser || 'Unknown',
+            },
+          }),
+        })
+          .then((response) => {
+            if (response.ok) {
+              console.log('Successfully rejoined user presence');
+              wasHidden.current = false;
+              hasAnnouncedJoin.current = true;
+            } else {
+              console.error('Failed to rejoin user presence:', response.status);
+              // Try to get more details about the error
+              return response.text().then((text) => {
+                console.error('Error details:', text);
               });
-
-              if (response.ok) {
-                console.log('Successfully rejoined user presence');
-                wasHidden.current = false;
-              }
-            } catch (error) {
-              console.error('Failed to rejoin user presence:', error);
             }
+          })
+          .catch((error) => {
+            console.error('Failed to rejoin user presence:', error);
           });
-        }
       }
     };
 

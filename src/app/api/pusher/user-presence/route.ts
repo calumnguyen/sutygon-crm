@@ -35,18 +35,35 @@ export async function POST(request: NextRequest) {
     const { action, user } = body;
     console.log('Pusher user-presence API called:', { action, user });
 
+    // Validate required fields
+    if (!action || !user) {
+      console.error('Missing required fields:', { action, user });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    if (!user.id) {
+      console.error('Missing user ID:', user);
+      return NextResponse.json({ error: 'Missing user ID' }, { status: 400 });
+    }
+
     if (action === 'join') {
+      // Validate required fields for join action
+      if (!user.name || !user.role) {
+        console.error('Missing required fields for join:', user);
+        return NextResponse.json({ error: 'Missing required fields for join' }, { status: 400 });
+      }
+
       // Add user to online list
       const existingUserIndex = onlineUsers.findIndex((u) => u.id === user.id);
       if (existingUserIndex === -1) {
         onlineUsers.push({
           id: user.id,
           name: user.name,
-          email: user.email,
+          email: user.email || '',
           role: user.role,
-          deviceType: user.deviceType,
-          location: user.location,
-          browser: user.browser,
+          deviceType: user.deviceType || 'Unknown',
+          location: user.location || 'Unknown',
+          browser: user.browser || 'Unknown',
           joinedAt: new Date(),
         });
         console.log('Added user to online list:', user.name);
@@ -55,11 +72,11 @@ export async function POST(request: NextRequest) {
         onlineUsers[existingUserIndex] = {
           ...onlineUsers[existingUserIndex],
           name: user.name,
-          email: user.email,
+          email: user.email || '',
           role: user.role,
-          deviceType: user.deviceType,
-          location: user.location,
-          browser: user.browser,
+          deviceType: user.deviceType || 'Unknown',
+          location: user.location || 'Unknown',
+          browser: user.browser || 'Unknown',
           joinedAt: new Date(),
         };
         console.log('Updated existing user in online list:', user.name);
@@ -70,11 +87,11 @@ export async function POST(request: NextRequest) {
       await pusherServer.trigger('online-users', 'user-joined', {
         id: user.id,
         name: user.name,
-        email: user.email,
+        email: user.email || '',
         role: user.role,
-        deviceType: user.deviceType,
-        location: user.location,
-        browser: user.browser,
+        deviceType: user.deviceType || 'Unknown',
+        location: user.location || 'Unknown',
+        browser: user.browser || 'Unknown',
       });
       console.log('Successfully broadcasted user-joined event');
     } else if (action === 'leave') {
@@ -89,12 +106,21 @@ export async function POST(request: NextRequest) {
         id: user.id,
       });
       console.log('Successfully broadcasted user-left event');
+    } else {
+      console.error('Invalid action:', action);
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Pusher user presence error:', error);
-    return NextResponse.json({ error: 'Failed to update presence' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'Failed to update presence',
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
   }
 }
 

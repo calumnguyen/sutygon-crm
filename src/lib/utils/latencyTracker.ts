@@ -32,7 +32,7 @@ class LatencyTracker {
 
     const interval = setInterval(() => {
       this.measureServerLatency(userId);
-    }, 5000); // Measure every 5 seconds
+    }, 30000); // Measure every 30 seconds instead of 5
 
     this.pingIntervals.set(userId, interval);
   }
@@ -56,8 +56,8 @@ class LatencyTracker {
     const startTime = Date.now();
 
     try {
-      // Ping the server by making a simple API call
-      const response = await fetch('/api/debug/database-health', {
+      // Use a lighter endpoint for latency measurement
+      const response = await fetch('/api/pusher/user-presence', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
