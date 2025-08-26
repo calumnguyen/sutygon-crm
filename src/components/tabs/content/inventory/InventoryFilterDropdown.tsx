@@ -1,4 +1,4 @@
-import React, { RefObject, useState, useCallback, useRef, useEffect } from 'react';
+import React, { RefObject, useState, useRef, useEffect } from 'react';
 import { ImageFilter } from './hooks';
 
 interface InventoryFilterDropdownProps {
@@ -12,6 +12,7 @@ interface InventoryFilterDropdownProps {
   setImageFilter: (v: ImageFilter) => void;
   sortBy: 'newest' | 'oldest' | 'none';
   setSortBy: (v: 'newest' | 'oldest' | 'none') => void;
+  clearAllFilters?: () => void;
 }
 
 const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
@@ -25,6 +26,7 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
   setImageFilter,
   sortBy,
   setSortBy,
+  clearAllFilters,
 }) => {
   const [dropdownPosition, setDropdownPosition] = useState<'top' | 'bottom'>('bottom');
   const [localDropdownOpen, setLocalDropdownOpen] = useState(false);
@@ -80,16 +82,59 @@ const InventoryFilterDropdown: React.FC<InventoryFilterDropdownProps> = ({
     setSortBy('none');
   };
 
+  // Check if any filters are active
+  const hasActiveFilters =
+    selectedCategories.length > 0 || imageFilter.hasImage !== 'all' || sortBy !== 'none';
+
+  // Get active filter indicators
+  const getActiveFilterIndicators = () => {
+    const indicators = [];
+
+    if (selectedCategories.length > 0) {
+      indicators.push(`${selectedCategories.length} danh mục`);
+    }
+
+    if (imageFilter.hasImage === 'with_image') {
+      indicators.push('có ảnh');
+    } else if (imageFilter.hasImage === 'without_image') {
+      indicators.push('không ảnh');
+    }
+
+    if (sortBy === 'oldest') {
+      indicators.push('cũ nhất');
+    } else if (sortBy === 'newest') {
+      indicators.push('mới nhất');
+    }
+
+    return indicators;
+  };
+
+  const activeIndicators = getActiveFilterIndicators();
+
   return (
     <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-lg p-4 space-y-4 text-sm">
       <div className="flex justify-between items-center mb-2">
-        <span className="font-semibold text-white">Bộ lọc</span>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-white">Bộ lọc</span>
+          {hasActiveFilters && (
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+              <span className="text-xs text-blue-400 font-medium">
+                {activeIndicators.join(', ')}
+              </span>
+            </div>
+          )}
+        </div>
         <button
           className="text-xs text-blue-400 hover:underline"
           onClick={() => {
-            setSelectedCategories([]);
-            setImageFilter({ hasImage: 'all' });
-            setSortBy('none');
+            if (clearAllFilters) {
+              clearAllFilters();
+            } else {
+              setSelectedCategories([]);
+              setImageFilter({ hasImage: 'all' });
+              setSortBy('none');
+            }
           }}
         >
           Xoá tất cả

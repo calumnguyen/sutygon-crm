@@ -44,11 +44,19 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
     const query = searchParams.get('q') || '';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
-    const category = searchParams.get('category') || '';
+    const categories = searchParams.getAll('category'); // Get all category parameters
+    const hasImage = searchParams.get('hasImage'); // Get hasImage parameter
     const mode = searchParams.get('mode') || 'auto'; // 'exact', 'fuzzy', 'broad', 'auto'
     const sortBy = searchParams.get('sortBy'); // Get sortBy parameter
 
-    console.log('Typesense search API called with:', { query, page, limit, category, sortBy });
+    console.log('Typesense search API called with:', {
+      query,
+      page,
+      limit,
+      categories,
+      hasImage,
+      sortBy,
+    });
 
     // Normalize Vietnamese text for better search
     function normalizeVietnamese(text: string): string {
@@ -65,7 +73,7 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
     console.log(`🔍 Normalized query: "${normalizedQuery}"`);
 
     // If sorting by oldest, use direct database queries for proper chronological order
-    if (sortBy === 'oldest' && query.trim()) {
+    if (sortBy === 'oldest') {
       console.log('🔄 Using direct database query for oldest sorting in search');
 
       try {
@@ -76,49 +84,74 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
           decryptTagData,
           encryptInventoryData,
         } = await import('@/lib/utils/inventoryEncryption');
-        const { inArray, sql } = await import('drizzle-orm');
+        const { inArray, sql, asc, and } = await import('drizzle-orm');
 
         // Build database query conditions
         const whereConditions: Array<ReturnType<typeof sql>> = [];
 
         // Add category filter if provided
-        if (category) {
-          const encryptedCategory = encryptInventoryData({ name: '', category }).category;
-          whereConditions.push(sql`${inventoryItems.category} = ${encryptedCategory}`);
+        if (categories.length > 0) {
+          const encryptedCategories = categories.map((cat) => {
+            const encrypted = encryptInventoryData({ name: '', category: cat });
+            return encrypted.category;
+          });
+          whereConditions.push(inArray(inventoryItems.category, encryptedCategories));
         }
 
-        // Get ALL items matching the search criteria
-        const items = await db.select().from(inventoryItems);
+        // Add image filter if provided
+        if (hasImage) {
+          if (hasImage === 'with_image') {
+            whereConditions.push(sql`${inventoryItems.imageUrl} IS NOT NULL`);
+          } else if (hasImage === 'without_image') {
+            whereConditions.push(sql`${inventoryItems.imageUrl} IS NULL`);
+          }
+        }
 
-        // Filter items by search query (client-side filtering for oldest sorting)
-        const searchQuery = query.trim().toLowerCase();
-        const normalizedSearchQuery = normalizeVietnamese(searchQuery);
+        // Get items matching the filter criteria, ordered by createdAt ascending
+        let items;
+        if (whereConditions.length > 0) {
+          items = await db
+            .select()
+            .from(inventoryItems)
+            .where(and(...whereConditions))
+            .orderBy(asc(inventoryItems.createdAt));
+        } else {
+          items = await db.select().from(inventoryItems).orderBy(asc(inventoryItems.createdAt));
+        }
 
-        // Decrypt and filter items
-        const filteredItems = [];
-        for (const item of items) {
-          const decryptedItem = decryptInventoryData(item);
+        // Filter items by search query if provided, otherwise use all items
+        let filteredItems = items;
 
-          // Check if item matches search query
-          const itemName = decryptedItem.name.toLowerCase();
-          const itemCategory = decryptedItem.category.toLowerCase();
-          const normalizedItemName = normalizeVietnamese(itemName);
-          const normalizedItemCategory = normalizeVietnamese(itemCategory);
+        if (query.trim()) {
+          const searchQuery = query.trim().toLowerCase();
+          const normalizedSearchQuery = normalizeVietnamese(searchQuery);
 
-          // Check various search criteria
-          const matchesName =
-            itemName.includes(searchQuery) || normalizedItemName.includes(normalizedSearchQuery);
-          const matchesCategory =
-            itemCategory.includes(searchQuery) ||
-            normalizedItemCategory.includes(normalizedSearchQuery);
-          const matchesId = item.id.toString().includes(searchQuery);
+          // Decrypt and filter items
+          filteredItems = [];
+          for (const item of items) {
+            const decryptedItem = decryptInventoryData(item);
 
-          // Check formatted ID
-          const formattedId = getFormattedId(decryptedItem.category, item.categoryCounter);
-          const matchesFormattedId = formattedId.toLowerCase().includes(searchQuery);
+            // Check if item matches search query
+            const itemName = decryptedItem.name.toLowerCase();
+            const itemCategory = decryptedItem.category.toLowerCase();
+            const normalizedItemName = normalizeVietnamese(itemName);
+            const normalizedItemCategory = normalizeVietnamese(itemCategory);
 
-          if (matchesName || matchesCategory || matchesId || matchesFormattedId) {
-            filteredItems.push(item);
+            // Check various search criteria
+            const matchesName =
+              itemName.includes(searchQuery) || normalizedItemName.includes(normalizedSearchQuery);
+            const matchesCategory =
+              itemCategory.includes(searchQuery) ||
+              normalizedItemCategory.includes(normalizedSearchQuery);
+            const matchesId = item.id.toString().includes(searchQuery);
+
+            // Check formatted ID
+            const formattedId = getFormattedId(decryptedItem.category, item.categoryCounter);
+            const matchesFormattedId = formattedId.toLowerCase().includes(searchQuery);
+
+            if (matchesName || matchesCategory || matchesId || matchesFormattedId) {
+              filteredItems.push(item);
+            }
           }
         }
 
@@ -127,10 +160,28 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
           (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
 
+        // Debug: Log first few items to verify sorting
+        if (filteredItems.length > 0) {
+          console.log(
+            '🔍 First 3 items after sorting by oldest:',
+            filteredItems.slice(0, 3).map((item) => ({
+              id: item.id,
+              createdAt: item.createdAt,
+              formattedId: getFormattedId(
+                decryptInventoryData(item).category,
+                item.categoryCounter
+              ),
+            }))
+          );
+        }
+
         console.log('🔍 Database search results for oldest sorting:', {
           total: filteredItems.length,
-          query: searchQuery,
+          query: query.trim() || 'all items',
           sortBy,
+          categories: categories.length > 0 ? categories : 'none',
+          hasImage: hasImage || 'none',
+          whereConditionsCount: whereConditions.length,
         });
 
         // Apply pagination
@@ -215,7 +266,9 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
         fallbackUrl.searchParams.set('q', query);
         fallbackUrl.searchParams.set('page', page.toString());
         fallbackUrl.searchParams.set('limit', limit.toString());
-        if (category) fallbackUrl.searchParams.set('category', category);
+        if (categories.length > 0) {
+          categories.forEach((cat) => fallbackUrl.searchParams.append('category', cat));
+        }
 
         const fallbackResponse = await fetch(fallbackUrl.toString(), {
           headers: {
@@ -257,6 +310,30 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
       infix: 'off', // Disable infix to prevent errors
       prefix: true, // Enable prefix matching for better results
     };
+
+    // Handle category filtering
+    if (categories.length > 0) {
+      const categoryFilter = categories.map((cat) => `category:=${cat.trim()}`).join(' || ');
+      searchParameters.filter_by = `(${categoryFilter})`;
+    }
+
+    // Handle image filtering
+    if (hasImage) {
+      const imageFilter =
+        hasImage === 'with_image' ? 'imageUrl:=has_image' : 'imageUrl:!=has_image';
+      if (searchParameters.filter_by) {
+        searchParameters.filter_by += ` && ${imageFilter}`;
+      } else {
+        searchParameters.filter_by = imageFilter;
+      }
+    }
+
+    console.log('🔍 Typesense search parameters with filters:', {
+      query: query.trim(),
+      categories: categories.length > 0 ? categories : 'none',
+      hasImage: hasImage || 'none',
+      filter_by: searchParameters.filter_by || 'none',
+    });
 
     // Enhanced Vietnamese text search with multiple strategies
     let response: Record<string, unknown>;
@@ -347,12 +424,8 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
       query_by: searchParameters.query_by,
       min_score: searchParameters.min_score,
       num_typos: searchParameters.num_typos,
+      filter_by: searchParameters.filter_by || 'none',
     });
-
-    // Handle category filtering
-    if (category.trim()) {
-      searchParameters.filter_by = `category:=${category.trim()}`;
-    }
 
     // Configure search behavior based on mode
     if (query.trim()) {
@@ -654,7 +727,7 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
       ...performanceInfo,
       // Additional metadata for large dataset handling
       query: query || '',
-      category: category || '',
+      category: categories.join(', ') || '',
       optimizedForLargeDataset: totalHits > 1000,
       facets: response.facet_counts || {},
       // Include filtered count for debugging

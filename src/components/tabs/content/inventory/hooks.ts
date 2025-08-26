@@ -13,6 +13,13 @@ export function useInventorySearch() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
+  const [currentFilters, setCurrentFilters] = useState<
+    | {
+        categories?: string[];
+        imageFilter?: { hasImage: 'all' | 'with_image' | 'without_image' };
+      }
+    | undefined
+  >();
   const currentSearchIdRef = useRef(0); // Use ref instead of state to avoid closure issues
   const timeoutRef = useRef<NodeJS.Timeout | null>(null); // Track timeout for cleanup
 
@@ -47,12 +54,22 @@ export function useInventorySearch() {
         query: unknown,
         page: unknown = 1,
         searchId: unknown = 0,
-        sortBy: unknown = 'none'
+        sortBy: unknown = 'none',
+        filters?: {
+          categories?: string[];
+          imageFilter?: { hasImage: 'all' | 'with_image' | 'without_image' };
+        }
       ) => {
         const searchQuery = query as string;
         const searchPage = page as number;
         const requestSearchId = searchId as number;
         const searchSortBy = sortBy as string;
+        const searchFilters = filters as
+          | {
+              categories?: string[];
+              imageFilter?: { hasImage: 'all' | 'with_image' | 'without_image' };
+            }
+          | undefined;
 
         console.log(
           `Debounced search called: "${searchQuery}", page: ${searchPage}, searchId: ${requestSearchId}, sortBy: ${searchSortBy}`
@@ -105,13 +122,28 @@ export function useInventorySearch() {
         setSearchError('');
 
         try {
-          console.log(`Making search request for: "${searchQuery}" with sortBy: ${searchSortBy}`);
+          console.log(
+            `Making search request for: "${searchQuery}" with sortBy: ${searchSortBy} and filters:`,
+            searchFilters
+          );
           const searchUrl = new URL('/api/inventory/search-typesense', window.location.origin);
           searchUrl.searchParams.set('q', searchQuery);
           searchUrl.searchParams.set('page', searchPage.toString());
           searchUrl.searchParams.set('limit', '20');
           if (searchSortBy && searchSortBy !== 'none') {
             searchUrl.searchParams.set('sortBy', searchSortBy);
+          }
+
+          // Add category filters
+          if (searchFilters?.categories?.length) {
+            searchFilters.categories.forEach((category) => {
+              searchUrl.searchParams.append('category', category);
+            });
+          }
+
+          // Add image filter
+          if (searchFilters?.imageFilter && searchFilters.imageFilter.hasImage !== 'all') {
+            searchUrl.searchParams.set('hasImage', searchFilters.imageFilter.hasImage);
           }
 
           const response = await fetch(searchUrl.toString(), {
@@ -203,27 +235,43 @@ export function useInventorySearch() {
   );
 
   const handleSearch = useCallback(
-    (query: string, sortBy: string = 'none') => {
-      console.log(`Search requested: "${query}" with sortBy: ${sortBy}`);
+    (
+      query: string,
+      sortBy: string = 'none',
+      filters?: {
+        categories?: string[];
+        imageFilter?: { hasImage: 'all' | 'with_image' | 'without_image' };
+      }
+    ) => {
+      console.log(`Search requested: "${query}" with sortBy: ${sortBy} and filters:`, filters);
       setSearchQuery(query);
       setCurrentPage(1);
+      setCurrentFilters(filters); // Store current filters for load more
       // Generate new search ID to cancel any pending searches
       const newSearchId = Date.now();
       currentSearchIdRef.current = newSearchId;
-      debouncedSearch(query, 1, newSearchId, sortBy);
+      debouncedSearch(query, 1, newSearchId, sortBy, filters);
     },
     [debouncedSearch]
   );
 
   const loadMore = useCallback(
-    (sortBy: string = 'none') => {
+    (
+      sortBy: string = 'none',
+      filters?: {
+        categories?: string[];
+        imageFilter?: { hasImage: 'all' | 'with_image' | 'without_image' };
+      }
+    ) => {
       if (hasMore && !isSearching && !isLoadingMore && searchQuery.trim()) {
         const newSearchId = Date.now();
         currentSearchIdRef.current = newSearchId;
-        debouncedSearch(searchQuery, currentPage + 1, newSearchId, sortBy);
+        // Use provided filters or fall back to stored filters
+        const filtersToUse = filters || currentFilters;
+        debouncedSearch(searchQuery, currentPage + 1, newSearchId, sortBy, filtersToUse);
       }
     },
-    [hasMore, isSearching, isLoadingMore, searchQuery, currentPage, debouncedSearch]
+    [hasMore, isSearching, isLoadingMore, searchQuery, currentPage, debouncedSearch, currentFilters]
   );
 
   const clearSearch = useCallback(() => {
@@ -235,6 +283,7 @@ export function useInventorySearch() {
     setSearchError('');
     setIsSearching(false);
     setIsLoadingMore(false);
+    setCurrentFilters(undefined); // Clear stored filters
     // Cancel any pending searches
     currentSearchIdRef.current = Date.now();
   }, []);
@@ -254,12 +303,12 @@ export function useInventorySearch() {
 }
 
 // Debounce utility function
-function debounce(
-  func: (...args: unknown[]) => unknown,
+function debounce<T extends unknown[]>(
+  func: (...args: T) => unknown,
   wait: number
-): (...args: unknown[]) => void {
+): (...args: T) => void {
   let timeout: NodeJS.Timeout;
-  return (...args: unknown[]) => {
+  return (...args: T) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
   };
@@ -270,11 +319,68 @@ export interface ImageFilter {
   hasImage: 'all' | 'with_image' | 'without_image';
 }
 
-// New hook for filtering and sorting
+// New hook for filtering and sorting with localStorage persistence
 export function useInventoryFilter(inventory: InventoryItem[]) {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [imageFilter, setImageFilter] = useState<ImageFilter>({ hasImage: 'all' });
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'none'>('none');
+  // Load initial state from localStorage
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inventory-selectedCategories');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+
+  const [imageFilter, setImageFilter] = useState<ImageFilter>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inventory-imageFilter');
+      return saved ? JSON.parse(saved) : { hasImage: 'all' };
+    }
+    return { hasImage: 'all' };
+  });
+
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'none'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inventory-sortBy');
+      return saved ? JSON.parse(saved) : 'none';
+    }
+    return 'none';
+  });
+
+  // Persist selectedCategories to localStorage
+  const setSelectedCategoriesPersistent = useCallback((categories: string[]) => {
+    setSelectedCategories(categories);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('inventory-selectedCategories', JSON.stringify(categories));
+    }
+  }, []);
+
+  // Persist imageFilter to localStorage
+  const setImageFilterPersistent = useCallback((filter: ImageFilter) => {
+    setImageFilter(filter);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('inventory-imageFilter', JSON.stringify(filter));
+    }
+  }, []);
+
+  // Persist sortBy to localStorage
+  const setSortByPersistent = useCallback((sort: 'newest' | 'oldest' | 'none') => {
+    setSortBy(sort);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('inventory-sortBy', JSON.stringify(sort));
+    }
+  }, []);
+
+  // Clear all persisted filters
+  const clearAllFilters = useCallback(() => {
+    setSelectedCategories([]);
+    setImageFilter({ hasImage: 'all' });
+    setSortBy('none');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('inventory-selectedCategories');
+      localStorage.removeItem('inventory-imageFilter');
+      localStorage.removeItem('inventory-sortBy');
+    }
+  }, []);
 
   const filteredInventory = useMemo(() => {
     // When using server-side filtering and sorting, just return the inventory as-is
@@ -282,13 +388,25 @@ export function useInventoryFilter(inventory: InventoryItem[]) {
     return inventory;
   }, [inventory]);
 
+  // Debug: Log when filters are loaded from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log('🔄 Filters loaded from localStorage:', {
+        selectedCategories,
+        imageFilter,
+        sortBy,
+      });
+    }
+  }, [selectedCategories, imageFilter, sortBy]); // Include dependencies to avoid warning
+
   return {
     selectedCategories,
-    setSelectedCategories,
+    setSelectedCategories: setSelectedCategoriesPersistent,
     imageFilter,
-    setImageFilter,
+    setImageFilter: setImageFilterPersistent,
     sortBy,
-    setSortBy,
+    setSortBy: setSortByPersistent,
+    clearAllFilters,
     filteredInventory: filteredInventory,
   };
 }

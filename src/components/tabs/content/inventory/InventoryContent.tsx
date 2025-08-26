@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Plus,
   List,
@@ -13,12 +13,12 @@ import {
 } from 'lucide-react';
 import Button from '@/components/common/dropdowns/Button';
 import { TRANSLATIONS } from '@/config/translations';
-import { AddItemFormState } from '@/types/inventory';
+
 import { InventoryItem } from '@/types/inventory';
 import { CATEGORY_OPTIONS } from './InventoryConstants';
 import { useInventory } from './useInventory';
 import { useUser } from '@/context/UserContext';
-import { usePopper } from 'react-popper';
+
 import { useInventoryModals, useInventorySearch, useInventoryFilter } from './hooks';
 import InventoryTable from './InventoryTable';
 import InventoryGrid from './InventoryGrid';
@@ -30,7 +30,7 @@ import AIVisualSearchModal from './AIVisualSearchModal';
 import SecureTrainingModal from './SecureTrainingModal';
 
 const InventoryContent: React.FC = () => {
-  const { sessionToken, currentUser } = useUser();
+  const { currentUser } = useUser();
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const {
     inventory,
@@ -94,11 +94,11 @@ const InventoryContent: React.FC = () => {
     setImageFilter,
     sortBy,
     setSortBy,
+    clearAllFilters,
     filteredInventory: filteredRegularInventory,
   } = useInventoryFilter(inventory);
 
   // Determine which data to display based on search state
-  const displayInventory = searchQuery.trim() ? searchResults : filteredRegularInventory;
   const displayLoading = searchQuery.trim() ? isSearching : loading;
   const displayLoadingMore = searchQuery.trim() ? searchLoadingMore : loadingMore;
   const displayHasMore = searchQuery.trim() ? searchHasMore : hasMore;
@@ -116,16 +116,28 @@ const InventoryContent: React.FC = () => {
     loadMore(filters);
   }, [selectedCategories, imageFilter, sortBy, loadMore]);
 
-  // Create a search function that includes current sort
+  // Create a search function that includes current sort and filters
   const handleSearchWithSort = useCallback(
     (query: string) => {
-      handleSearch(query, sortBy);
+      const filters = {
+        categories: selectedCategories,
+        imageFilter: imageFilter,
+      };
+      handleSearch(query, sortBy, filters);
     },
-    [handleSearch, sortBy]
+    [handleSearch, sortBy, selectedCategories, imageFilter]
   );
 
   // Update displayLoadMore to use the filtered version
-  const displayLoadMore = searchQuery.trim() ? () => searchLoadMore(sortBy) : loadMoreWithFilters;
+  const displayLoadMore = searchQuery.trim()
+    ? () => {
+        const filters = {
+          categories: selectedCategories,
+          imageFilter: imageFilter,
+        };
+        searchLoadMore(sortBy, filters);
+      }
+    : loadMoreWithFilters;
 
   // Refresh inventory when filters change
   useEffect(() => {
@@ -176,21 +188,38 @@ const InventoryContent: React.FC = () => {
     }
   }, [sortBy, searchQuery, handleSearchWithSort]);
 
+  // Check if any filters are active
+  const hasActiveFilters =
+    selectedCategories.length > 0 || imageFilter.hasImage !== 'all' || sortBy !== 'none';
+
+  // Get filter indicator text
+  const getFilterIndicatorText = () => {
+    const indicators = [];
+
+    if (selectedCategories.length > 0) {
+      indicators.push(`${selectedCategories.length} danh mục`);
+    }
+
+    if (imageFilter.hasImage === 'with_image') {
+      indicators.push('có ảnh');
+    } else if (imageFilter.hasImage === 'without_image') {
+      indicators.push('không ảnh');
+    }
+
+    if (sortBy === 'oldest') {
+      indicators.push('cũ nhất');
+    } else if (sortBy === 'newest') {
+      indicators.push('mới nhất');
+    }
+
+    return indicators.join(', ');
+  };
+
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [secureTrainingModalOpen, setSecureTrainingModalOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
-  const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
-  const [referenceElement, setReferenceElement] = useState<HTMLButtonElement | null>(null);
-  const { styles, attributes, update } = usePopper(referenceElement, popperElement, {
-    placement: 'bottom-end',
-    modifiers: [
-      { name: 'preventOverflow', options: { padding: 8 } },
-      { name: 'flip', options: { fallbackPlacements: ['top-end', 'bottom-end'] } },
-    ],
-  });
 
   // Intersection Observer for infinite scrolling
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -402,13 +431,35 @@ const InventoryContent: React.FC = () => {
 
         {/* Filter Toggle Button */}
         <Button
-          variant={showFilter ? 'primary' : 'secondary'}
-          className="p-2 border-blue-500 text-blue-400 hover:bg-blue-900/30 hover:text-blue-300 focus:ring-2 focus:ring-blue-500 border w-full sm:w-auto"
-          title="Hiển thị/Ẩn bộ lọc"
+          variant={showFilter ? 'primary' : hasActiveFilters ? 'primary' : 'secondary'}
+          className={`p-2 border-blue-500 text-blue-400 hover:bg-blue-900/30 hover:text-blue-300 focus:ring-2 focus:ring-blue-500 border w-full sm:w-auto relative transition-all duration-200 ${
+            hasActiveFilters && !showFilter
+              ? 'bg-blue-900/30 border-blue-400 shadow-lg shadow-blue-500/20'
+              : ''
+          }`}
+          title={hasActiveFilters ? `Bộ lọc: ${getFilterIndicatorText()}` : 'Hiển thị/Ẩn bộ lọc'}
           onClick={() => setShowFilter((v) => !v)}
         >
-          <SlidersHorizontal className="w-5 h-5" />
+          <SlidersHorizontal
+            className={`w-5 h-5 transition-transform duration-200 ${hasActiveFilters && !showFilter ? 'scale-110' : ''}`}
+          />
           <span className="ml-2 sm:hidden">Bộ lọc</span>
+
+          {/* Active filter indicator dot */}
+          {hasActiveFilters && !showFilter && (
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-400 rounded-full flex items-center justify-center animate-pulse">
+              <div className="w-1.5 h-1.5 bg-blue-900 rounded-full"></div>
+            </div>
+          )}
+
+          {/* Filter count badge for desktop */}
+          {hasActiveFilters && !showFilter && (
+            <div className="hidden sm:block absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-400 text-blue-900 text-xs font-bold rounded-full flex items-center justify-center px-1 shadow-lg">
+              {selectedCategories.length +
+                (imageFilter.hasImage !== 'all' ? 1 : 0) +
+                (sortBy !== 'none' ? 1 : 0)}
+            </div>
+          )}
         </Button>
 
         {/* Add Item Button */}
@@ -484,6 +535,7 @@ const InventoryContent: React.FC = () => {
                 setImageFilter={setImageFilter}
                 sortBy={sortBy}
                 setSortBy={setSortBy}
+                clearAllFilters={clearAllFilters}
               />
             </div>
           </div>
@@ -505,6 +557,7 @@ const InventoryContent: React.FC = () => {
               setImageFilter={setImageFilter}
               sortBy={sortBy}
               setSortBy={setSortBy}
+              clearAllFilters={clearAllFilters}
             />
           </div>
         )}

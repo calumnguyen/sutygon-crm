@@ -88,6 +88,12 @@ export function useInventory() {
           if (filters?.sortBy && filters.sortBy !== 'none') {
             params.append('sortBy', filters.sortBy);
           }
+        } else {
+          // Add sort filter to main inventory endpoint
+          if (filters?.sortBy && filters.sortBy !== 'none') {
+            params.append('sortBy', filters.sortBy);
+            console.log('🎯 Sending sortBy to main inventory endpoint:', filters.sortBy);
+          }
         }
 
         const response = await fetch(`${endpoint}?${params.toString()}`, {
@@ -136,7 +142,12 @@ export function useInventory() {
   );
 
   const refreshInventory = useCallback(
-    async (filters?: { categories?: string[]; tags?: string[] }) => {
+    async (filters?: {
+      categories?: string[];
+      tags?: string[];
+      imageFilter?: { hasImage: 'all' | 'with_image' | 'without_image' };
+      sortBy?: 'newest' | 'oldest' | 'none';
+    }) => {
       setIsRefreshing(true);
       setFetchError(null);
 
@@ -154,7 +165,12 @@ export function useInventory() {
   );
 
   const loadMore = useCallback(
-    async (filters?: { categories?: string[]; tags?: string[] }) => {
+    async (filters?: {
+      categories?: string[];
+      tags?: string[];
+      imageFilter?: { hasImage: 'all' | 'with_image' | 'without_image' };
+      sortBy?: 'newest' | 'oldest' | 'none';
+    }) => {
       if (!loadingMore && hasMore && !isFetchingRef.current) {
         await fetchInventory(page + 1, true, filters);
       }

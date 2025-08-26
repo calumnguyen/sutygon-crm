@@ -7,7 +7,7 @@ import {
   inventoryTags,
   categoryCounters,
 } from '@/lib/db/schema';
-import { eq, inArray, sql, desc } from 'drizzle-orm';
+import { eq, inArray, sql, desc, asc } from 'drizzle-orm';
 import {
   encryptInventoryData,
   decryptInventoryData,
@@ -64,15 +64,28 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
   const limit = parseInt(searchParams.get('limit') || '10');
   const offset = parseInt(searchParams.get('offset') || '0');
   const page = parseInt(searchParams.get('page') || '1');
+  const sortBy = searchParams.get('sortBy') || 'newest'; // Default to newest first
 
   try {
-    // Get items with pagination, sorted by newest first
+    // Get items with pagination, sorted according to sortBy parameter
     const items = await db
       .select()
       .from(inventoryItems)
-      .orderBy(desc(inventoryItems.createdAt))
+      .orderBy(sortBy === 'oldest' ? asc(inventoryItems.createdAt) : desc(inventoryItems.createdAt))
       .limit(limit)
       .offset(offset);
+
+    console.log(`🔍 Main inventory route - sortBy: ${sortBy}, items count: ${items.length}`);
+    if (items.length > 0) {
+      console.log(
+        '🔍 First 3 items from main inventory route:',
+        items.slice(0, 3).map((item) => ({
+          id: item.id,
+          createdAt: item.createdAt,
+          categoryCounter: item.categoryCounter,
+        }))
+      );
+    }
 
     if (!items.length) {
       return NextResponse.json({ items: [], hasMore: false, total: 0 });

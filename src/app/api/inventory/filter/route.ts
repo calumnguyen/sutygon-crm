@@ -4,7 +4,7 @@ import { AuthenticatedRequest } from '@/lib/utils/authMiddleware';
 import { typesenseService } from '@/lib/typesense';
 import { db } from '@/lib/db';
 import { inventoryItems, inventorySizes, inventoryTags, tags } from '@/lib/db/schema';
-import { inArray, and, sql } from 'drizzle-orm';
+import { inArray, and, sql, asc } from 'drizzle-orm';
 import {
   decryptInventoryData,
   decryptInventorySizeData,
@@ -100,14 +100,15 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
         }
       }
 
-      // Get ALL items matching the filter conditions
+      // Get ALL items matching the filter conditions, ordered by createdAt ascending for oldest sorting
       if (whereConditions.length > 0) {
         items = await db
           .select()
           .from(inventoryItems)
-          .where(and(...whereConditions));
+          .where(and(...whereConditions))
+          .orderBy(asc(inventoryItems.createdAt));
       } else {
-        items = await db.select().from(inventoryItems);
+        items = await db.select().from(inventoryItems).orderBy(asc(inventoryItems.createdAt));
       }
       total = items.length;
       useTypesenseOrder = false;
@@ -134,6 +135,18 @@ export const GET = withAuth(async (request: AuthenticatedRequest) => {
               }
             : null,
       });
+
+      // Debug: Log first few items to verify sorting
+      if (items.length > 0) {
+        console.log(
+          '🔍 First 3 items from database query:',
+          items.slice(0, 3).map((item) => ({
+            id: item.id,
+            createdAt: item.createdAt,
+            categoryCounter: item.categoryCounter,
+          }))
+        );
+      }
     } else {
       // Use Typesense for other sorting options (newest first, default)
       console.log('🔄 Using Typesense for sorting:', sortBy);
