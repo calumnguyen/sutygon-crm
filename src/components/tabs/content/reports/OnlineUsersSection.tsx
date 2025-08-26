@@ -1,27 +1,29 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Users,
+  Wifi,
   WifiOff,
-  Shield,
-  Monitor,
-  MapPin,
-  Smartphone,
-  Tablet,
-  Globe,
-  Laptop,
-  Sun,
-  Moon,
   Cloud,
   CloudRain,
-  Wind,
   Droplets,
-  Clock,
-  Wifi,
+  Wind,
   Activity,
+  MapPin,
+  Globe,
+  Smartphone,
+  Monitor,
+  Clock,
+  Sun,
+  Moon,
+  Tablet,
+  Laptop,
+  Shield,
 } from 'lucide-react';
 import { useOnlineUsers, OnlineUser } from '@/hooks/useOnlineUsers';
 import latencyTracker from '@/lib/utils/latencyTracker';
+import webrtcNetworkDetector, { NetworkInfo } from '@/lib/utils/webrtcNetworkDetection';
+import weatherService, { WeatherData } from '@/lib/utils/weatherService';
 
 interface OnlineUsersSectionProps {
   currentUser: OnlineUser | null;
@@ -41,139 +43,102 @@ interface UserLatencyData {
   lastUpdated: string;
 }
 
-interface NetworkInfo {
-  type: string;
-  effectiveType: string;
-  downlink: number;
-  rtt: number;
-  saveData: boolean;
-}
-
-const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) => {
+const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ currentUser }) => {
   const { onlineUsers, isConnected } = useOnlineUsers(currentUser);
   const [latencyData, setLatencyData] = useState<Map<string, UserLatencyData>>(new Map());
   const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
 
+  // Memoize onlineUsers to prevent unnecessary re-renders
+  const stableOnlineUsers = useMemo(() => onlineUsers, [onlineUsers.map((u) => u.id).join(',')]);
+  const stableIsConnected = useMemo(() => isConnected, [isConnected]);
+
   // Get network information
   useEffect(() => {
-    const getNetworkInfo = () => {
-      // Enhanced network detection using multiple methods
-      const detectNetworkType = () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const connection = (navigator as any).connection;
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          navigator.userAgent
+    let isMounted = true;
+    let detectionInProgress = false;
+    let retryCount = 0;
+    const maxRetries = 1; // Reduced retries to prevent conflicts
+
+    const getNetworkInfo = async () => {
+      // Prevent multiple simultaneous detections
+      if (detectionInProgress) {
+        console.log('🔄 Network detection already in progress, skipping...');
+        return;
+      }
+
+      detectionInProgress = true;
+
+      try {
+        console.log(
+          `🔍 Starting network detection (attempt ${retryCount + 1}/${maxRetries + 1})...`
         );
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const isAndroid = /Android/.test(navigator.userAgent);
 
-        // Get connection details
-        const downlink = connection?.downlink || 0;
-        const rtt = connection?.rtt || 0;
-        const effectiveType = connection?.effectiveType || 'unknown';
-        const saveData = connection?.saveData || false;
+        // Use WebRTC network detection with timeout
+        const networkInfo = await Promise.race([
+          webrtcNetworkDetector.detectNetwork(),
+          new Promise<NetworkInfo>((_, reject) =>
+            setTimeout(() => reject(new Error('Network detection timeout')), 15000)
+          ),
+        ]);
 
-        // Enhanced hotspot detection
-        const isLikelyHotspot = () => {
-          // Only consider it a hotspot if it's very slow AND on mobile
-          if (!isMobile) return false;
+        if (isMounted) {
+          console.log('📊 Network detection result:', networkInfo);
+          setNetworkInfo(networkInfo);
+        }
+      } catch (error) {
+        console.error(`❌ Network detection failed (attempt ${retryCount + 1}):`, error);
 
-          // Very slow speed is a strong indicator
-          if (downlink < 1) return true;
+        // Retry logic
+        if (retryCount < maxRetries && isMounted) {
+          retryCount++;
+          console.log(`🔄 Retrying network detection (${retryCount}/${maxRetries})...`);
 
-          // Mobile device with very slow WiFi (likely tethering)
-          if (isMobile && connection?.type === 'wifi' && downlink < 2) return true;
-
-          // High RTT with very slow speed
-          if (rtt > 200 && downlink < 2) return true;
-
-          return false;
-        };
-
-        // Enhanced network type detection
-        const getDetailedNetworkType = () => {
-          // Personal Hotspot detection - only for very slow connections
-          if (isLikelyHotspot()) {
-            if (isIOS) return 'iPhone Hotspot';
-            if (isAndroid) return 'Android Hotspot';
-            return 'Personal Hotspot';
-          }
-
-          // WiFi detection - most common case
-          if (connection?.type === 'wifi') {
-            if (downlink >= 100) return 'WiFi (Fast)';
-            if (downlink >= 50) return 'WiFi (Good)';
-            if (downlink >= 20) return 'WiFi (Normal)';
-            if (downlink >= 10) return 'WiFi (Slow)';
-            return 'WiFi (Very Slow)';
-          }
-
-          // Cellular detection
-          if (connection?.type === 'cellular') {
-            switch (effectiveType) {
-              case '5g':
-                return '5G';
-              case '4g':
-                return '4G';
-              case '3g':
-                return '3G';
-              case '2g':
-              case 'slow-2g':
-                return '2G';
-              default:
-                return 'Cellular';
+          // Wait a bit before retrying
+          setTimeout(() => {
+            if (isMounted) {
+              detectionInProgress = false;
+              getNetworkInfo();
             }
-          }
+          }, 3000); // 3 second delay
 
-          // Fallback detection based on speed and device
-          if (isMobile) {
-            if (downlink < 5) return 'Mobile Data (Slow)';
-            if (downlink < 20) return 'Mobile Data (Normal)';
-            return 'Mobile Data (Fast)';
-          }
+          return;
+        }
 
-          // Desktop/laptop detection
-          if (downlink < 10) return 'Internet (Slow)';
-          if (downlink < 50) return 'Internet (Normal)';
-          return 'Internet (Fast)';
-        };
-
-        const networkType = getDetailedNetworkType();
-
-        setNetworkInfo({
-          type: connection?.type || 'unknown',
-          effectiveType: effectiveType,
-          downlink: downlink,
-          rtt: rtt,
-          saveData: saveData,
-        });
-
-        // Store the detailed network type for display
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (window as any).detailedNetworkType = networkType;
-      };
-
-      detectNetworkType();
+        if (isMounted) {
+          // Final fallback to basic network info
+          console.log('🔄 Using fallback network detection');
+          setNetworkInfo({
+            type: 'Unknown',
+            latency: 0,
+            bandwidth: 0,
+            localIPs: [],
+            publicIPs: [],
+            connectionQuality: 'fair',
+            method: 'fallback',
+          });
+        }
+      } finally {
+        if (retryCount >= maxRetries) {
+          detectionInProgress = false;
+        }
+      }
     };
 
-    getNetworkInfo();
-
-    // Listen for network changes
-    if ('connection' in navigator) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const connection = (navigator as any).connection;
-      if (connection) {
-        connection.addEventListener('change', getNetworkInfo);
-        return () => connection.removeEventListener('change', getNetworkInfo);
+    // Add a small delay before starting detection to prevent immediate conflicts
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        getNetworkInfo();
       }
-    }
-  }, []);
+    }, 1000);
 
-  // Separate admins and regular users
-  const admins = onlineUsers.filter((user) => user.role === 'admin');
-  const regularUsers = onlineUsers.filter((user) => user.role === 'user');
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, []); // Empty dependency array to run only once
 
-  // Initialize latency tracking
+  // Initialize latency tracking - only run once
   useEffect(() => {
     // Set current user for latency tracking
     if (currentUser) {
@@ -193,22 +158,15 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
       });
     });
 
-    // Start tracking all online users
-    onlineUsers.forEach((user) => {
-      latencyTracker.startTrackingUser(user.id);
-    });
-
     // Cleanup on unmount
     return () => {
-      onlineUsers.forEach((user) => {
-        latencyTracker.stopTrackingUser(user.id);
-      });
+      // Cleanup will be handled by the tracker itself
     };
-  }, [onlineUsers, currentUser]);
+  }, [currentUser]); // Only depend on currentUser, not onlineUsers
 
-  // Update tracking when users change
+  // Update tracking when users change - separate effect for user management
   useEffect(() => {
-    const currentUserIds = new Set(onlineUsers.map((u) => u.id));
+    const currentUserIds = new Set(stableOnlineUsers.map((u) => u.id));
     const trackedUserIds = new Set(Array.from(latencyData.keys()));
 
     // Stop tracking users who are no longer online
@@ -229,405 +187,286 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
         latencyTracker.startTrackingUser(userId);
       }
     });
-  }, [onlineUsers, latencyData]);
+  }, [stableOnlineUsers]); // Only depend on stableOnlineUsers, not latencyData
+
+  // Separate admins and regular users
+  const admins = stableOnlineUsers.filter((user) => user.role === 'admin');
+  const regularUsers = stableOnlineUsers.filter((user) => user.role === 'user');
+
+  // Memoize user objects to prevent unnecessary re-renders
+  const memoizedAdmins = useMemo(() => admins, [admins.map((u) => u.id).join(',')]);
+  const memoizedRegularUsers = useMemo(
+    () => regularUsers,
+    [regularUsers.map((u) => u.id).join(',')]
+  );
+
+  // Helper functions
+  const getNetworkIcon = (networkInfo: NetworkInfo | null) => {
+    if (!networkInfo) return <Wifi className="w-4 h-4 text-gray-400" />;
+
+    switch (networkInfo.type) {
+      case 'WiFi':
+        return <Wifi className="w-4 h-4 text-green-400" />;
+      case 'Ethernet':
+        return <Activity className="w-4 h-4 text-blue-400" />;
+      case 'Cellular':
+        return <Smartphone className="w-4 h-4 text-yellow-400" />;
+      default:
+        return <Wifi className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getNetworkTypeWithDetails = (networkInfo: NetworkInfo | null) => {
+    if (!networkInfo) return 'Unknown';
+    return webrtcNetworkDetector.getNetworkTypeString(networkInfo);
+  };
+
+  const getNetworkDetails = (networkInfo: NetworkInfo | null) => {
+    if (!networkInfo) return 'No data';
+
+    const details = [];
+    if (networkInfo.latency > 0) {
+      details.push(`${networkInfo.latency}ms`);
+    }
+    if (networkInfo.bandwidth > 0) {
+      details.push(`${Math.round(networkInfo.bandwidth / 1000)}Mbps`);
+    }
+
+    return details.length > 0 ? details.join(' • ') : 'No data';
+  };
 
   const getDeviceIcon = (deviceType: string) => {
-    const deviceLower = deviceType.toLowerCase();
-
-    // Mobile devices
-    if (
-      deviceLower.includes('iphone') ||
-      deviceLower.includes('android') ||
-      deviceLower.includes('mobile')
-    ) {
-      return <Smartphone className="w-4 h-4" />;
-    }
-
-    // Tablet devices
-    if (deviceLower.includes('ipad') || deviceLower.includes('tablet')) {
-      return <Tablet className="w-4 h-4" />;
-    }
-
-    // Laptop devices
-    if (
-      deviceLower.includes('macbook') ||
-      deviceLower.includes('laptop') ||
-      deviceLower.includes('surface')
-    ) {
-      return <Laptop className="w-4 h-4" />;
-    }
-
-    // Desktop devices
-    if (
-      deviceLower.includes('mac') ||
-      deviceLower.includes('pc') ||
-      deviceLower.includes('desktop')
-    ) {
-      return <Monitor className="w-4 h-4" />;
-    }
-
-    // Default fallback
-    return <Monitor className="w-4 h-4" />;
-  };
-
-  const getWeatherIcon = (condition: string) => {
-    switch (condition) {
-      case 'sunny':
-      case 'clear':
-        return <Sun className="w-4 h-4 text-yellow-400" />;
-      case 'cloudy':
-      case 'clouds':
-        return <Cloud className="w-4 h-4 text-gray-400" />;
-      case 'partly-cloudy':
-        return <Cloud className="w-4 h-4 text-blue-400" />;
-      case 'rainy':
-      case 'rain':
-        return <CloudRain className="w-4 h-4 text-blue-500" />;
-      case 'windy':
-      case 'wind':
-        return <Wind className="w-4 h-4 text-gray-400" />;
+    switch (deviceType.toLowerCase()) {
+      case 'mobile':
+        return <Smartphone className="w-4 h-4" />;
+      case 'tablet':
+        return <Tablet className="w-4 h-4" />;
+      case 'laptop':
+        return <Laptop className="w-4 h-4" />;
       default:
-        return <Sun className="w-4 h-4 text-yellow-400" />;
+        return <Monitor className="w-4 h-4" />;
     }
   };
 
-  const getDayNightIcon = () => {
-    // Simulate different time zones based on location
-    // In a real app, you'd get the actual timezone for each user's location
-    const hour = new Date().getHours();
-    const isDay = hour >= 6 && hour < 18;
-
-    return isDay ? (
-      <Sun className="w-3 h-3 text-yellow-400" />
-    ) : (
-      <Moon className="w-3 h-3 text-blue-400" />
-    );
-  };
-
-  const getLocalTime = (location: string): string => {
-    const now = new Date();
-    const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
-    let timezoneOffset = 0;
-
-    // Enhanced timezone detection for more locations
-    if (
-      location.includes('Vietnam') ||
-      location.includes('Ho Chi Minh') ||
-      location.includes('Hanoi') ||
-      location.includes('Da Nang')
-    ) {
-      timezoneOffset = 7;
-    } else if (location.includes('Japan') || location.includes('Tokyo')) {
-      timezoneOffset = 9;
-    } else if (location.includes('Singapore') || location.includes('Malaysia')) {
-      timezoneOffset = 8;
-    } else if (location.includes('Thailand') || location.includes('Bangkok')) {
-      timezoneOffset = 7;
-    } else if (
-      location.includes('Los Angeles') ||
-      location.includes('California') ||
-      location.includes('Huntington Beach') ||
-      location.includes('Orange County')
-    ) {
-      timezoneOffset = -7; // UTC-7 (PDT) - Pacific Daylight Time
-    } else if (location.includes('New York') || location.includes('USA')) {
-      timezoneOffset = -5;
-    } else if (location.includes('UK') || location.includes('London')) {
-      timezoneOffset = 0;
-    } else if (location.includes('Australia') || location.includes('Sydney')) {
-      timezoneOffset = 10;
-    } else {
-      timezoneOffset = 7; // Default to Vietnam timezone
-    }
-
-    const userTime = new Date(utcTime + timezoneOffset * 60 * 60 * 1000);
-    return userTime.toLocaleTimeString('vi-VN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
-
-  const getMockWeatherData = (userLocation: string): UserWeatherData => {
-    // Simulate different weather based on location
-    // In a real app, you'd fetch actual weather data for each user's location
-    const weatherConditions = [
-      { condition: 'sunny', description: 'Nắng', temperature: 28, humidity: 60, windSpeed: 8 },
-      {
-        condition: 'partly-cloudy',
-        description: 'Nhiều mây',
-        temperature: 24,
-        humidity: 65,
-        windSpeed: 12,
-      },
-      { condition: 'cloudy', description: 'U ám', temperature: 22, humidity: 70, windSpeed: 15 },
-      { condition: 'rainy', description: 'Mưa', temperature: 20, humidity: 85, windSpeed: 20 },
-    ];
-
-    // Use location to determine weather (simple hash for demo)
-    const locationHash = userLocation.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-    const weatherIndex = locationHash % weatherConditions.length;
-
-    return weatherConditions[weatherIndex];
-  };
-
-  const getLatencyColor = (quality: string) => {
-    switch (quality) {
-      case 'excellent':
-        return 'text-green-400';
-      case 'good':
-        return 'text-blue-400';
-      case 'fair':
-        return 'text-yellow-400';
-      case 'poor':
-        return 'text-red-400';
-      default:
-        return 'text-gray-400';
+  const getLocalTime = (timezone: string) => {
+    try {
+      return new Date().toLocaleTimeString('vi-VN', {
+        timeZone: timezone,
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return new Date().toLocaleTimeString('vi-VN', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     }
   };
 
-  const getLatencyIcon = (quality: string) => {
-    switch (quality) {
-      case 'excellent':
-        return <Wifi className="w-3 h-3 text-green-400" />;
-      case 'good':
-        return <Wifi className="w-3 h-3 text-blue-400" />;
-      case 'fair':
-        return <Wifi className="w-3 h-3 text-yellow-400" />;
-      case 'poor':
-        return <Wifi className="w-3 h-3 text-red-400" />;
-      default:
-        return <Wifi className="w-3 h-3 text-gray-400" />;
-    }
-  };
+  // Weather cache and constants
+  const weatherCache = useRef<
+    Map<
+      string,
+      { data: WeatherData | null; timestamp: number; failed?: boolean; attempts?: number }
+    >
+  >(new Map());
+  const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+  const MAX_RETRY_ATTEMPTS = 3;
 
-  const getNetworkTypeText = (type: string, effectiveType: string): string => {
-    switch (type) {
-      case 'wifi':
-        return 'WiFi';
-      case 'cellular':
-        switch (effectiveType) {
-          case 'slow-2g':
-            return '2G';
-          case '2g':
-            return '2G';
-          case '3g':
-            return '3G';
-          case '4g':
-            return '4G';
-          case '5g':
-            return '5G';
-          default:
-            return 'Cellular';
+  // UserCard component with weather integration
+  const UserCard: React.FC<{ user: OnlineUser }> = React.memo(({ user }) => {
+    const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const weatherInitialized = useRef(false);
+
+    // Get weather data - using the same stable pattern as WebRTC
+    useEffect(() => {
+      let isMounted = true;
+      let fetchInProgress = false;
+
+      const fetchWeather = async () => {
+        if (!user.location || user.location === 'Unknown') {
+          return;
         }
-      case 'none':
-        return 'Offline';
-      default:
-        return 'Unknown';
-    }
-  };
 
-  const getNetworkIcon = (type: string) => {
-    switch (type) {
-      case 'wifi':
-        return <Wifi className="w-4 h-4 text-blue-400" />;
-      case 'cellular':
-        return <Smartphone className="w-4 h-4 text-green-400" />;
-      default:
-        return <Globe className="w-4 h-4 text-gray-400" />;
-    }
-  };
+        // Prevent multiple simultaneous fetches
+        if (fetchInProgress) {
+          console.log('🔄 Weather fetch already in progress, skipping...');
+          return;
+        }
 
-  const getNetworkDetails = (networkInfo: NetworkInfo): string => {
-    if (networkInfo.downlink > 0) {
-      if (networkInfo.downlink >= 100) {
-        return `Tốc độ: ${(networkInfo.downlink / 1000).toFixed(1)} Gbps`;
-      } else if (networkInfo.downlink >= 1) {
-        return `Tốc độ: ${networkInfo.downlink.toFixed(1)} Mbps`;
+        fetchInProgress = true;
+
+        try {
+          // Check cache first
+          const cached = weatherCache.current.get(user.location);
+          if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+            if (isMounted) {
+              setWeatherData(cached.data);
+              weatherInitialized.current = true;
+            }
+            return;
+          }
+
+          // If we've failed max retries, show cached data or nothing
+          if (cached && cached.failed && cached.attempts && cached.attempts >= MAX_RETRY_ATTEMPTS) {
+            if (isMounted) {
+              setWeatherData(cached.data);
+              weatherInitialized.current = true;
+            }
+            return;
+          }
+
+          // Only show loading if we haven't initialized yet
+          if (isMounted && !weatherInitialized.current) {
+            setIsLoading(true);
+          }
+
+          const weather = await weatherService.getWeatherByCity(user.location);
+
+          if (isMounted) {
+            setWeatherData(weather);
+            setIsLoading(false);
+            weatherInitialized.current = true;
+
+            // Cache the successful result
+            weatherCache.current.set(user.location, {
+              data: weather,
+              timestamp: Date.now(),
+              failed: false,
+              attempts: 0,
+            });
+            console.log('✅ Weather data cached successfully for:', user.location);
+          }
+        } catch (error) {
+          console.error('❌ Error fetching weather:', error);
+
+          // Update cache with failure
+          const cached = weatherCache.current.get(user.location);
+          const attempts = (cached?.attempts || 0) + 1;
+          weatherCache.current.set(user.location, {
+            data: cached?.data || null,
+            timestamp: Date.now(),
+            failed: true,
+            attempts,
+          });
+
+          if (isMounted) {
+            setIsLoading(false);
+            weatherInitialized.current = true;
+          }
+        } finally {
+          fetchInProgress = false;
+        }
+      };
+
+      // Add a small delay before starting fetch to prevent immediate conflicts
+      const timeoutId = setTimeout(() => {
+        if (isMounted) {
+          fetchWeather();
+        }
+      }, 500);
+
+      // Cleanup function
+      return () => {
+        isMounted = false;
+        clearTimeout(timeoutId);
+      };
+    }, []); // Empty dependency array to run only once
+
+    const getWeatherIcon = (condition: string) => {
+      const conditionLower = condition.toLowerCase();
+      if (conditionLower.includes('rain') || conditionLower.includes('drizzle')) {
+        return <CloudRain className="w-4 h-4" />;
+      } else if (conditionLower.includes('cloud')) {
+        return <Cloud className="w-4 h-4" />;
+      } else if (conditionLower.includes('clear')) {
+        return <Sun className="w-4 h-4" />;
       } else {
-        return `Tốc độ: ${(networkInfo.downlink * 1000).toFixed(0)} Kbps`;
+        return <Cloud className="w-4 h-4" />;
       }
-    }
-    return '';
-  };
+    };
 
-  const getNetworkTypeWithDetails = (networkInfo: NetworkInfo): string => {
-    // Use the detailed network type if available
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const detailedType = (window as any).detailedNetworkType;
-    if (detailedType) {
-      return detailedType;
-    }
-
-    // Fallback to basic detection
-    const baseType = getNetworkTypeText(networkInfo.type, networkInfo.effectiveType);
-
-    // Only detect personal hotspot for very slow connections
-    if (networkInfo.type === 'wifi' && networkInfo.downlink < 2) {
-      return 'Personal Hotspot';
-    }
-
-    // Only detect mobile hotspot for very slow cellular
-    if (networkInfo.type === 'cellular' && networkInfo.downlink < 2) {
-      return 'Mobile Hotspot';
-    }
-
-    return baseType;
-  };
-
-  const UserCard = ({ user }: { user: OnlineUser }) => {
-    const weatherData = getMockWeatherData(user.location);
-    const localTime = getLocalTime(user.location);
-
-    // Calculate day/night based on user's local time
-    const now = new Date();
-    const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
-    let timezoneOffset = 0;
-
-    // Use the same timezone logic as getLocalTime
-    if (
-      user.location.includes('Vietnam') ||
-      user.location.includes('Ho Chi Minh') ||
-      user.location.includes('Hanoi') ||
-      user.location.includes('Da Nang')
-    ) {
-      timezoneOffset = 7;
-    } else if (user.location.includes('Japan') || user.location.includes('Tokyo')) {
-      timezoneOffset = 9;
-    } else if (user.location.includes('Singapore') || user.location.includes('Malaysia')) {
-      timezoneOffset = 8;
-    } else if (user.location.includes('Thailand') || user.location.includes('Bangkok')) {
-      timezoneOffset = 7;
-    } else if (
-      user.location.includes('Los Angeles') ||
-      user.location.includes('California') ||
-      user.location.includes('Huntington Beach') ||
-      user.location.includes('Orange County')
-    ) {
-      timezoneOffset = -7; // UTC-7 (PDT) - Pacific Daylight Time
-    } else if (user.location.includes('New York') || user.location.includes('USA')) {
-      timezoneOffset = -5;
-    } else if (user.location.includes('UK') || user.location.includes('London')) {
-      timezoneOffset = 0;
-    } else if (user.location.includes('Australia') || user.location.includes('Sydney')) {
-      timezoneOffset = 10;
-    } else {
-      timezoneOffset = 7;
-    }
-
-    const userTime = new Date(utcTime + timezoneOffset * 60 * 60 * 1000);
-    const isDayTime = userTime.getHours() >= 6 && userTime.getHours() < 18;
-
-    const userLatencyData = latencyData.get(user.id);
+    const getWeatherColor = (condition: string) => {
+      const conditionLower = condition.toLowerCase();
+      if (conditionLower.includes('rain') || conditionLower.includes('drizzle')) {
+        return 'text-blue-400';
+      } else if (conditionLower.includes('cloud')) {
+        return 'text-gray-400';
+      } else if (conditionLower.includes('clear')) {
+        return 'text-yellow-400';
+      } else {
+        return 'text-gray-400';
+      }
+    };
 
     return (
-      <div className="bg-gray-700 rounded-lg p-4 border-l-4 border-blue-500">
+      <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
         <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {user.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
+          <div className="flex items-center gap-2">
+            {getDeviceIcon(user.deviceType)}
             <div>
+              <h4 className="text-white font-medium text-sm">{user.name}</h4>
+              <p className="text-gray-400 text-xs">
+                {user.role === 'admin' ? 'Quản trị viên' : 'Người dùng'}
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-gray-300 text-xs">
+              {latencyData.get(user.id)?.ping ? `${latencyData.get(user.id)?.ping}ms` : 'N/A'}
+            </div>
+            <div className="text-gray-400 text-xs">
+              {latencyData.get(user.id)?.connectionQuality || 'Unknown'}
+            </div>
+          </div>
+        </div>
+
+        {/* Weather Section */}
+        {user.location && user.location !== 'Unknown' && (
+          <div className="mb-3 p-2 bg-gray-600 rounded">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h4 className="text-white font-medium text-sm">{user.name}</h4>
-                {user.role === 'admin' && <Shield className="w-4 h-4 text-yellow-400" />}
+                {isLoading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                ) : weatherData ? (
+                  getWeatherIcon(weatherData.condition || 'Unknown')
+                ) : (
+                  <Cloud className="w-4 h-4 text-gray-400" />
+                )}
+                <span className="text-white text-sm">
+                  {isLoading
+                    ? 'Đang tải thời tiết...'
+                    : weatherData
+                      ? `${weatherData.temperature}°C`
+                      : 'Không có dữ liệu'}
+                </span>
               </div>
-              <div className="flex items-center gap-1 text-gray-400 text-xs mt-1">
-                {getDeviceIcon(user.deviceType)}
-                <span>{user.deviceType}</span>
-              </div>
-            </div>
-          </div>
-          <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0" />
-        </div>
-
-        {/* Time and Day/Night Status */}
-        <div className="mb-3">
-          <div className="text-gray-400 text-xs mb-1 font-medium">Thời gian & Trạng thái</div>
-          <div className="flex items-center justify-between p-2 bg-gray-600 rounded">
-            <div className="flex items-center gap-2">
-              <Clock className="w-3 h-3 text-gray-400" />
-              <span className="text-white text-sm font-mono">{localTime}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              {getDayNightIcon()}
-              <span className="text-gray-400 text-xs">{isDayTime ? 'Ban ngày' : 'Ban đêm'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Weather Information */}
-        <div className="mb-3">
-          <div className="text-gray-400 text-xs mb-1 font-medium">Thời tiết hiện tại</div>
-          <div className="flex items-center justify-between p-2 bg-gray-600 rounded">
-            <div className="flex items-center gap-2">
-              {getWeatherIcon(weatherData.condition)}
-              <div>
-                <div className="text-white text-sm font-medium">{weatherData.temperature}°C</div>
-                <div className="text-gray-400 text-xs">{weatherData.description}</div>
-              </div>
-            </div>
-            <div className="text-right space-y-1">
-              <div className="flex items-center gap-1">
-                <Droplets className="w-3 h-3 text-blue-400" />
-                <span className="text-gray-300 text-xs">Độ ẩm: {weatherData.humidity}%</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Wind className="w-3 h-3 text-gray-400" />
-                <span className="text-gray-300 text-xs">Gió: {weatherData.windSpeed} km/h</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Connection Latency */}
-        <div className="mb-3">
-          <div className="text-gray-400 text-xs mb-1 font-medium">Chất lượng kết nối</div>
-          <div className="flex items-center justify-between p-2 bg-gray-600 rounded">
-            <div className="flex items-center gap-2">
-              <Activity className="w-3 h-3 text-gray-400" />
-              <span className="text-white text-sm font-mono">
-                {userLatencyData ? `${userLatencyData.ping}ms` : '--ms'}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              {userLatencyData ? (
-                <>
-                  {getLatencyIcon(userLatencyData.connectionQuality)}
-                  <span className={`text-xs ${getLatencyColor(userLatencyData.connectionQuality)}`}>
-                    {userLatencyData.connectionQuality === 'excellent'
-                      ? 'Tuyệt vời'
-                      : userLatencyData.connectionQuality === 'good'
-                        ? 'Tốt'
-                        : userLatencyData.connectionQuality === 'fair'
-                          ? 'Khá'
-                          : 'Kém'}
-                  </span>
-                </>
-              ) : (
-                <span className="text-gray-400 text-xs">Đang đo...</span>
+              {weatherData && (
+                <div className={`text-xs ${getWeatherColor(weatherData.condition || 'Unknown')}`}>
+                  {weatherData.description || 'Unknown'}
+                </div>
               )}
             </div>
           </div>
+        )}
 
-          {/* Network Type */}
-          {networkInfo && (
+        {/* Network Information */}
+        {networkInfo && (
+          <div className="mb-3">
             <div className="flex items-center justify-between p-2 bg-gray-600 rounded mt-2">
               <div className="flex items-center gap-2">
-                {getNetworkIcon(networkInfo.type)}
+                {getNetworkIcon(networkInfo)}
                 <span className="text-white text-sm">{getNetworkTypeWithDetails(networkInfo)}</span>
               </div>
               <div className="text-right">
                 <div className="text-gray-300 text-xs">{getNetworkDetails(networkInfo)}</div>
-                {networkInfo.saveData && (
-                  <div className="text-yellow-400 text-xs">Tiết kiệm dữ liệu</div>
-                )}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="space-y-1">
           <div className="flex items-center gap-1 text-gray-400 text-xs">
@@ -641,7 +480,9 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
         </div>
       </div>
     );
-  };
+  });
+
+  UserCard.displayName = 'UserCard';
 
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
@@ -651,14 +492,16 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
           <h3 className="text-lg font-medium text-white">Người dùng đang online</h3>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+          <div
+            className={`w-2 h-2 rounded-full ${stableIsConnected ? 'bg-green-400' : 'bg-red-400'}`}
+          />
           <span className="text-sm text-gray-400">
-            {isConnected ? 'Đã kết nối' : 'Đang kết nối...'}
+            {stableIsConnected ? 'Đã kết nối' : 'Đang kết nối...'}
           </span>
         </div>
       </div>
 
-      {onlineUsers.length === 0 ? (
+      {stableOnlineUsers.length === 0 ? (
         <div className="text-center py-12">
           <WifiOff className="w-12 h-12 text-gray-500 mx-auto mb-3" />
           <p className="text-gray-500 text-sm">Không có người dùng nào đang online</p>
@@ -666,14 +509,16 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
       ) : (
         <div className="space-y-6">
           {/* Admins Section */}
-          {admins.length > 0 && (
+          {memoizedAdmins.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Shield className="w-4 h-4 text-yellow-400" />
-                <h4 className="text-white font-medium text-sm">Quản trị viên ({admins.length})</h4>
+                <h4 className="text-white font-medium text-sm">
+                  Quản trị viên ({memoizedAdmins.length})
+                </h4>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {admins.map((user) => (
+                {memoizedAdmins.map((user) => (
                   <UserCard key={user.id} user={user} />
                 ))}
               </div>
@@ -681,16 +526,16 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
           )}
 
           {/* Regular Users Section */}
-          {regularUsers.length > 0 && (
+          {memoizedRegularUsers.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Users className="w-4 h-4 text-blue-400" />
                 <h4 className="text-white font-medium text-sm">
-                  Người dùng ({regularUsers.length})
+                  Người dùng ({memoizedRegularUsers.length})
                 </h4>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {regularUsers.map((user) => (
+                {memoizedRegularUsers.map((user) => (
                   <UserCard key={user.id} user={user} />
                 ))}
               </div>
@@ -702,7 +547,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
       <div className="mt-6 pt-4 border-t border-gray-700">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-400">Tổng số người online:</span>
-          <span className="text-white font-medium">{onlineUsers.length}</span>
+          <span className="text-white font-medium">{stableOnlineUsers.length}</span>
         </div>
         <div className="flex items-center justify-between text-sm mt-1">
           <span className="text-gray-400">Quản trị viên:</span>
@@ -715,6 +560,8 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
       </div>
     </div>
   );
-};
+});
+
+OnlineUsersSection.displayName = 'OnlineUsersSection';
 
 export default OnlineUsersSection;

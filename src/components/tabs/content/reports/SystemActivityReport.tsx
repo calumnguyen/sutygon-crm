@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import OnlineUsersSection from './OnlineUsersSection';
 import { useUser } from '@/context/UserContext';
 import { detectDeviceType, getLocationFromIP, getBrowserInfo } from '@/lib/utils/deviceDetection';
@@ -34,18 +34,27 @@ const SystemActivityReport: React.FC = () => {
     }
   }, []);
 
-  // Convert User type to OnlineUser type for the component
-  const onlineUser = currentUser
-    ? {
-        id: currentUser.id.toString(),
-        name: currentUser.name,
-        email: '', // Empty email since User type doesn't have email field
-        role: currentUser.role,
-        deviceType: deviceInfo.deviceType,
-        location: deviceInfo.location,
-        browser: deviceInfo.browser,
-      }
-    : null;
+  // Memoize the onlineUser object to prevent recreation on every render
+  const onlineUser = useMemo(() => {
+    if (!currentUser) return null;
+
+    return {
+      id: currentUser.id.toString(),
+      name: currentUser.name,
+      email: '', // Empty email since User type doesn't have email field
+      role: currentUser.role,
+      deviceType: deviceInfo.deviceType,
+      location: deviceInfo.location,
+      browser: deviceInfo.browser,
+    };
+  }, [
+    currentUser?.id,
+    currentUser?.name,
+    currentUser?.role,
+    deviceInfo.deviceType,
+    deviceInfo.location,
+    deviceInfo.browser,
+  ]);
 
   return (
     <div className="h-full bg-gray-900">

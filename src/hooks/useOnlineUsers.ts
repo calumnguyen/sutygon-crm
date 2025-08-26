@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { pusherClient } from '@/lib/pusher';
 
 export interface OnlineUser {
@@ -173,7 +173,16 @@ export const useOnlineUsers = (currentUser: OnlineUser | null) => {
 
       setupComplete.current = false;
     };
-  }, [currentUser?.id, currentUser?.name]); // Depend on both ID and name to ensure proper updates
+  }, [currentUser?.id]); // Only depend on ID, not name to prevent unnecessary re-runs
 
-  return { onlineUsers, isConnected };
+  // Memoize the return values to prevent unnecessary re-renders
+  const memoizedResult = useMemo(
+    () => ({
+      onlineUsers,
+      isConnected,
+    }),
+    [onlineUsers, isConnected]
+  );
+
+  return memoizedResult;
 };
