@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { inventoryItems, inventorySizes, inventoryTags, tags } from '@/lib/db/schema';
+import {
+  inventoryItems,
+  inventorySizes,
+  inventoryTags,
+  tags,
+  aiTrainingData,
+} from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import {
   encryptInventoryData,
@@ -249,28 +255,62 @@ export const PUT = withAuth(
 
 export const DELETE = withAuth(
   async (request: AuthenticatedRequest, { params }: { params: Promise<{ id: string }> }) => {
-    try {
-      const { id } = await params;
-      const itemId = parseInt(id, 10);
-      if (isNaN(itemId)) {
-        return NextResponse.json({ error: 'Invalid item ID' }, { status: 400 });
-      }
+    const { id } = await params;
+    const itemId = parseInt(id, 10);
+    const requestId = `inv-delete-${itemId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
 
+    console.log(`[${requestId}] 🗑️ Inventory item deletion started for item ID:`, itemId);
+
+    if (isNaN(itemId)) {
+      console.error(`[${requestId}] ❌ Invalid item ID:`, id);
+      return NextResponse.json({ error: 'Invalid item ID' }, { status: 400 });
+    }
+
+    try {
       // Delete related records first (foreign key constraints)
+      console.log(`[${requestId}] 🧹 Deleting AI training data...`);
+      await db.delete(aiTrainingData).where(eq(aiTrainingData.itemId, itemId));
+      console.log(`[${requestId}] ✅ AI training data deleted`);
+
+      console.log(`[${requestId}] 🏷️ Deleting inventory tags...`);
       await db.delete(inventoryTags).where(eq(inventoryTags.itemId, itemId));
+      console.log(`[${requestId}] ✅ Inventory tags deleted`);
+
+      console.log(`[${requestId}] 📏 Deleting inventory sizes...`);
       await db.delete(inventorySizes).where(eq(inventorySizes.itemId, itemId));
+      console.log(`[${requestId}] ✅ Inventory sizes deleted`);
 
       // Delete the inventory item
+      console.log(`[${requestId}] 📦 Deleting inventory item...`);
       await db.delete(inventoryItems).where(eq(inventoryItems.id, itemId));
+      console.log(`[${requestId}] ✅ Inventory item deleted`);
 
       // Sync to Typesense (async, don't wait)
       typesenseInventorySync.syncItemDelete(itemId).catch((error) => {
-        console.error('Typesense sync failed for deleted item:', error);
+        console.error(`[${requestId}] ❌ Typesense sync failed for deleted item:`, error);
       });
+
+      const duration = Date.now() - startTime;
+      console.log(
+        `[${requestId}] ✅ Inventory item deletion completed successfully in ${duration}ms`,
+        {
+          itemId,
+          duration,
+          timestamp: new Date().toISOString(),
+        }
+      );
 
       return NextResponse.json({ success: true });
     } catch (error) {
-      console.error('Delete inventory error:', error);
+      const duration = Date.now() - startTime;
+      console.error(`[${requestId}] ❌ Inventory item deletion failed after ${duration}ms:`, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        itemId,
+        duration,
+        timestamp: new Date().toISOString(),
+      });
       return NextResponse.json({ error: 'Failed to delete inventory item' }, { status: 500 });
     }
   }
