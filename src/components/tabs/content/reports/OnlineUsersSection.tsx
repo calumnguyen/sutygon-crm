@@ -149,7 +149,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = ({ currentUser }) 
         (window as any).detailedNetworkType = networkType;
       };
 
-      getNetworkInfo();
+      detectNetworkType();
     };
 
     getNetworkInfo();
