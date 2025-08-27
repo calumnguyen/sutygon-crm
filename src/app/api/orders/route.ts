@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
         const itemData = {
           orderId: createdOrder.id,
           inventoryItemId: item.inventoryItemId || null,
+          formattedId: item.formattedId || null,
           name: item.name,
           size: item.size,
           quantity: item.quantity,

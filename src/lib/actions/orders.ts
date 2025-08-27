@@ -77,17 +77,18 @@ export interface Order {
 export interface OrderItem {
   id: number;
   orderId: number;
-  inventoryItemId?: number | null;
-  formattedId?: string | null;
+  inventoryItemId: number | null;
+  formattedId: string | null;
   name: string;
   size: string;
   quantity: number;
   price: number;
   isExtension: boolean;
-  extraDays?: number | null;
-  feeType?: string | null;
-  percent?: number | null;
+  extraDays: number | null;
+  feeType: string | null;
+  percent: number | null;
   isCustom: boolean;
+  imageUrl?: string | null; // Add imageUrl field
   createdAt: Date;
   updatedAt: Date;
 }
@@ -308,7 +309,7 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
 export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
   const dbItems = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
 
-  // Get inventory items for formatted IDs
+  // Get inventory items for formatted IDs and images
   const inventoryItemIds = dbItems
     .map((item) => item.inventoryItemId)
     .filter((id): id is number => id !== null);
@@ -325,13 +326,15 @@ export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
   return dbItems.map((item) => {
     const decrypted = decryptOrderItemData(item);
 
-    // Find corresponding inventory item for formatted ID
+    // Find corresponding inventory item for formatted ID and image
     const inventoryItem = inventoryItemsData.find((inv) => inv.id === item.inventoryItemId);
     let formattedId = null;
+    let imageUrl = null;
 
     if (inventoryItem) {
       const decryptedInventoryItem = decryptInventoryData(inventoryItem);
       formattedId = getFormattedId(decryptedInventoryItem.category, inventoryItem.categoryCounter);
+      imageUrl = inventoryItem.imageUrl;
     }
 
     return {
@@ -348,6 +351,7 @@ export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
       feeType: item.feeType,
       percent: item.percent,
       isCustom: item.isCustom,
+      imageUrl: imageUrl, // Include image URL from inventory item
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -547,6 +551,7 @@ export async function createOrderItem(
       id: newItem.id,
       orderId: newItem.orderId,
       inventoryItemId: newItem.inventoryItemId,
+      formattedId: null, // Will be populated when fetched
       name: decryptedItem.name,
       size: decryptedItem.size,
       quantity: newItem.quantity,
@@ -556,6 +561,7 @@ export async function createOrderItem(
       feeType: newItem.feeType,
       percent: newItem.percent,
       isCustom: newItem.isCustom,
+      imageUrl: null, // Will be populated when fetched
       createdAt: newItem.createdAt,
       updatedAt: newItem.updatedAt,
     };

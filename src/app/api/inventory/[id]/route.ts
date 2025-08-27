@@ -7,14 +7,83 @@ import {
   tags,
   aiTrainingData,
 } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, inArray } from 'drizzle-orm';
 import {
   encryptInventoryData,
   encryptInventorySizeData,
   encryptTagData,
+  decryptInventoryData,
+  decryptInventorySizeData,
+  decryptTagData,
 } from '@/lib/utils/inventoryEncryption';
 import { typesenseInventorySync } from '@/lib/typesense/sync';
 import { withAuth, AuthenticatedRequest } from '@/lib/utils/authMiddleware';
+
+export const GET = withAuth(
+  async (request: AuthenticatedRequest, { params }: { params: Promise<{ id: string }> }) => {
+    try {
+      const { id } = await params;
+      const itemId = parseInt(id);
+
+      if (isNaN(itemId)) {
+        return NextResponse.json({ error: 'Invalid item ID' }, { status: 400 });
+      }
+
+      // Get the inventory item
+      const item = await db.query.inventoryItems.findFirst({
+        where: eq(inventoryItems.id, itemId),
+      });
+
+      if (!item) {
+        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+      }
+
+      // Decrypt the item data
+      const decryptedItem = decryptInventoryData(item);
+
+      // Get sizes for this item
+      const sizes = await db.select().from(inventorySizes).where(eq(inventorySizes.itemId, itemId));
+
+      const decryptedSizes = sizes.map((size) => {
+        const decryptedSize = decryptInventorySizeData(size);
+        return {
+          title: decryptedSize.title,
+          quantity: decryptedSize.quantity,
+          onHand: decryptedSize.onHand,
+          price: decryptedSize.price,
+        };
+      });
+
+      // Get tags for this item
+      const invTags = await db.select().from(inventoryTags).where(eq(inventoryTags.itemId, itemId));
+
+      const tagIds = invTags.map((t) => t.tagId);
+      const allTags = tagIds.length
+        ? await db.select().from(tags).where(inArray(tags.id, tagIds))
+        : [];
+
+      const decryptedTags = allTags.map((tag) => {
+        const decryptedTag = decryptTagData(tag);
+        return decryptedTag.name;
+      });
+
+      return NextResponse.json({
+        id: item.id,
+        name: decryptedItem.name,
+        category: decryptedItem.category,
+        categoryCounter: item.categoryCounter,
+        imageUrl: item.imageUrl,
+        tags: decryptedTags,
+        sizes: decryptedSizes,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      });
+    } catch (error) {
+      console.error('Error fetching inventory item:', error);
+      return NextResponse.json({ error: 'Failed to fetch inventory item' }, { status: 500 });
+    }
+  }
+);
 
 export const PUT = withAuth(
   async (request: AuthenticatedRequest, { params }: { params: Promise<{ id: string }> }) => {
