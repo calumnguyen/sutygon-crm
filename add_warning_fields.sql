@@ -1,0 +1,1 @@
+ALTER TABLE order_items ADD COLUMN warning TEXT; ALTER TABLE order_items ADD COLUMN warning_resolved BOOLEAN DEFAULT FALSE; ALTER TABLE order_items ADD COLUMN warning_resolved_at TIMESTAMP; ALTER TABLE order_items ADD COLUMN warning_resolved_by INTEGER REFERENCES users(id);

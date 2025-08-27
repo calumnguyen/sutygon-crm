@@ -288,6 +288,39 @@ export const orderItems = pgTable(
   }
 );
 
+export const orderWarnings = pgTable(
+  'order_warnings',
+  {
+    id: serial('id').primaryKey(),
+    orderItemId: integer('order_item_id')
+      .notNull()
+      .references(() => orderItems.id, { onDelete: 'cascade' }),
+    inventoryItemId: integer('inventory_item_id').references(() => inventoryItems.id),
+    warningType: varchar('warning_type', { length: 50 }).notNull(),
+    warningMessage: text('warning_message').notNull(),
+    severity: varchar('severity', { length: 20 }).notNull().default('high'),
+    isResolved: boolean('is_resolved').notNull().default(false),
+    resolvedAt: timestamp('resolved_at'),
+    resolvedBy: integer('resolved_by').references(() => users.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      // Index for order item lookups (most common query)
+      orderItemIdIdx: index('order_warnings_order_item_id_idx').on(table.orderItemId),
+      // Index for inventory item lookups
+      inventoryItemIdIdx: index('order_warnings_inventory_item_id_idx').on(table.inventoryItemId),
+      // Index for resolution status filtering
+      isResolvedIdx: index('order_warnings_is_resolved_idx').on(table.isResolved),
+      // Index for warning type filtering
+      warningTypeIdx: index('order_warnings_warning_type_idx').on(table.warningType),
+      // Index for creation date sorting
+      createdAtIdx: index('order_warnings_created_at_idx').on(table.createdAt),
+    };
+  }
+);
+
 export const orderNotes = pgTable(
   'order_notes',
   {

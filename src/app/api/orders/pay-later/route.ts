@@ -59,7 +59,38 @@ export async function POST(request: NextRequest) {
           };
 
           console.log('Creating order item for pay later:', JSON.stringify(itemData, null, 2));
-          await createOrderItem(itemData);
+
+          // Get original on-hand for warning calculation
+          let originalOnHand = 0;
+          if (item.inventoryItemId && item.size) {
+            try {
+              console.log(
+                `Fetching original on-hand for item ${item.inventoryItemId}, size ${item.size}`
+              );
+              const response = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/inventory/original-onhand?inventoryItemId=${item.inventoryItemId}&size=${encodeURIComponent(item.size)}`
+              );
+              if (response.ok) {
+                const data = await response.json();
+                originalOnHand = data.originalOnHand || 0;
+                console.log(`Original on-hand for item ${item.inventoryItemId}: ${originalOnHand}`);
+              } else {
+                console.error(
+                  `Failed to fetch original on-hand: ${response.status} ${response.statusText}`
+                );
+              }
+            } catch (error) {
+              console.error('Error fetching original on-hand for warning calculation:', error);
+            }
+          }
+
+          console.log(`Creating order item with originalOnHand: ${originalOnHand}`);
+          await createOrderItem(
+            itemData,
+            new Date(orderData.orderDate),
+            new Date(orderData.expectedReturnDate),
+            originalOnHand
+          );
         }
       }
 
@@ -75,6 +106,43 @@ export async function POST(request: NextRequest) {
 
           console.log('Creating order note for pay later:', JSON.stringify(noteData, null, 2));
           await createOrderNote(noteData);
+        }
+      }
+
+      // Add warnings to affected orders after all items are created
+      console.log('Adding warnings to affected orders...');
+      if (orderData.items && orderData.items.length > 0) {
+        for (const item of orderData.items) {
+          if (item.inventoryItemId && item.size) {
+            try {
+              // Get original on-hand for warning calculation
+              let originalOnHand = 0;
+              try {
+                const response = await fetch(
+                  `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/inventory/original-onhand?inventoryItemId=${item.inventoryItemId}&size=${encodeURIComponent(item.size)}`
+                );
+                if (response.ok) {
+                  const data = await response.json();
+                  originalOnHand = data.originalOnHand || 0;
+                }
+              } catch (error) {
+                console.error('Error fetching original on-hand for retroactive warnings:', error);
+              }
+
+              const { addWarningsToAffectedOrders } = await import('@/lib/utils/warningService');
+              await addWarningsToAffectedOrders(
+                item.inventoryItemId,
+                item.size,
+                new Date(orderData.orderDate),
+                new Date(orderData.expectedReturnDate),
+                item.quantity,
+                originalOnHand
+              );
+              console.log(`Added warnings for item ${item.inventoryItemId}, size ${item.size}`);
+            } catch (error) {
+              console.error('Error adding warnings to affected orders:', error);
+            }
+          }
         }
       }
     }

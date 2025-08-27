@@ -26,6 +26,15 @@ interface OrdersTableProps {
   loadMore: () => void;
 }
 
+interface CustomerDetails {
+  id: number;
+  name: string;
+  phone: string;
+  company?: string | null;
+  address?: string | null;
+  notes?: string | null;
+}
+
 export const OrdersTable: React.FC<OrdersTableProps> = ({
   orders: initialOrders,
   loading,
@@ -127,10 +136,10 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
 
   const getPaymentStatusBadge = (paymentStatus: string) => {
     const statusColors = {
-      'Paid Full': 'bg-green-500',
-      'Partially Paid': 'bg-yellow-500',
+      'Paid Full': 'bg-emerald-500',
+      'Partially Paid': 'bg-amber-500',
       Unpaid: 'bg-red-500',
-      'Paid Full with Deposit': 'bg-green-600',
+      'Paid Full with Deposit': 'bg-emerald-600',
     };
 
     const color = statusColors[paymentStatus as keyof typeof statusColors] || 'bg-gray-500';
@@ -204,6 +213,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
         order.totalAmount +
         (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)));
       const remainingBalance = Math.max(0, totalAmount - totalPaid);
+
       const depositAmount = (() => {
         if (order.depositType && order.depositValue) {
           if (order.depositType === 'percent') {
@@ -214,6 +224,9 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
         }
         return 0;
       })();
+
+      // Check if we need to refund deposit
+      const needsDepositRefund = order.paidAmount > totalAmount;
 
       const receiptData: ReceiptData = {
         orderId: formatOrderId(order.id),
@@ -437,6 +450,34 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
           <span className="text-white">{formatCurrency(order.paidAmount)}</span>
         </div>
 
+        {/* Deposit Refund Notice */}
+        {(() => {
+          const totalAmount =
+            order.totalAmount +
+            (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)));
+          const needsDepositRefund = order.paidAmount > totalAmount;
+          const depositAmount = (() => {
+            if (order.depositType && order.depositValue) {
+              if (order.depositType === 'percent') {
+                return Math.round(order.totalAmount * (order.depositValue / 100));
+              } else {
+                return order.depositValue;
+              }
+            }
+            return 0;
+          })();
+          const refundAmount = needsDepositRefund
+            ? Math.min(depositAmount, order.paidAmount - totalAmount)
+            : 0;
+
+          return needsDepositRefund && refundAmount > 0 ? (
+            <div className="flex justify-between">
+              <span className="text-amber-400">Cần hoàn tiền cọc:</span>
+              <span className="text-amber-300 font-medium">{formatCurrency(refundAmount)}</span>
+            </div>
+          ) : null;
+        })()}
+
         <div className="flex justify-between">
           <span className="text-gray-400">Giấy tờ:</span>
           <span className="text-white">{hasDocument(order) ? 'Có' : 'Không'}</span>
@@ -445,7 +486,9 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
         <div className="flex justify-between">
           <span className="text-gray-400">Ghi chú:</span>
           <span className="text-white">
-            {order.noteNotComplete}/{order.noteTotal}
+            {order.noteTotal > 0
+              ? `${order.noteNotComplete}/${order.noteTotal} ghi chú`
+              : 'Không có ghi chú'}
           </span>
         </div>
 
@@ -701,7 +744,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                   {getPaymentStatusBadge(order.paymentStatus)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {order.noteNotComplete}/{order.noteTotal}
+                  {order.noteTotal > 0 ? `${order.noteNotComplete}/${order.noteTotal}` : 'Không có'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                   <button

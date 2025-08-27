@@ -322,6 +322,23 @@ export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
       .where(inArray(inventoryItems.id, inventoryItemIds));
   }
 
+  // Get warnings for all order items
+  const orderItemIds = dbItems.map((item) => item.id);
+  let warningsData: Array<{
+    orderItemId: number;
+    isResolved: boolean;
+    warningMessage: string;
+    resolvedAt: Date | null;
+    resolvedBy: number | null;
+  }> = [];
+  if (orderItemIds.length > 0) {
+    const { orderWarnings } = await import('@/lib/db/schema');
+    warningsData = await db
+      .select()
+      .from(orderWarnings)
+      .where(inArray(orderWarnings.orderItemId, orderItemIds));
+  }
+
   // Decrypt sensitive data for display
   return dbItems.map((item) => {
     const decrypted = decryptOrderItemData(item);
@@ -336,6 +353,11 @@ export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
       formattedId = getFormattedId(decryptedInventoryItem.category, inventoryItem.categoryCounter);
       imageUrl = inventoryItem.imageUrl;
     }
+
+    // Find warnings for this item
+    const itemWarnings = warningsData.filter((w) => w.orderItemId === item.id);
+    const hasUnresolvedWarnings = itemWarnings.some((w) => !w.isResolved);
+    const hasResolvedWarnings = itemWarnings.some((w) => w.isResolved);
 
     return {
       id: item.id,
@@ -352,6 +374,16 @@ export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
       percent: item.percent,
       isCustom: item.isCustom,
       imageUrl: imageUrl, // Include image URL from inventory item
+      warning: hasUnresolvedWarnings
+        ? itemWarnings.find((w) => !w.isResolved)?.warningMessage
+        : undefined,
+      warningResolved: !hasUnresolvedWarnings && hasResolvedWarnings,
+      warningResolvedAt: hasResolvedWarnings
+        ? itemWarnings.find((w) => w.isResolved)?.resolvedAt
+        : null,
+      warningResolvedBy: hasResolvedWarnings
+        ? itemWarnings.find((w) => w.isResolved)?.resolvedBy
+        : null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -520,7 +552,10 @@ export async function createOrder(
 }
 
 export async function createOrderItem(
-  itemData: Omit<OrderItem, 'id' | 'createdAt' | 'updatedAt'>
+  itemData: Omit<OrderItem, 'id' | 'createdAt' | 'updatedAt'>,
+  orderDate?: Date,
+  expectedReturnDate?: Date,
+  originalOnHand?: number
 ): Promise<OrderItem> {
   try {
     // Encrypt sensitive order item data
@@ -544,6 +579,44 @@ export async function createOrderItem(
         updatedAt: new Date(),
       })
       .returning();
+
+    // Calculate warning if we have the necessary data
+    console.log(
+      `Checking warning conditions: orderDate=${orderDate}, expectedReturnDate=${expectedReturnDate}, originalOnHand=${originalOnHand}, inventoryItemId=${itemData.inventoryItemId}`
+    );
+
+    if (
+      orderDate &&
+      expectedReturnDate &&
+      originalOnHand !== undefined &&
+      itemData.inventoryItemId
+    ) {
+      console.log('All conditions met, calculating warning...');
+      const { calculateItemWarning, createWarning, addWarningsToAffectedOrders } = await import(
+        '@/lib/utils/warningService'
+      );
+      const warningInfo = await calculateItemWarning(
+        itemData.inventoryItemId,
+        itemData.size,
+        itemData.quantity,
+        orderDate,
+        expectedReturnDate,
+        originalOnHand
+      );
+
+      console.log('Warning calculation result:', warningInfo);
+
+      // If there's a warning, create it in the database
+      if (warningInfo) {
+        console.log('Creating warning in database...');
+        await createWarning(newItem.id, itemData.inventoryItemId, warningInfo);
+        console.log('Warning created successfully');
+      } else {
+        console.log('No warning needed');
+      }
+    } else {
+      console.log('Warning conditions not met');
+    }
 
     // Return the new item with decrypted data
     const decryptedItem = decryptOrderItemData(newItem);
