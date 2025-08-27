@@ -431,8 +431,9 @@ export const getAccurateLocation = async (): Promise<string> => {
             }
 
             if (city && country) {
-              const location = `${city}, ${country}`;
-              console.log(`✅ Precise city location from ${service.name}: ${location}`);
+              // Include precise coordinates in the location string for map accuracy
+              const location = `${city}, ${country} (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
+              console.log(`✅ Precise location with coordinates from ${service.name}: ${location}`);
               return location;
             }
           }
@@ -442,7 +443,11 @@ export const getAccurateLocation = async (): Promise<string> => {
         }
       }
 
-      console.log('❌ All reverse geocoding services failed for GPS coordinates');
+      // If reverse geocoding fails but we have coordinates, return coordinates with a generic location
+      console.log('❌ All reverse geocoding services failed, but we have GPS coordinates');
+      const location = `GPS Location (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
+      console.log(`✅ Returning GPS coordinates: ${location}`);
+      return location;
     } catch (geolocationError) {
       console.log('📍 Browser geolocation failed, trying alternative methods...');
 

@@ -24,6 +24,7 @@ import { useOnlineUsers, OnlineUser } from '@/hooks/useOnlineUsers';
 import latencyTracker from '@/lib/utils/latencyTracker';
 import webrtcNetworkDetector, { NetworkInfo } from '@/lib/utils/webrtcNetworkDetection';
 import weatherService, { WeatherData } from '@/lib/utils/weatherService';
+import UserDensityMap from './UserDensityMap';
 
 interface OnlineUsersSectionProps {
   currentUser: OnlineUser | null;
@@ -47,6 +48,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
   const { onlineUsers, isConnected } = useOnlineUsers(currentUser);
   const [latencyData, setLatencyData] = useState<Map<string, UserLatencyData>>(new Map());
   const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   // Memoize onlineUsers to prevent unnecessary re-renders
   const stableOnlineUsers = useMemo(() => onlineUsers, [onlineUsers.map((u) => u.id).join(',')]);
@@ -652,143 +654,162 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
     const userLatencyData = latencyData.get(user.id);
 
     return (
-      <div className="bg-gray-700 rounded-lg p-4 border-l-4 border-blue-500">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
+      <div className="bg-gray-700 rounded-lg p-3 border-l-4 border-blue-500">
+        {/* Header - User Info */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-medium">
                 {user.name.charAt(0).toUpperCase()}
               </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-white font-medium text-sm">{user.name}</h4>
-                {user.role === 'admin' && <Shield className="w-4 h-4 text-yellow-400" />}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1">
+                <h4 className="text-white text-sm font-medium truncate">{user.name}</h4>
+                {user.role === 'admin' && (
+                  <Shield className="w-3 h-3 text-yellow-400 flex-shrink-0" />
+                )}
               </div>
-              <div className="flex items-center gap-1 text-gray-400 text-xs mt-1">
+              <div className="flex items-center gap-1 text-gray-400 text-xs">
                 {getDeviceIcon(user.deviceType)}
-                <span>{user.deviceType}</span>
+                <span className="truncate">{user.deviceType}</span>
               </div>
             </div>
           </div>
           <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0" />
         </div>
 
-        {/* Time and Day/Night Status */}
-        <div className="mb-3">
-          <div className="text-gray-400 text-xs mb-1 font-medium">Thời gian & Trạng thái</div>
-          <div className="flex items-center justify-between p-2 bg-gray-600 rounded">
-            <div className="flex items-center gap-2">
-              <Clock className="w-3 h-3 text-gray-400" />
-              <span className="text-white text-sm font-mono">{getLocalTime(user.location)}</span>
+        {/* Time and Weather - Side by Side */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          {/* Time Section */}
+          <div className="bg-gray-600 rounded p-2">
+            <div className="text-gray-400 text-xs mb-1">Thời gian</div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <Clock className="w-3 h-3 text-gray-400" />
+                <span className="text-white text-xs font-mono">{getLocalTime(user.location)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {getDayNightIcon()}
+                <span className="text-gray-400 text-xs">
+                  {getDayNightStatus(user.location) === 'day' ? 'Ngày' : 'Đêm'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              {getDayNightIcon()}
-              <span className="text-gray-400 text-xs">
-                {getDayNightStatus(user.location) === 'day' ? 'Ban ngày' : 'Ban đêm'}
-              </span>
+          </div>
+
+          {/* Weather Section */}
+          <div className="bg-gray-600 rounded p-2">
+            <div className="text-gray-400 text-xs mb-1">Thời tiết</div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                {getWeatherIcon()}
+                <div>
+                  {isLoading ? (
+                    <div className="flex items-center gap-1 text-gray-400">
+                      <Cloud className="w-3 h-3" />
+                      <span className="text-xs">Đang tải...</span>
+                    </div>
+                  ) : weatherData ? (
+                    <>
+                      <div className="text-white text-xs font-medium">
+                        {weatherData.temperature}°C
+                      </div>
+                      <div className="text-gray-400 text-xs">
+                        {weatherService.getWeatherDescription(weatherData.condition)}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-1 text-gray-400">
+                      <Cloud className="w-3 h-3" />
+                      <span className="text-xs">Không có dữ liệu</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {weatherData && (
+                <div className="text-right">
+                  <div className="flex items-center gap-1">
+                    <Droplets className="w-2 h-2 text-blue-400" />
+                    <span className="text-gray-300 text-xs">{weatherData.humidity}%</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Wind className="w-2 h-2 text-gray-400" />
+                    <span className="text-gray-300 text-xs">{weatherData.windSpeed} km/h</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Weather Information */}
-        <div className="mb-3">
-          <div className="text-gray-400 text-xs mb-1 font-medium">Thời tiết hiện tại</div>
-          <div className="flex items-center justify-between p-2 bg-gray-600 rounded">
-            <div className="flex items-center gap-2">
-              {getWeatherIcon()}
-              <div>
-                {isLoading ? (
-                  <div className="flex items-center gap-2 text-gray-400">
-                    <Cloud className="w-4 h-4" />
-                    <span>Đang tải thời tiết...</span>
-                  </div>
-                ) : weatherData ? (
+        {/* Connection and Network - Side by Side */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          {/* Connection Quality */}
+          <div className="bg-gray-600 rounded p-2">
+            <div className="text-gray-400 text-xs mb-1">Kết nối</div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <Activity className="w-3 h-3 text-gray-400" />
+                <span className="text-white text-xs font-mono">
+                  {userLatencyData ? `${userLatencyData.ping}ms` : '--ms'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                {userLatencyData ? (
                   <>
-                    <div className="text-white text-sm font-medium">
-                      {weatherData.temperature}°C
-                    </div>
-                    <div className="text-gray-400 text-xs">
-                      {weatherService.getWeatherDescription(weatherData.condition)}
-                    </div>
+                    {getLatencyIcon(userLatencyData.connectionQuality)}
+                    <span
+                      className={`text-xs ${getLatencyColor(userLatencyData.connectionQuality)}`}
+                    >
+                      {userLatencyData.connectionQuality === 'excellent'
+                        ? 'Tuyệt vời'
+                        : userLatencyData.connectionQuality === 'good'
+                          ? 'Tốt'
+                          : userLatencyData.connectionQuality === 'fair'
+                            ? 'Khá'
+                            : 'Kém'}
+                    </span>
                   </>
                 ) : (
-                  <div className="flex items-center gap-2 text-gray-400">
-                    <Cloud className="w-4 h-4" />
-                    <span>Không có dữ liệu</span>
-                  </div>
+                  <span className="text-gray-400 text-xs">Đang đo...</span>
                 )}
               </div>
-            </div>
-            <div className="text-right space-y-1">
-              <div className="flex items-center gap-1">
-                <Droplets className="w-3 h-3 text-blue-400" />
-                <span className="text-gray-300 text-xs">
-                  Độ ẩm: {weatherData?.humidity || '--'}%
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Wind className="w-3 h-3 text-gray-400" />
-                <span className="text-gray-300 text-xs">
-                  Gió: {weatherData?.windSpeed || '--'} km/h
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Connection Latency */}
-        <div className="mb-3">
-          <div className="text-gray-400 text-xs mb-1 font-medium">Chất lượng kết nối</div>
-          <div className="flex items-center justify-between p-2 bg-gray-600 rounded">
-            <div className="flex items-center gap-2">
-              <Activity className="w-3 h-3 text-gray-400" />
-              <span className="text-white text-sm font-mono">
-                {userLatencyData ? `${userLatencyData.ping}ms` : '--ms'}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              {userLatencyData ? (
-                <>
-                  {getLatencyIcon(userLatencyData.connectionQuality)}
-                  <span className={`text-xs ${getLatencyColor(userLatencyData.connectionQuality)}`}>
-                    {userLatencyData.connectionQuality === 'excellent'
-                      ? 'Tuyệt vời'
-                      : userLatencyData.connectionQuality === 'good'
-                        ? 'Tốt'
-                        : userLatencyData.connectionQuality === 'fair'
-                          ? 'Khá'
-                          : 'Kém'}
-                  </span>
-                </>
-              ) : (
-                <span className="text-gray-400 text-xs">Đang đo...</span>
-              )}
             </div>
           </div>
 
           {/* Network Type */}
-          {networkInfo && (
-            <div className="flex items-center justify-between p-2 bg-gray-600 rounded mt-2">
-              <div className="flex items-center gap-2">
-                {getNetworkIcon(networkInfo)}
-                <span className="text-white text-sm">{getNetworkTypeWithDetails(networkInfo)}</span>
+          <div className="bg-gray-600 rounded p-2">
+            <div className="text-gray-400 text-xs mb-1">Mạng</div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                {networkInfo ? (
+                  getNetworkIcon(networkInfo)
+                ) : (
+                  <Globe className="w-3 h-3 text-gray-400" />
+                )}
+                <span className="text-white text-xs truncate">
+                  {networkInfo ? getNetworkTypeWithDetails(networkInfo) : 'Unknown'}
+                </span>
               </div>
-              <div className="text-right">
-                <div className="text-gray-300 text-xs">{getNetworkDetails(networkInfo)}</div>
-              </div>
+              {networkInfo && getNetworkDetails(networkInfo) && (
+                <div className="text-gray-300 text-xs truncate">
+                  {getNetworkDetails(networkInfo)}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-gray-400 text-xs">
+        {/* Location and Browser - Bottom Row */}
+        <div className="flex items-center justify-between text-gray-400 text-xs">
+          <div className="flex items-center gap-1">
             <MapPin className="w-3 h-3" />
-            <span>{user.location}</span>
+            <span className="truncate">{user.location}</span>
           </div>
-          <div className="flex items-center gap-2 text-gray-400 text-xs">
+          <div className="flex items-center gap-1">
             <Globe className="w-3 h-3" />
-            <span>{user.browser}</span>
+            <span className="truncate">{user.browser}</span>
           </div>
         </div>
       </div>
@@ -800,18 +821,39 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-700">
-        <div className="flex items-center gap-2">
-          <Users className="w-5 h-5 text-blue-400" />
-          <h3 className="text-white font-semibold">Người dùng online</h3>
+      <div className="flex items-center justify-between p-2 border-b border-gray-700">
+        <div className="flex items-center gap-1">
+          <Users className="w-3 h-3 text-blue-400" />
+          <h3 className="text-white text-xs font-medium">Người dùng online</h3>
         </div>
         <div className="flex items-center gap-2">
-          <div
-            className={`w-2 h-2 rounded-full ${stableIsConnected ? 'bg-green-400' : 'bg-red-400'}`}
-          />
-          <span className="text-sm text-gray-400">
-            {stableIsConnected ? 'Đã kết nối' : 'Đang kết nối...'}
-          </span>
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                viewMode === 'list' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Danh sách
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                viewMode === 'map' ? 'bg-blue-500 text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Bản đồ
+            </button>
+          </div>
+          <div className="flex items-center gap-1">
+            <div
+              className={`w-2 h-2 rounded-full ${stableIsConnected ? 'bg-green-400' : 'bg-red-400'}`}
+            />
+            <span className="text-xs text-gray-400">
+              {stableIsConnected ? 'Đã kết nối' : 'Đang kết nối...'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -820,7 +862,13 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
           <WifiOff className="w-12 h-12 text-gray-500 mx-auto mb-3" />
           <p className="text-gray-400">Không có người dùng online</p>
         </div>
+      ) : viewMode === 'map' ? (
+        // Map View
+        <div className="p-4">
+          <UserDensityMap onlineUsers={stableOnlineUsers} isConnected={stableIsConnected} />
+        </div>
       ) : (
+        // List View
         <div className="p-4 space-y-4">
           {/* Admins */}
           {memoizedAdmins.length > 0 && (
