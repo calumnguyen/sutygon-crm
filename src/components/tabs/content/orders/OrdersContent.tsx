@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '@/components/common/dropdowns/Button';
 import { Plus, RefreshCw, List, Grid } from 'lucide-react';
 import { useTabContext } from '@/context/TabContext';
@@ -6,10 +6,11 @@ import { createTabId } from '@/types/tabTypes';
 import { useOrdersTable } from './hooks';
 import { OrdersTable } from './OrdersTable';
 import { OrdersGrid } from './OrdersGrid';
+import DeleteAllOrdersModal from '@/components/common/DeleteAllOrdersModal';
 
 const OrdersContent: React.FC = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid'); // Default to grid view
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { addFirstLevelTab, activateTab } = useTabContext();
   const { orders, loading, error, loadingMore, hasMore, loadMore, refetch } = useOrdersTable();
 
@@ -28,6 +29,61 @@ const OrdersContent: React.FC = () => {
   };
 
   const handleRefresh = () => {
+    refetch();
+  };
+
+  // Keyboard shortcut handler for secret delete modal
+  useEffect(() => {
+    console.log('Setting up keyboard listener for secret delete modal...');
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      console.log(
+        '🔍 Key pressed:',
+        event.key,
+        'Ctrl:',
+        event.ctrlKey,
+        'Cmd:',
+        event.metaKey,
+        'Shift:',
+        event.shiftKey,
+        'Alt:',
+        event.altKey
+      );
+
+      // Check for Ctrl+Shift+X (or Cmd+Shift+X on Mac) - "X" for delete
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.shiftKey &&
+        (event.key === 'X' || event.key === 'x')
+      ) {
+        event.preventDefault();
+        console.log('🎯 Secret delete modal shortcut triggered!');
+        setShowDeleteModal(true);
+      }
+
+      // Alternative: Check for Ctrl+Alt+X (or Cmd+Alt+X on Mac)
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.altKey &&
+        (event.key === 'X' || event.key === 'x')
+      ) {
+        event.preventDefault();
+        console.log('🎯 Alternative secret delete modal shortcut triggered!');
+        setShowDeleteModal(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    console.log('✅ Keyboard listener added to document');
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      console.log('❌ Keyboard listener removed from document');
+    };
+  }, []);
+
+  const handleDeleteSuccess = () => {
+    // Refresh the orders list after deletion
     refetch();
   };
 
@@ -99,6 +155,13 @@ const OrdersContent: React.FC = () => {
           loadMore={loadMore}
         />
       )}
+
+      {/* Secret Delete All Orders Modal */}
+      <DeleteAllOrdersModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onSuccess={handleDeleteSuccess}
+      />
     </div>
   );
 };
