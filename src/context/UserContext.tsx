@@ -522,11 +522,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const setImportantTask = (isImportant: boolean) => {
     setIsWorkingOnImportantTask(isImportant);
-    if (isImportant) {
-      console.log('🔒 User started important task - session validation paused');
-    } else {
-      console.log('🔓 User finished important task - session validation resumed');
-    }
   };
 
   const handleLogoutModalClose = () => {

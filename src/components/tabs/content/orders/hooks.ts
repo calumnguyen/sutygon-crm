@@ -211,20 +211,21 @@ export function useInventoryFetch(dateFrom?: string, dateTo?: string) {
       setInventoryLoading(true);
       setInventoryError(null);
       try {
-        // Load ALL inventory items without date filtering
-        // Date filtering should only affect onHand calculations, not which items are available
-        const url = '/api/inventory/search-elastic?q=&page=1&limit=1000'; // Increased limit to get all items
-
-        // Use the optimized search API to get all items (empty query)
+        // For orders, we don't need to load all inventory items
+        // We'll use server-side search like the inventory content does
+        // Just load a small initial set for basic functionality
+        const url = '/api/inventory?limit=50&page=1';
         const res = await fetch(url, {
           headers: {
             Authorization: `Bearer ${sessionToken}`,
           },
         });
+
         if (!res.ok) throw new Error('Lỗi khi tải dữ liệu kho');
         const data = await res.json();
 
-        setInventory(data.items);
+        console.log(`Loaded ${data.items?.length || 0} initial inventory items for orders`);
+        setInventory(data.items || []);
       } catch (error) {
         console.error('Inventory fetch error:', error);
         setInventoryError('Không thể tải dữ liệu kho');
@@ -254,6 +255,8 @@ export function useOrderStep3ItemsLogic(
     id: string;
     name: string;
     sizes: ItemSize[];
+    inventoryItemId?: number;
+    imageUrl?: string;
   }>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<OrderItem | null>(null);
@@ -269,11 +272,12 @@ export function useOrderStep3ItemsLogic(
   const [serverQuery, setServerQuery] = useState<string>('');
   const [isSearching, setIsSearching] = useState(false);
 
-  // Use server search when inventory is large
-  const useServerSearch = inventory.length >= 800;
+  // For orders, we use server-side search like the inventory content
+  // This is more efficient and works with the full inventory
+  const useServerSearch = true;
 
   const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const isItemId = (input: string) => /^[A-Za-z]+-?\d{6}/.test(input.trim());
+  const isItemId = (input: string) => /^[A-Za-z]{1,3}[-]?\d{4,6}$/i.test(input.trim());
 
   const normalizeVietnamese = (str: string) => {
     return str
@@ -293,38 +297,97 @@ export function useOrderStep3ItemsLogic(
       return;
     }
 
-    // Server-side (Elasticsearch) for large inventory
+    // Server-side search using Typesense (like inventory content)
     if (useServerSearch) {
       try {
-        setIsSearching(true);
         setCurrentPage(1);
         setServerQuery(query);
-        const url = `/api/inventory/search-elastic?q=${encodeURIComponent(
-          query
-        )}&mode=auto&page=1&limit=${ITEMS_PER_PAGE}`;
-        const res = await fetch(url, {
+
+        const searchUrl = new URL('/api/inventory/search-typesense', window.location.origin);
+
+        // For product IDs, normalize the search query to handle different formats
+        let searchQuery = query;
+        if (isItemId(query)) {
+          // Normalize product ID format: "ad002349" -> "AD-002349"
+          const match = query.match(/^([A-Za-z]{1,3})[-]?(\d{4,6})$/i);
+          if (match) {
+            const [, letters, numbers] = match;
+            searchQuery = `${letters.toUpperCase()}-${numbers}`;
+            console.log(`Normalized product ID search: "${query}" -> "${searchQuery}"`);
+          }
+        }
+
+        searchUrl.searchParams.set('q', searchQuery);
+        searchUrl.searchParams.set('page', '1');
+        searchUrl.searchParams.set('limit', ITEMS_PER_PAGE.toString());
+
+        const res = await fetch(searchUrl.toString(), {
           headers: {
             Authorization: `Bearer ${sessionToken}`,
           },
         });
+
         if (!res.ok) throw new Error('Tìm kiếm thất bại');
         const data = await res.json();
-        setSearchResults(data.items || []);
+        console.log('Search results from Typesense:', data.items?.length || 0, 'items');
+
+        // Process search results to ensure they have the correct structure
+        const processedItems = (data.items || []).map(
+          (item: {
+            id: string | number;
+            formattedId?: string;
+            imageUrl?: string;
+            sizes?: Array<{ title: string; price: number; onHand?: number }>;
+          }) => {
+            const processedItem = {
+              ...item,
+              id: item.formattedId || String(item.id), // Use formattedId as the display ID
+              inventoryItemId: (() => {
+                // If item.id is already a number, use it
+                if (typeof item.id === 'number') {
+                  return item.id;
+                }
+                // If item.id is a formatted ID like 'AD-002350', try to extract the number
+                const idStr = String(item.id);
+                if (idStr.includes('-')) {
+                  const match = idStr.match(/\d+$/);
+                  return match ? parseInt(match[0]) : undefined;
+                }
+                // Try to parse as number
+                const parsed = parseInt(idStr);
+                return isNaN(parsed) ? undefined : parsed;
+              })(), // Convert string ID to number for database ID
+              imageUrl:
+                item.imageUrl && item.imageUrl !== 'has_image' && item.imageUrl.startsWith('data:')
+                  ? item.imageUrl
+                  : null, // Only use valid base64 image URLs
+              sizes:
+                item.sizes?.map((size: { title: string; price: number; onHand?: number }) => ({
+                  size: size.title, // Use title field from Typesense
+                  price: size.price,
+                  onHand: size.onHand || 0, // Ensure onHand is included
+                })) || [],
+            };
+
+            return processedItem;
+          }
+        );
+
+        console.log('Processed search results:', processedItems.length, 'items');
+        setSearchResults(processedItems);
         setServerTotalPages(Number(data.totalPages || 1));
         setShowSearchResults(true);
       } catch (err) {
-        console.error('Server search error', err);
+        console.error('Server search error:', err);
         setSearchResults([]);
         setServerTotalPages(null);
         setShowSearchResults(false);
         setAddError('Không tìm thấy sản phẩm phù hợp');
-      } finally {
-        setIsSearching(false);
       }
       return;
     }
 
-    // Client-side search for small inventory sizes
+    // Client-side search as fallback (for small inventories)
     const searchQuery = query.toLowerCase().trim();
     const normalizedQuery = normalizeVietnamese(searchQuery);
     const queryWords = normalizedQuery.split(/\s+/).filter((word: string) => word.length > 0);
@@ -395,33 +458,55 @@ export function useOrderStep3ItemsLogic(
   async function fetchItemById(id: string) {
     const normId = id.replace(/-/g, '').toUpperCase();
 
-    // First check client-side cache for performance
-    const exactMatch = inventory.find((item) => {
-      const itemId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
-      return itemId.startsWith(normId);
-    });
+    // For product IDs, always use server-side search to ensure we get complete data
+    if (isItemId(id)) {
+    } else {
+      // First check client-side cache for performance (only for non-product IDs)
+      const exactMatch = inventory.find((item) => {
+        const itemId = (item.formattedId || '').replace(/-/g, '').toUpperCase();
+        return itemId.startsWith(normId);
+      });
 
-    if (exactMatch) {
-      return {
-        id: exactMatch.formattedId ? exactMatch.formattedId : String(exactMatch.id),
-        name: exactMatch.name,
-        sizes: exactMatch.sizes.map((s: { title: string; price: number }) => ({
-          size: s.title,
-          price: s.price,
-        })),
-      };
+      if (exactMatch) {
+        return {
+          id: exactMatch.formattedId ? exactMatch.formattedId : String(exactMatch.id),
+          name: exactMatch.name,
+          sizes: exactMatch.sizes.map((s: { title: string; price: number; onHand?: number }) => ({
+            size: s.title,
+            price: s.price,
+            onHand: s.onHand || 0,
+          })),
+          inventoryItemId: typeof exactMatch.id === 'number' ? exactMatch.id : undefined,
+          imageUrl: exactMatch.imageUrl || null,
+        };
+      }
     }
 
-    // If not found in client cache, use Elasticsearch API
+    // If not found in client cache, use server-side search
     try {
-      const url = `/api/inventory/search-elastic?q=${encodeURIComponent(id)}&mode=auto&limit=5`;
-      const res = await fetch(url, {
+      const searchUrl = new URL('/api/inventory/search-typesense', window.location.origin);
+
+      // Normalize product ID format for search
+      let searchQuery = id;
+      if (isItemId(id)) {
+        const match = id.match(/^([A-Za-z]{1,3})[-]?(\d{4,6})$/i);
+        if (match) {
+          const [, letters, numbers] = match;
+          searchQuery = `${letters.toUpperCase()}-${numbers}`;
+          console.log(`Normalized product ID lookup: "${id}" -> "${searchQuery}"`);
+        }
+      }
+
+      searchUrl.searchParams.set('q', searchQuery);
+      searchUrl.searchParams.set('limit', '5');
+
+      const res = await fetch(searchUrl.toString(), {
         headers: {
           Authorization: `Bearer ${sessionToken}`,
         },
       });
-      if (!res.ok) return null;
 
+      if (!res.ok) return null;
       const data = await res.json();
       const items = data.items || [];
 
@@ -435,15 +520,18 @@ export function useOrderStep3ItemsLogic(
           return {
             id: item.formattedId ? item.formattedId : String(item.id),
             name: item.name,
-            sizes: item.sizes.map((s: { title: string; price: number }) => ({
+            sizes: item.sizes.map((s: { title: string; price: number; onHand?: number }) => ({
               size: s.title,
               price: s.price,
+              onHand: s.onHand || 0,
             })),
+            inventoryItemId: item.id, // Include the actual database ID
+            imageUrl: item.imageUrl || null, // Include the image URL
           };
         }
       }
     } catch (error) {
-      console.error('Elasticsearch fetch error:', error);
+      console.error('Server search error:', error);
     }
 
     return null;
@@ -474,7 +562,12 @@ export function useOrderStep3ItemsLogic(
         handleAddItem();
       } else {
         setCurrentPage(1);
-        await searchProducts(value);
+        setIsSearching(true); // Set loading state immediately
+        try {
+          await searchProducts(value);
+        } finally {
+          setIsSearching(false); // Clear loading state when done
+        }
       }
     }
   };
@@ -487,9 +580,11 @@ export function useOrderStep3ItemsLogic(
       return;
     }
     setAdding(true);
+    setIsSearching(true); // Also set search loading state for product ID searches
     const { id: inputId, size: inputSize } = parseInputId(itemIdInput.trim());
     const item = await fetchItemById(itemIdInput.trim());
     setAdding(false);
+    setIsSearching(false); // Clear search loading state
     if (!item) {
       setAddError('Không tìm thấy sản phẩm với mã này');
       return;
@@ -497,7 +592,7 @@ export function useOrderStep3ItemsLogic(
     if (!inputSize) {
       if (item.sizes.length === 1) {
         const onlySize = item.sizes[0];
-        addItemToOrder(item, onlySize.size, onlySize.price);
+        await addItemToOrder(item, onlySize.size, onlySize.price);
         setItemIdInput('');
         return;
       } else {
@@ -520,25 +615,85 @@ export function useOrderStep3ItemsLogic(
       setItemIdInput('');
       return;
     }
-    addItemToOrder(item, selectedSize.size, selectedSize.price);
+    await addItemToOrder(item, selectedSize.size, selectedSize.price);
     setItemIdInput('');
   };
 
-  function addItemToOrder(
-    item: { id: string; name: string; sizes: ItemSize[] },
+  // Function to fetch current onHand values from the database
+  const fetchCurrentOnHand = async (
+    inventoryItemId: number,
+    sizeTitle: string
+  ): Promise<number> => {
+    try {
+      // Since we can't search by database ID directly, let's use the main inventory API
+      // to get a small set and find the item by ID
+      const response = await fetch(`/api/inventory?limit=1000&page=1`, {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const item = data.items?.find(
+          (item: {
+            id: number;
+            sizes?: Array<{ size?: string; title?: string; onHand?: number }>;
+          }) => item.id === inventoryItemId
+        );
+        if (item) {
+          // Try both 'size' and 'title' properties for size matching
+          const size = item.sizes?.find(
+            (s: { size?: string; title?: string; onHand?: number }) =>
+              s.size === sizeTitle || s.title === sizeTitle
+          );
+          return size ? Number(size.onHand) : 0;
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching onHand:', error);
+    }
+    return 0;
+  };
+
+  async function addItemToOrder(
+    item: {
+      id: string;
+      name: string;
+      sizes: ItemSize[];
+      imageUrl?: string;
+      inventoryItemId?: number;
+    },
     sizeTitle: string,
     price: number,
     imageUrl?: string
   ) {
+    // Use the inventoryItemId from the search result if available
+    const inventoryItemId = item.inventoryItemId || null;
+    const itemImageUrl = item.imageUrl || imageUrl || null;
+
+    // Try to get onHand from search result sizes first, then fallback to database fetch
+    let onHand = 0;
+
+    const itemSize = item.sizes?.find((s: ItemSize) => s.size === sizeTitle);
+    if (itemSize) {
+      onHand = Number(itemSize.onHand) || 0;
+    } else {
+      // If we have inventoryItemId, try to fetch current onHand from database
+      if (item.inventoryItemId) {
+        try {
+          const currentOnHand = await fetchCurrentOnHand(item.inventoryItemId, sizeTitle);
+          onHand = currentOnHand;
+        } catch (error) {
+          console.error('🔍 Error fetching onHand from database:', error);
+        }
+      }
+    }
+
     setOrderItems((prev: OrderItem[]) => {
       const key = `${item.id}-${sizeTitle}`;
       const idx = prev.findIndex((i) => i.id === key);
-      // Find inventory and onHand
-      const inv = inventory.find(
-        (invItem) => (invItem.formattedId || invItem.id) === item.id || invItem.id === item.id
-      );
-      const invSize = inv?.sizes.find((s) => s.title === sizeTitle);
-      const onHand = invSize ? Number(invSize.onHand) : 0;
+
       if (idx !== -1) {
         const updated = prev.map((i, iIdx) => {
           if (iIdx === idx) {
@@ -546,13 +701,10 @@ export function useOrderStep3ItemsLogic(
             return {
               ...i,
               quantity: newQty,
-              inventoryItemId: typeof inv?.id === 'number' ? inv.id : i.inventoryItemId,
-              imageUrl:
-                (inv && (inv as unknown as { imageUrl?: string }).imageUrl) ||
-                i.imageUrl ||
-                imageUrl ||
-                null,
-              isCustom: !inv,
+              inventoryItemId: inventoryItemId || i.inventoryItemId,
+              imageUrl: itemImageUrl || i.imageUrl,
+              onHand: onHand || i.onHand, // Update onHand value
+              isCustom: !inventoryItemId, // Only custom if no inventory item ID
               warning: newQty > onHand ? 'Cảnh báo: vượt quá số lượng tồn kho' : undefined,
             };
           }
@@ -560,34 +712,27 @@ export function useOrderStep3ItemsLogic(
         });
         return updated;
       }
-      // Find the inventory item ID
-      const inventoryItem = inventory.find(
-        (invItem) => (invItem.formattedId || invItem.id) === item.id || invItem.id === item.id
-      );
 
-      return [
-        ...prev,
-        {
-          id: key,
-          name: item.name,
-          size: sizeTitle,
-          quantity: 1,
-          price,
-          inventoryItemId: typeof inventoryItem?.id === 'number' ? inventoryItem.id : null,
-          imageUrl:
-            (inventoryItem && (inventoryItem as unknown as { imageUrl?: string }).imageUrl) ||
-            imageUrl ||
-            null,
-          isCustom: !inventoryItem, // Only custom if no inventory item found
-          warning: 1 > onHand ? 'Cảnh báo: vượt quá số lượng tồn kho' : undefined,
-        },
-      ];
+      const newOrderItem = {
+        id: key,
+        name: item.name,
+        size: sizeTitle,
+        quantity: 1,
+        price,
+        inventoryItemId: inventoryItemId,
+        imageUrl: itemImageUrl,
+        onHand: onHand, // Store the onHand value
+        isCustom: !inventoryItemId, // Only custom if no inventory item ID
+        warning: 1 > onHand ? 'Cảnh báo: vượt quá số lượng tồn kho' : undefined,
+      };
+
+      return [...prev, newOrderItem];
     });
   }
 
-  function handleSelectSize(size: ItemSize) {
+  async function handleSelectSize(size: ItemSize) {
     if (!pendingItem) return;
-    addItemToOrder(pendingItem, size.size, size.price);
+    await addItemToOrder(pendingItem, size.size, size.price);
     setShowSizeModal(false);
     setPendingItem(null);
     setSizeOptions([]);
@@ -597,13 +742,10 @@ export function useOrderStep3ItemsLogic(
     setOrderItems((prev: OrderItem[]) => {
       const item = prev.find((i) => i.id === id);
       if (!item) return prev;
-      // Find inventory and onHand
-      const invId = id.replace(/-.+$/, '');
-      const inv = inventory.find(
-        (invItem) => (invItem.formattedId || invItem.id) === invId || invItem.id === invId
-      );
-      const invSize = inv?.sizes.find((s) => s.title === item.size);
-      const onHand = invSize ? Number(invSize.onHand) : 0;
+
+      // Use the stored onHand value from the order item
+      const onHand = item.onHand || 0;
+
       if (item.quantity === 1 && delta === -1) {
         setItemToDelete(item);
         setShowDeleteModal(true);
@@ -637,46 +779,109 @@ export function useOrderStep3ItemsLogic(
     setItemToDelete(null);
   };
 
+  const [isProcessingClick, setIsProcessingClick] = useState(false);
+
   const handleSearchResultClick = (item: InventoryItem) => {
+    // Prevent multiple rapid clicks
+    if (isProcessingClick) {
+      return;
+    }
+
+    setIsProcessingClick(true);
+
+    // Reset the flag after a timeout to prevent it from getting stuck
+    setTimeout(() => {
+      setIsProcessingClick(false);
+    }, 2000);
+
     setShowSearchResults(false);
     setItemIdInput('');
     if (item.sizes.length === 1) {
       const onlySize = item.sizes[0];
-      addItemToOrder(
-        {
-          id: item.formattedId || String(item.id),
-          name: item.name,
-          sizes: item.sizes.map((s) => ({ size: s.title, price: s.price })),
-        },
-        onlySize.title,
-        onlySize.price,
-        item.imageUrl
-      );
-    } else {
-      setPendingItem({
+      const itemData = {
         id: item.formattedId || String(item.id),
         name: item.name,
-        sizes: item.sizes.map((s) => ({ size: s.title, price: s.price })),
-      });
-      setSizeOptions(item.sizes.map((s) => ({ size: s.title, price: s.price })));
+        sizes: item.sizes.map((s) => ({ size: s.title, price: s.price, onHand: s.onHand })),
+        inventoryItemId: (() => {
+          // If item.id is already a number, use it
+          if (typeof item.id === 'number') {
+            return item.id;
+          }
+          // If item.id is a formatted ID like 'AD-002350', try to extract the number
+          const idStr = String(item.id);
+          if (idStr.includes('-')) {
+            const match = idStr.match(/\d+$/);
+            return match ? parseInt(match[0]) : undefined;
+          }
+          // Try to parse as number
+          const parsed = parseInt(idStr);
+          return isNaN(parsed) ? undefined : parsed;
+        })(),
+        imageUrl: item.imageUrl && item.imageUrl.startsWith('data:') ? item.imageUrl : undefined, // Only use valid base64 images
+      };
+
+      addItemToOrder(
+        itemData,
+        onlySize.title,
+        onlySize.price,
+        itemData.imageUrl // Use the filtered imageUrl
+      );
+      setIsProcessingClick(false);
+    } else {
+      const pendingItemData = {
+        id: item.formattedId || String(item.id),
+        name: item.name,
+        sizes: item.sizes.map((s) => ({ size: s.title, price: s.price, onHand: s.onHand })),
+        inventoryItemId: (() => {
+          // If item.id is already a number, use it
+          if (typeof item.id === 'number') {
+            return item.id;
+          }
+          // If item.id is a formatted ID like 'AD-002350', try to extract the number
+          const idStr = String(item.id);
+          if (idStr.includes('-')) {
+            const match = idStr.match(/\d+$/);
+            return match ? parseInt(match[0]) : undefined;
+          }
+          // Try to parse as number
+          const parsed = parseInt(idStr);
+          return isNaN(parsed) ? undefined : parsed;
+        })(),
+        imageUrl: item.imageUrl && item.imageUrl.startsWith('data:') ? item.imageUrl : undefined, // Only use valid base64 images
+      };
+      setPendingItem(pendingItemData);
+      const mappedSizeOptions = item.sizes.map(
+        (s: { title: string; price: number; onHand?: number }) => {
+          return {
+            size: s.title, // Use title field from Typesense
+            price: s.price,
+            onHand: s.onHand || 0,
+          };
+        }
+      );
+      setSizeOptions(mappedSizeOptions);
       setShowSizeModal(true);
+      setIsProcessingClick(false);
     }
   };
 
-  // When using server search, fetch next/prev pages
+  // Server-side pagination for search results
   useEffect(() => {
     const fetchPage = async () => {
       if (!useServerSearch || !serverQuery.trim()) return;
       try {
         setIsSearching(true);
-        const url = `/api/inventory/search-elastic?q=${encodeURIComponent(
-          serverQuery
-        )}&mode=auto&page=${currentPage}&limit=${ITEMS_PER_PAGE}`;
-        const res = await fetch(url, {
+        const searchUrl = new URL('/api/inventory/search-typesense', window.location.origin);
+        searchUrl.searchParams.set('q', serverQuery);
+        searchUrl.searchParams.set('page', currentPage.toString());
+        searchUrl.searchParams.set('limit', ITEMS_PER_PAGE.toString());
+
+        const res = await fetch(searchUrl.toString(), {
           headers: {
             Authorization: `Bearer ${sessionToken}`,
           },
         });
+
         if (!res.ok) return;
         const data = await res.json();
         setSearchResults(data.items || []);
@@ -688,8 +893,7 @@ export function useOrderStep3ItemsLogic(
     fetchPage();
   }, [currentPage, serverQuery, useServerSearch, sessionToken]);
 
-  const localTotalPages = Math.ceil(searchResults.length / ITEMS_PER_PAGE);
-  const totalPages = serverTotalPages ?? localTotalPages;
+  const totalPages = serverTotalPages ?? Math.ceil(searchResults.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const currentItems = serverTotalPages ? searchResults : searchResults.slice(startIndex, endIndex);

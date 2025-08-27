@@ -72,10 +72,16 @@ const OrderStep3SearchResultsModal: React.FC<OrderStep3SearchResultsModalProps> 
                           src={item.imageUrl}
                           alt={item.name}
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            target.nextElementSibling?.classList.remove('hidden');
+                          }}
                         />
-                      ) : (
-                        <div className="text-gray-400 text-xs">No Image</div>
-                      )}
+                      ) : null}
+                      <div className={`text-gray-400 text-xs ${item.imageUrl ? 'hidden' : ''}`}>
+                        No Image
+                      </div>
                     </button>
                     <button className="min-w-0 text-left" onClick={() => onItemClick(item)}>
                       <div className="font-semibold text-white truncate">{item.name}</div>

@@ -13,6 +13,7 @@ export interface OrderItem {
   price: number;
   inventoryItemId?: number | null;
   imageUrl?: string | null;
+  onHand?: number;
   isExtension?: boolean;
   extraDays?: number;
   feeType?: 'vnd' | 'percent';
@@ -24,4 +25,5 @@ export interface OrderItem {
 export interface ItemSize {
   size: string;
   price: number;
+  onHand?: number;
 }

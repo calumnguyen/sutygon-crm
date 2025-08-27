@@ -835,16 +835,27 @@ export async function completeOrderPayment(
 
 export async function markDocumentOnFile(orderId: number): Promise<void> {
   try {
-    await db
+    console.log('Marking document as on file for order ID:', orderId);
+
+    const result = await db
       .update(orders)
       .set({
         documentStatus: 'on_file',
         updatedAt: new Date(),
       })
-      .where(eq(orders.id, orderId));
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    console.log('Document status update result:', result);
+
+    if (result.length === 0) {
+      throw new Error(`Order with ID ${orderId} not found`);
+    }
   } catch (error) {
     console.error('Error marking document as on file:', error);
-    throw new Error('Failed to mark document as on file');
+    throw new Error(
+      `Failed to mark document as on file: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 

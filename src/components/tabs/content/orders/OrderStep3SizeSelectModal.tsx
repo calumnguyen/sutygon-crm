@@ -33,9 +33,9 @@ const OrderStep3SizeSelectModal: React.FC<OrderStep3SizeSelectModalProps> = ({
         </button>
         <div className="text-xl font-bold text-blue-400 mb-4">Chọn size cho sản phẩm</div>
         <div className="flex flex-col gap-3 w-full">
-          {sizeOptions.map((s: ItemSize) => (
+          {sizeOptions.map((s: ItemSize, index: number) => (
             <button
-              key={s.size}
+              key={`${s.size}-${s.price}-${index}`}
               className="w-full py-3 rounded-lg bg-gray-800 hover:bg-blue-700 text-white font-semibold border border-blue-500 mb-1 transition-colors"
               onClick={() => onSelect(s)}
             >

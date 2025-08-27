@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Order } from '@/lib/actions/orders';
 import { TRANSLATIONS } from '@/config/translations';
 import { generateReceiptPDF, ReceiptData } from '@/lib/utils/pdfGenerator';
+import { useUser } from '@/context/UserContext';
 
 // Helper function to format date with Vietnamese day names
 function formatVietnameseDate(dateString: string): string {
@@ -33,6 +34,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
   hasMore,
   loadMore,
 }) => {
+  const { sessionToken } = useUser();
   const [orders, setOrders] = useState(initialOrders);
   const [vatPercentage, setVatPercentage] = useState(8);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -168,8 +170,16 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
     try {
       // Fetch order items and customer details
       const [itemsResponse, customerResponse] = await Promise.all([
-        fetch(`/api/orders/${order.id}/items`),
-        fetch(`/api/customers/${order.customerId}`),
+        fetch(`/api/orders/${order.id}/items`, {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        }),
+        fetch(`/api/customers/${order.customerId}`, {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        }),
       ]);
 
       if (!itemsResponse.ok || !customerResponse.ok) {

@@ -6,11 +6,10 @@ export async function POST(request: NextRequest) {
     const { orderId } = await request.json();
 
     if (!orderId) {
-      return NextResponse.json(
-        { error: 'Order ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
+
+    console.log('Updating document status for order ID:', orderId);
 
     await markDocumentOnFile(parseInt(orderId));
 
@@ -18,8 +17,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error updating document status:', error);
     return NextResponse.json(
-      { error: 'Failed to update document status' },
+      {
+        error: 'Failed to update document status',
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
-} 
+}

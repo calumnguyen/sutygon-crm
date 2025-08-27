@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OrderItem } from './types';
 import { InventoryItem } from '@/types/inventory';
 
@@ -137,6 +137,7 @@ const ImpactModal: React.FC<ImpactModalProps> = ({
 const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
   items,
   onQuantityChange,
+  onDelete,
   inventory,
   onItemClick,
   selectedItemId,
@@ -159,6 +160,110 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
     isLoading: false,
   });
   const [preview, setPreview] = useState<{ url: string; title: string; id?: string } | null>(null);
+  const [availableStockCache, setAvailableStockCache] = useState<Record<string, number>>({});
+
+  // Clear cache when date range changes
+  useEffect(() => {
+    setAvailableStockCache({});
+  }, [dateFrom, dateTo]);
+
+  // Handle items changes - only when date range changes
+  useEffect(() => {
+    if (!dateFrom || !dateTo || items.length === 0) return;
+
+    // Only calculate when date range changes, not when items change
+    const calculateAllAvailableStock = async () => {
+      const newCache: Record<string, number> = {};
+
+      for (const item of items) {
+        if (
+          item.inventoryItemId &&
+          (typeof item.inventoryItemId === 'number' || typeof item.inventoryItemId === 'string')
+        ) {
+          const inventoryItemId =
+            typeof item.inventoryItemId === 'string'
+              ? parseInt(item.inventoryItemId, 10)
+              : item.inventoryItemId;
+          if (isNaN(inventoryItemId)) {
+            continue;
+          }
+
+          const originalOnHand = (item as { onHand?: number }).onHand || 0;
+          const cacheKey = `${inventoryItemId}-${item.size}`;
+
+          try {
+            const overlappingOrders = await fetchOverlappingOrders(inventoryItemId, item.size);
+            const totalOverlappingQuantity = overlappingOrders.reduce(
+              (sum: number, order: OverlappingOrder) => sum + order.quantity,
+              0
+            );
+            const availableStock = originalOnHand - totalOverlappingQuantity;
+            newCache[cacheKey] = availableStock;
+          } catch (error) {
+            console.error('Error calculating available stock for item:', item.id, error);
+            newCache[cacheKey] = originalOnHand;
+          }
+        }
+      }
+
+      setAvailableStockCache(newCache);
+    };
+
+    calculateAllAvailableStock();
+  }, [dateFrom, dateTo]); // Only depend on date range changes
+
+  // Calculate available stock for new items when they're added
+  useEffect(() => {
+    if (!dateFrom || !dateTo) return;
+
+    const calculateForNewItems = async () => {
+      const currentCache = { ...availableStockCache };
+      let hasChanges = false;
+
+      for (const item of items) {
+        if (
+          item.inventoryItemId &&
+          (typeof item.inventoryItemId === 'number' || typeof item.inventoryItemId === 'string')
+        ) {
+          const inventoryItemId =
+            typeof item.inventoryItemId === 'string'
+              ? parseInt(item.inventoryItemId, 10)
+              : item.inventoryItemId;
+          if (isNaN(inventoryItemId)) {
+            continue;
+          }
+
+          const cacheKey = `${inventoryItemId}-${item.size}`;
+
+          // Only calculate if not already in cache
+          if (currentCache[cacheKey] === undefined) {
+            const originalOnHand = (item as { onHand?: number }).onHand || 0;
+
+            try {
+              const overlappingOrders = await fetchOverlappingOrders(inventoryItemId, item.size);
+              const totalOverlappingQuantity = overlappingOrders.reduce(
+                (sum: number, order: OverlappingOrder) => sum + order.quantity,
+                0
+              );
+              const availableStock = originalOnHand - totalOverlappingQuantity;
+              currentCache[cacheKey] = availableStock;
+              hasChanges = true;
+            } catch (error) {
+              console.error('Error calculating available stock for item:', item.id, error);
+              currentCache[cacheKey] = originalOnHand;
+              hasChanges = true;
+            }
+          }
+        }
+      }
+
+      if (hasChanges) {
+        setAvailableStockCache(currentCache);
+      }
+    };
+
+    calculateForNewItems();
+  }, [items.length, dateFrom, dateTo]); // Only depend on items count and date range
 
   const fetchOriginalOnHand = async (inventoryItemId: number, size: string) => {
     try {
@@ -191,6 +296,50 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
     }
     return [] as OverlappingOrder[];
   };
+
+  // Calculate available stock for all items when date range changes
+  useEffect(() => {
+    const calculateAllAvailableStock = async () => {
+      if (!dateFrom || !dateTo || items.length === 0) return;
+
+      const newCache: Record<string, number> = {};
+
+      for (const item of items) {
+        if (
+          item.inventoryItemId &&
+          (typeof item.inventoryItemId === 'number' || typeof item.inventoryItemId === 'string')
+        ) {
+          const inventoryItemId =
+            typeof item.inventoryItemId === 'string'
+              ? parseInt(item.inventoryItemId, 10)
+              : item.inventoryItemId;
+          if (isNaN(inventoryItemId)) {
+            continue;
+          }
+
+          const originalOnHand = (item as { onHand?: number }).onHand || 0;
+          const cacheKey = `${inventoryItemId}-${item.size}`;
+
+          try {
+            const overlappingOrders = await fetchOverlappingOrders(inventoryItemId, item.size);
+            const totalOverlappingQuantity = overlappingOrders.reduce(
+              (sum: number, order: OverlappingOrder) => sum + order.quantity,
+              0
+            );
+            const availableStock = originalOnHand - totalOverlappingQuantity;
+            newCache[cacheKey] = availableStock;
+          } catch (error) {
+            console.error('Error calculating available stock for item:', item.id, error);
+            newCache[cacheKey] = originalOnHand;
+          }
+        }
+      }
+
+      setAvailableStockCache(newCache);
+    };
+
+    calculateAllAvailableStock();
+  }, [dateFrom, dateTo]); // Removed items from dependency array
 
   const handleShowImpact = async (item: OrderItem) => {
     if (!item.inventoryItemId) return;
@@ -302,13 +451,45 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
           }
           const normalize = (str: string) => str.replace(/[-_ ]/g, '').toLowerCase();
           const invSize = inv?.sizes.find((s) => normalize(s.title) === normalize(item.size));
-          const availableStock = invSize ? parseInt(invSize.onHand.toString(), 10) : 0;
+
+          // Calculate available stock by subtracting overlapping orders from original on-hand
+          let availableStock = 0;
+          if (
+            item.inventoryItemId &&
+            (typeof item.inventoryItemId === 'number' || typeof item.inventoryItemId === 'string')
+          ) {
+            // Parse inventoryItemId if it's a string
+            const inventoryItemId =
+              typeof item.inventoryItemId === 'string'
+                ? parseInt(item.inventoryItemId, 10)
+                : item.inventoryItemId;
+
+            if (!isNaN(inventoryItemId)) {
+              // Use the stored onHand as original on-hand
+              const originalOnHand =
+                (item as { onHand?: number }).onHand ||
+                (invSize ? parseInt(invSize.onHand.toString(), 10) : 0);
+
+              // Use cached available stock if available, otherwise show original on-hand
+              const cacheKey = `${inventoryItemId}-${item.size}`;
+              availableStock =
+                availableStockCache[cacheKey] !== undefined
+                  ? availableStockCache[cacheKey]
+                  : originalOnHand;
+            } else {
+              // Fallback to inventory lookup for items without valid inventoryItemId
+              availableStock = invSize ? parseInt(invSize.onHand.toString(), 10) : 0;
+            }
+          } else {
+            // Fallback to inventory lookup for items without inventoryItemId
+            availableStock = invSize ? parseInt(invSize.onHand.toString(), 10) : 0;
+          }
           const showWarning = item.quantity > availableStock;
           const isSelected = selectedItemId === item.id;
           const imageUrl = ((): string => {
-            const fromItem = (item as unknown as { imageUrl?: string | null }).imageUrl;
+            const fromItem = (item as { imageUrl?: string | null }).imageUrl;
             if (fromItem) return fromItem;
-            const fromInv = inv && (inv as unknown as { imageUrl?: string }).imageUrl;
+            const fromInv = inv && (inv as { imageUrl?: string }).imageUrl;
             return fromInv || '/no-image.png';
           })();
           const invDisplayId = String(inv?.formattedId || inv?.id || item.id);
@@ -332,7 +513,15 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                   title="Xem ảnh lớn"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                  <img
+                    src={imageUrl}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = '/no-image.png';
+                    }}
+                  />
                 </button>
                 <div className="min-w-0">
                   <div className="font-semibold text-white break-words">{item.name}</div>

@@ -293,6 +293,12 @@ export function useOrderPayment(
 
   async function handlePrint() {
     try {
+      console.log('=== Print Debug Info ===');
+      console.log('orderId:', orderId);
+      console.log('customerName:', customerName);
+      console.log('totalPay:', totalPay);
+      console.log('orderData:', orderData);
+
       // Generate PDF receipt instead of using window.print()
       const response = await fetch('/api/generate-pdf', {
         method: 'POST',
@@ -348,8 +354,12 @@ export function useOrderPayment(
         }),
       });
 
+      console.log('PDF generation response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Failed to generate PDF');
+        const errorText = await response.text();
+        console.error('PDF generation error response:', errorText);
+        throw new Error(`Failed to generate PDF: ${response.status} ${errorText}`);
       }
 
       // Get the PDF blob and trigger download
@@ -448,6 +458,15 @@ export function useOrderPayment(
 
   async function handleConfirmDocumentRetention() {
     try {
+      // Don't try to update document status if order is temporary (0000-A)
+      if (orderId === '0000-A') {
+        console.log('Skipping document status update for temporary order');
+        setShowDocumentRetentionModal(false);
+        setShowPrintModal(true);
+        onPaymentSuccess?.();
+        return;
+      }
+
       // Mark document as on file
       const response = await fetch('/api/orders/document-status', {
         method: 'POST',
