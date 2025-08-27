@@ -34,22 +34,7 @@ const OrdersContent: React.FC = () => {
 
   // Keyboard shortcut handler for secret delete modal
   useEffect(() => {
-    console.log('Setting up keyboard listener for secret delete modal...');
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      console.log(
-        '🔍 Key pressed:',
-        event.key,
-        'Ctrl:',
-        event.ctrlKey,
-        'Cmd:',
-        event.metaKey,
-        'Shift:',
-        event.shiftKey,
-        'Alt:',
-        event.altKey
-      );
-
       // Check for Ctrl+Shift+X (or Cmd+Shift+X on Mac) - "X" for delete
       if (
         (event.ctrlKey || event.metaKey) &&
@@ -57,7 +42,7 @@ const OrdersContent: React.FC = () => {
         (event.key === 'X' || event.key === 'x')
       ) {
         event.preventDefault();
-        console.log('🎯 Secret delete modal shortcut triggered!');
+
         setShowDeleteModal(true);
       }
 
@@ -68,17 +53,15 @@ const OrdersContent: React.FC = () => {
         (event.key === 'X' || event.key === 'x')
       ) {
         event.preventDefault();
-        console.log('🎯 Alternative secret delete modal shortcut triggered!');
+
         setShowDeleteModal(true);
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    console.log('✅ Keyboard listener added to document');
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      console.log('❌ Keyboard listener removed from document');
     };
   }, []);
 

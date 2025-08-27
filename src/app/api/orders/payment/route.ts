@@ -97,7 +97,6 @@ export async function POST(req: NextRequest) {
               if (response.ok) {
                 const data = await response.json();
                 originalOnHand = data.originalOnHand || 0;
-                console.log(`Original on-hand for item ${item.inventoryItemId}: ${originalOnHand}`);
               } else {
                 console.error(
                   `Failed to fetch original on-hand: ${response.status} ${response.statusText}`
@@ -108,13 +107,23 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          console.log(`Creating order item with originalOnHand: ${originalOnHand}`);
-          await createOrderItem(
-            itemData,
-            new Date(orderData.orderDate),
-            new Date(orderData.expectedReturnDate),
-            originalOnHand
-          );
+          console.log('=== About to call createOrderItem (payment) ===');
+          console.log('itemData:', JSON.stringify(itemData, null, 2));
+          console.log('orderDate:', new Date(orderData.orderDate));
+          console.log('expectedReturnDate:', new Date(orderData.expectedReturnDate));
+
+          try {
+            await createOrderItem(
+              itemData,
+              new Date(orderData.orderDate),
+              new Date(orderData.expectedReturnDate),
+              originalOnHand
+            );
+            console.log('=== createOrderItem completed successfully (payment) ===');
+          } catch (error) {
+            console.error('=== Error in createOrderItem (payment) ===', error);
+            throw error;
+          }
         }
       }
 

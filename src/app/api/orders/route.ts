@@ -69,6 +69,16 @@ export async function POST(req: NextRequest) {
     };
 
     console.log('Creating order with data:', JSON.stringify(orderData, null, 2));
+    console.log('Order date details:', {
+      orderDate: orderData.orderDate,
+      orderDateISO: orderData.orderDate.toISOString(),
+      orderDateLocal: orderData.orderDate.toLocaleDateString('vi-VN'),
+    });
+    console.log('Expected return date details:', {
+      expectedReturnDate: orderData.expectedReturnDate,
+      expectedReturnDateISO: orderData.expectedReturnDate.toISOString(),
+      expectedReturnDateLocal: orderData.expectedReturnDate.toLocaleDateString('vi-VN'),
+    });
 
     const createdOrder = await createOrder(orderData);
     console.log('Created order:', createdOrder.id);
@@ -108,7 +118,6 @@ export async function POST(req: NextRequest) {
             if (response.ok) {
               const data = await response.json();
               originalOnHand = data.originalOnHand || 0;
-              console.log(`Original on-hand for item ${item.inventoryItemId}: ${originalOnHand}`);
             } else {
               console.error(
                 `Failed to fetch original on-hand: ${response.status} ${response.statusText}`
@@ -118,8 +127,6 @@ export async function POST(req: NextRequest) {
             console.error('Error fetching original on-hand for warning calculation:', error);
           }
         }
-
-        console.log(`Creating order item with originalOnHand: ${originalOnHand}`);
 
         await createOrderItem(
           itemData,

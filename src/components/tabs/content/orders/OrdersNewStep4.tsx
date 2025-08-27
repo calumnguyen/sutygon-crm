@@ -70,7 +70,7 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
   const extraDays = extensionItem?.extraDays || 0;
   const totalRentalDays = 3 + extraDays;
   const expectedReturnDate = new Date(orderDate);
-  expectedReturnDate.setDate(orderDate.getDate() + (totalRentalDays - 1));
+  expectedReturnDate.setDate(orderDate.getDate() + 2 + extraDays); // Add 2 days for base 3-day rental + extra days
 
   const { inventory } = useInventoryFetch(
     orderDate.toISOString(),
@@ -81,16 +81,6 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
   const orderId = createdOrderId ? createdOrderId.toString() : '0000-A';
   return (
     <div className="p-6 text-white">
-      {isPaymentSubmitted && (
-        <div
-          className="mb-4 px-4 py-2 rounded bg-green-600 text-white text-base font-semibold shadow flex items-center justify-center border border-green-400"
-          style={{ minHeight: 0, lineHeight: 1.4 }}
-        >
-          Đơn hàng <span className="mx-1 font-mono bg-black/20 px-2 py-0.5 rounded">{orderId}</span>{' '}
-          đã được gửi thành công với trạng thái{' '}
-          <span className="ml-1 font-bold text-green-200">Đang xử lý</span>
-        </div>
-      )}
       {!isPaymentSubmitted && (
         <button
           className="mb-6 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-semibold"

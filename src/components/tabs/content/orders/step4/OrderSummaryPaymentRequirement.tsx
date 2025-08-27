@@ -99,16 +99,27 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
   const extensionItem = orderItems.find((item) => item.isExtension);
   const extraDays = extensionItem?.extraDays || 0;
   const totalRentalDays = 3 + extraDays;
-  const orderDate = new Date(date.split('/').reverse().join('-'));
-  const expectedReturnDate = new Date(orderDate);
-  expectedReturnDate.setDate(orderDate.getDate() + (totalRentalDays - 1));
+
+  // Parse date reliably and set to Vietnam time (UTC+7)
+  const [day, month, year] = date.split('/').map(Number);
+  const orderDate = new Date(year, month - 1, day, 12, 0, 0); // Set to noon to avoid timezone issues
+
+  // Adjust to Vietnam timezone (UTC+7)
+  const vietnamOffset = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
+  const orderDateVietnam = new Date(orderDate.getTime() + vietnamOffset);
+
+  const expectedReturnDate = new Date(orderDateVietnam);
+  expectedReturnDate.setDate(orderDateVietnam.getDate() + 2 + extraDays); // Add 2 days for base 3-day rental + extra days
 
   // Prepare order data for payment (only if order doesn't exist yet)
   const orderData =
     orderId === '0000-A'
       ? {
           customerId: customer?.id || 0,
-          orderDate: date.split('/').reverse().join('-'), // Convert dd/MM/yyyy to yyyy-MM-dd
+          orderDate: (() => {
+            const [day, month, year] = date.split('/').map(Number);
+            return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+          })(), // Convert dd/MM/yyyy to yyyy-MM-dd
           expectedReturnDate: expectedReturnDate.toISOString().split('T')[0],
           totalAmount: total,
           depositAmount: depositValue,

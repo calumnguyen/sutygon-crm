@@ -220,8 +220,8 @@ const OrdersNewStep3 = ({
       return { date: '', day: '' };
     }
     const extension = orderItems.find((i) => i.isExtension);
-    const totalRentalDays = 3 + (extension && extension.extraDays ? extension.extraDays : 0);
-    const erdDate = addDays(baseDate, totalRentalDays - 1);
+    const extraDays = extension && extension.extraDays ? extension.extraDays : 0;
+    const erdDate = addDays(baseDate, 2 + extraDays); // Add 2 days for base 3-day rental + extra days
     const erdDateStr = format(erdDate, 'dd/MM/yyyy');
     return { date: erdDateStr, day: getDayLabel(erdDateStr) };
   }
@@ -267,15 +267,31 @@ const OrdersNewStep3 = ({
     try {
       const total = orderItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
       const depositValue = 0;
-      const orderDate = new Date(date.split('/').reverse().join('-'));
+      // Parse date reliably and set to Vietnam time (UTC+7)
+      const [day, month, year] = date.split('/').map(Number);
+      const orderDate = new Date(year, month - 1, day, 12, 0, 0); // Set to noon to avoid timezone issues
+
+      // Adjust to Vietnam timezone (UTC+7)
+      const vietnamOffset = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
+      const orderDateVietnam = new Date(orderDate.getTime() + vietnamOffset);
+
       const extensionItem = orderItems.find((item) => item.isExtension);
       const extraDays = extensionItem?.extraDays || 0;
       const totalRentalDays = 3 + extraDays;
-      const expectedReturnDate = new Date(orderDate);
-      expectedReturnDate.setDate(orderDate.getDate() + (totalRentalDays - 1));
+      const expectedReturnDate = new Date(orderDateVietnam);
+      expectedReturnDate.setDate(orderDateVietnam.getDate() + 2 + extraDays); // Add 2 days for base 3-day rental + extra days
+
+      console.log('Order creation date calculation:', {
+        inputDate: date,
+        orderDate: orderDate.toLocaleDateString('vi-VN'),
+        expectedReturnDate: expectedReturnDate.toLocaleDateString('vi-VN'),
+        orderDateISO: orderDate.toISOString(),
+        expectedReturnDateISO: expectedReturnDate.toISOString(),
+        extraDays,
+      });
       const orderData = {
         customerId: customer.id,
-        orderDate: orderDate,
+        orderDate: orderDateVietnam,
         expectedReturnDate: expectedReturnDate,
         totalAmount: total,
         depositAmount: depositValue,

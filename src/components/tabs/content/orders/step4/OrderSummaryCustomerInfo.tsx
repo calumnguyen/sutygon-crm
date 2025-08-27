@@ -18,9 +18,17 @@ export const OrderSummaryCustomerInfo: React.FC<{
   const extensionItem = orderItems.find((item) => item.isExtension);
   const extraDays = extensionItem?.extraDays || 0;
   const totalRentalDays = 3 + extraDays;
-  const orderDate = new Date(date.split('/').reverse().join('-'));
-  const expectedReturnDate = new Date(orderDate);
-  expectedReturnDate.setDate(orderDate.getDate() + (totalRentalDays - 1));
+
+  // Parse date reliably and set to Vietnam time (UTC+7)
+  const [day, month, year] = date.split('/').map(Number);
+  const orderDate = new Date(year, month - 1, day, 12, 0, 0); // Set to noon to avoid timezone issues
+
+  // Adjust to Vietnam timezone (UTC+7)
+  const vietnamOffset = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
+  const orderDateVietnam = new Date(orderDate.getTime() + vietnamOffset);
+
+  const expectedReturnDate = new Date(orderDateVietnam);
+  expectedReturnDate.setDate(orderDateVietnam.getDate() + 2 + extraDays); // Add 2 days for base 3-day rental + extra days
 
   return (
     <div className="bg-gray-800 rounded-lg p-4 shadow flex flex-col gap-2">

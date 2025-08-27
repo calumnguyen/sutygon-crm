@@ -41,9 +41,13 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
   const extraDays = extensionItem?.extraDays || 0;
   const totalRentalDays = 3 + extraDays; // Base 3 days + extension days
 
+  // Adjust to Vietnam timezone (UTC+7)
+  const vietnamOffset = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
+  const orderDateVietnam = new Date(orderDate.getTime() + vietnamOffset);
+
   const expectedReturnDate = new Date(
-    orderDate.getTime() + (totalRentalDays - 1) * 24 * 60 * 60 * 1000
-  ); // +totalRentalDays-1 days
+    orderDateVietnam.getTime() + (2 + extraDays) * 24 * 60 * 60 * 1000
+  ); // Add 2 days for base 3-day rental + extra days
 
   const { inventory, inventoryLoading, inventoryError } = useInventoryFetch(
     orderDate.toISOString(),

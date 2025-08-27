@@ -338,7 +338,10 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
   }, []);
 
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('vi-VN', {
+    // Convert to Vietnam time (UTC+7)
+    const vietnamOffset = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
+    const vietnamDate = new Date(date.getTime() + vietnamOffset);
+    return vietnamDate.toLocaleDateString('vi-VN', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -347,9 +350,13 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
 
   const formatVietnameseDate = (date: Date | string) => {
     const dateObj = new Date(date);
+    // Convert to Vietnam time (UTC+7)
+    const vietnamOffset = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
+    const vietnamDate = new Date(dateObj.getTime() + vietnamOffset);
+
     const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-    const dayName = days[dateObj.getDay()];
-    const formattedDate = dateObj.toLocaleDateString('vi-VN', {
+    const dayName = days[vietnamDate.getDay()];
+    const formattedDate = vietnamDate.toLocaleDateString('vi-VN', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -358,10 +365,20 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
   };
 
   const calculateDays = (startDate: Date, endDate: Date) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Convert both dates to Vietnam time (UTC+7) consistently
+    const vietnamOffset = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
+
+    // Always convert both dates to Vietnam time for consistent calculation
+    const start = new Date(startDate.getTime() + vietnamOffset);
+    const end = new Date(endDate.getTime() + vietnamOffset);
+
+    // For rental periods, we want inclusive counting
+    // From 27th to 29th = 3 days (27th, 28th, 29th)
     const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    // For rental periods, we count the actual days
+    // 27th to 29th = 3 days (27th, 28th, 29th)
     return diffDays;
   };
 
@@ -626,53 +643,54 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                 className="bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 rounded-xl border border-slate-700/50 hover:border-slate-600/70 hover:shadow-2xl transition-all duration-300 overflow-hidden backdrop-blur-sm"
               >
                 {/* Header */}
-                <div className="p-6 bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-slate-700/50 backdrop-blur-sm">
-                  <div className="flex justify-between items-start">
-                    <div>
+                <div className="p-4 sm:p-6 bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-slate-700/50 backdrop-blur-sm">
+                  {/* Mobile: Stack vertically, Desktop: Side by side */}
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                    <div className="flex-1 min-w-0">
                       {/* Order ID and Customer Name */}
                       <div className="mb-3">
-                        <div className="text-xl font-bold text-white mb-1">
+                        <div className="text-lg sm:text-xl font-bold text-white mb-2">
                           {formatOrderId(order.id)}
                         </div>
-                        <div className="text-slate-200 font-medium text-sm leading-tight max-w-xs">
-                          <div className="line-clamp-2">
+                        <div className="text-slate-200 font-medium text-sm leading-tight">
+                          <div className="line-clamp-2 break-words">
                             {customerDetails[order.customerId]?.name || order.customerName}
                           </div>
                         </div>
                       </div>
 
-                      {/* Customer Details Card */}
+                      {/* Customer Details Card - Mobile optimized */}
                       {customerDetails[order.customerId] && (
-                        <div className="bg-slate-800/40 rounded-lg p-2 border border-slate-700/50 backdrop-blur-sm">
-                          <div className="space-y-1.5">
+                        <div className="bg-slate-800/40 rounded-lg p-3 border border-slate-700/50 backdrop-blur-sm">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {customerDetails[order.customerId].phone && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Phone className="w-4 h-4 text-emerald-400" />
-                                <span className="text-slate-300 font-medium">
+                              <div className="flex items-center gap-2 text-sm min-w-0">
+                                <Phone className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                                <span className="text-slate-300 font-medium truncate">
                                   {customerDetails[order.customerId].phone}
                                 </span>
                               </div>
                             )}
                             {customerDetails[order.customerId].company && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Building className="w-4 h-4 text-purple-400" />
-                                <span className="text-slate-300 font-medium">
+                              <div className="flex items-center gap-2 text-sm min-w-0">
+                                <Building className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                                <span className="text-slate-300 font-medium truncate">
                                   {customerDetails[order.customerId].company}
                                 </span>
                               </div>
                             )}
                             {customerDetails[order.customerId].address && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <MapPin className="w-4 h-4 text-amber-400" />
-                                <span className="text-slate-300 font-medium">
+                              <div className="flex items-center gap-2 text-sm min-w-0 sm:col-span-2">
+                                <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                                <span className="text-slate-300 font-medium truncate">
                                   {customerDetails[order.customerId].address}
                                 </span>
                               </div>
                             )}
                             {customerDetails[order.customerId].notes && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <FileText className="w-4 h-4 text-slate-400" />
-                                <span className="text-slate-300 font-medium">
+                              <div className="flex items-center gap-2 text-sm min-w-0 sm:col-span-2">
+                                <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                <span className="text-slate-300 font-medium truncate">
                                   {customerDetails[order.customerId].notes}
                                 </span>
                               </div>
@@ -681,9 +699,11 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col gap-2">
+
+                    {/* Status badges - Mobile: Full width, Desktop: Right aligned */}
+                    <div className="flex flex-col gap-2 w-full sm:w-auto">
                       <div
-                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 ${
+                        className={`flex items-center justify-center sm:justify-start gap-2 px-3 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 ${
                           order.status === 'Processing'
                             ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                             : order.status === 'Completed'
@@ -695,28 +715,28 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                       >
                         {order.status === 'Processing' ? (
                           <>
-                            <Clock className="w-4 h-4" />
-                            Đang xử lý
+                            <Clock className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">Đang xử lý</span>
                           </>
                         ) : order.status === 'Completed' ? (
                           <>
-                            <CheckCircle className="w-4 h-4" />
-                            Hoàn thành
+                            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">Hoàn thành</span>
                           </>
                         ) : order.status === 'Cancelled' ? (
                           <>
-                            <XCircle className="w-4 h-4" />
-                            Đã hủy
+                            <XCircle className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">Đã hủy</span>
                           </>
                         ) : (
                           <>
-                            <AlertCircle className="w-4 h-4" />
-                            {order.status}
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{order.status}</span>
                           </>
                         )}
                       </div>
                       <div
-                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 ${
+                        className={`flex items-center justify-center sm:justify-start gap-2 px-3 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 ${
                           order.paymentStatus === 'Paid Full'
                             ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                             : order.paymentStatus === 'Paid Full with Deposit'
@@ -730,30 +750,40 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                       >
                         {order.paymentStatus === 'Paid Full' ? (
                           <>
-                            <CheckCircle className="w-4 h-4" />
-                            {TRANSLATIONS.orders.paymentStatus['Paid Full']}
+                            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">
+                              {TRANSLATIONS.orders.paymentStatus['Paid Full']}
+                            </span>
                           </>
                         ) : order.paymentStatus === 'Paid Full with Deposit' ? (
                           <>
-                            <CheckCircle className="w-4 h-4" />
-                            {TRANSLATIONS.orders.paymentStatus['Paid Full with Deposit']}
+                            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">
+                              {TRANSLATIONS.orders.paymentStatus['Paid Full with Deposit']}
+                            </span>
                           </>
                         ) : order.paymentStatus === 'Partially Paid' ? (
                           <>
-                            <AlertTriangle className="w-4 h-4" />
-                            {TRANSLATIONS.orders.paymentStatus['Partially Paid']}
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">
+                              {TRANSLATIONS.orders.paymentStatus['Partially Paid']}
+                            </span>
                           </>
                         ) : order.paymentStatus === 'Unpaid' ? (
                           <>
-                            <CreditCard className="w-4 h-4" />
-                            {TRANSLATIONS.orders.paymentStatus['Unpaid']}
+                            <CreditCard className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">
+                              {TRANSLATIONS.orders.paymentStatus['Unpaid']}
+                            </span>
                           </>
                         ) : (
                           <>
-                            <DollarSign className="w-4 h-4" />
-                            {TRANSLATIONS.orders.paymentStatus[
-                              order.paymentStatus as keyof typeof TRANSLATIONS.orders.paymentStatus
-                            ] || order.paymentStatus}
+                            <DollarSign className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">
+                              {TRANSLATIONS.orders.paymentStatus[
+                                order.paymentStatus as keyof typeof TRANSLATIONS.orders.paymentStatus
+                              ] || order.paymentStatus}
+                            </span>
                           </>
                         )}
                       </div>
@@ -762,20 +792,21 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                 </div>
 
                 {/* Main Content */}
-                <div className="p-6">
-                  <div className="flex gap-6">
+                <div className="p-4 sm:p-6">
+                  {/* Mobile: Stack vertically, Desktop: Side by side */}
+                  <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
                     {/* Left Side - Order Details */}
                     <div className="flex-1 space-y-4">
                       {/* Dates */}
-                      <div className="flex items-center gap-3 text-slate-400 bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-                        <CalendarDays className="w-5 h-5 text-blue-400" />
-                        <div className="text-sm font-medium">
-                          <div className="flex items-center gap-2">
-                            <span>
+                      <div className="flex items-start gap-3 text-slate-400 bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+                        <CalendarDays className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm font-medium flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                            <span className="break-words">
                               {formatVietnameseDate(order.orderDate)} →{' '}
                               {formatVietnameseDate(order.calculatedReturnDate)}
                             </span>
-                            <span className="text-blue-400 font-semibold">
+                            <span className="text-blue-400 font-semibold flex-shrink-0">
                               ({calculateDays(order.orderDate, order.calculatedReturnDate)} ngày)
                             </span>
                           </div>
@@ -891,15 +922,15 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                     </div>
 
                     {/* Right Side - Product Image */}
-                    <div className="w-32 flex-shrink-0">
+                    <div className="w-full lg:w-32 flex-shrink-0">
                       <div className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wide flex items-center gap-2">
                         <Package className="w-3 h-3" />
                         Sản phẩm
                       </div>
                       <div className="relative">
-                        {/* Main image */}
+                        {/* Main image - Mobile: Larger, Desktop: Original size */}
                         <div
-                          className="w-32 h-40 bg-slate-700/50 rounded-lg border border-slate-600/50 overflow-hidden backdrop-blur-sm cursor-pointer hover:border-slate-500/70 transition-colors"
+                          className="w-full lg:w-32 h-48 lg:h-40 bg-slate-700/50 rounded-lg border border-slate-600/50 overflow-hidden backdrop-blur-sm cursor-pointer hover:border-slate-500/70 transition-colors"
                           onClick={() => handleImageClick(order.id)}
                         >
                           {loadingItems[order.id] ? (

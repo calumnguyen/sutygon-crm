@@ -557,6 +557,11 @@ export async function createOrderItem(
   expectedReturnDate?: Date,
   originalOnHand?: number
 ): Promise<OrderItem> {
+  console.log('=== createOrderItem called ===');
+  console.log('itemData:', JSON.stringify(itemData, null, 2));
+  console.log('orderDate:', orderDate);
+  console.log('expectedReturnDate:', expectedReturnDate);
+
   try {
     // Encrypt sensitive order item data
     const encryptedData = encryptOrderItemData(itemData);
@@ -580,6 +585,8 @@ export async function createOrderItem(
       })
       .returning();
 
+    console.log('Order item created with ID:', newItem.id);
+
     // Calculate warning if we have the necessary data
     console.log(
       `Checking warning conditions: orderDate=${orderDate}, expectedReturnDate=${expectedReturnDate}, originalOnHand=${originalOnHand}, inventoryItemId=${itemData.inventoryItemId}`
@@ -601,7 +608,8 @@ export async function createOrderItem(
         itemData.quantity,
         orderDate,
         expectedReturnDate,
-        originalOnHand
+        originalOnHand,
+        itemData.orderId // Exclude the current order from overlapping calculation
       );
 
       console.log('Warning calculation result:', warningInfo);
@@ -1152,8 +1160,29 @@ export async function getOrdersWithCustomers(options?: {
           ? await getOrderNoteCounts(orderIds)
           : new Map<number, { notComplete: number; total: number }>();
 
-      // Skip fetching items for now to improve performance
-      const itemsByOrderId: Record<number, OrderItem[]> = {};
+      // Fetch order items for return date calculation
+      const itemsByOrderId: Record<
+        number,
+        Array<{ isExtension: boolean; extraDays: number | null }>
+      > = {};
+      if (orderIds.length > 0) {
+        const allItems = await db
+          .select({
+            orderId: orderItems.orderId,
+            isExtension: orderItems.isExtension,
+            extraDays: orderItems.extraDays,
+          })
+          .from(orderItems)
+          .where(inArray(orderItems.orderId, orderIds));
+
+        // Group items by order ID
+        allItems.forEach((item) => {
+          if (!itemsByOrderId[item.orderId]) {
+            itemsByOrderId[item.orderId] = [];
+          }
+          itemsByOrderId[item.orderId].push(item);
+        });
+      }
 
       // Calculate return dates for each order with optimized processing
       const ordersWithCalculatedDates = dbOrders.map((order) => {
@@ -1175,8 +1204,30 @@ export async function getOrdersWithCustomers(options?: {
             ? decryptField(order.documentId)
             : order.documentId;
 
-        // Use stored expected return date for now
-        const calculatedReturnDate = order.expectedReturnDate;
+        // Calculate return date based on order items (including extensions)
+        const orderItemsForCalculation = itemsByOrderId[order.id] || [];
+        const extensionItem = orderItemsForCalculation.find((item) => item.isExtension);
+        const extraDays = extensionItem?.extraDays || 0;
+
+        // Convert stored date to Vietnam time (UTC+7)
+        const orderDateForCalculation = new Date(order.orderDate);
+        const vietnamOffset = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
+        const orderDateVietnam = new Date(orderDateForCalculation.getTime() + vietnamOffset);
+
+        const calculatedReturnDate = new Date(orderDateVietnam);
+        calculatedReturnDate.setDate(orderDateVietnam.getDate() + 2 + extraDays);
+
+        console.log(`Order ${order.id} date calculation:`, {
+          storedOrderDate: order.orderDate,
+          storedOrderDateLocal: new Date(order.orderDate).toLocaleDateString('vi-VN'),
+          storedExpectedReturnDate: order.expectedReturnDate,
+          storedExpectedReturnDateLocal: new Date(order.expectedReturnDate).toLocaleDateString(
+            'vi-VN'
+          ),
+          calculatedReturnDate: calculatedReturnDate,
+          calculatedReturnDateLocal: calculatedReturnDate.toLocaleDateString('vi-VN'),
+          extraDays,
+        });
 
         // Get note counts for this order
         const noteCounts = noteCountsMap.get(order.id) || { notComplete: 0, total: 0 };

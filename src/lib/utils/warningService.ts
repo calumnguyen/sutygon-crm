@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { orderWarnings, orderItems, orders, customers } from '@/lib/db/schema';
-import { and, eq, gte, lte, isNotNull, desc, inArray, sql } from 'drizzle-orm';
+import { and, eq, gte, lte, ne, isNotNull, desc, inArray, sql } from 'drizzle-orm';
 import { decrypt } from '@/lib/utils/encryption';
 
 export interface WarningInfo {
@@ -26,7 +26,8 @@ export async function calculateItemWarning(
   quantity: number,
   orderDate: Date,
   expectedReturnDate: Date,
-  originalOnHand: number = 0
+  originalOnHand: number = 0,
+  excludeOrderId?: number
 ): Promise<WarningInfo | null> {
   console.log(
     `calculateItemWarning called with: inventoryItemId=${inventoryItemId}, size=${size}, quantity=${quantity}, originalOnHand=${originalOnHand}`
@@ -51,7 +52,9 @@ export async function calculateItemWarning(
         and(
           eq(orderItems.inventoryItemId, inventoryItemId),
           lte(orders.orderDate, expectedReturnDate),
-          gte(orders.expectedReturnDate, orderDate)
+          gte(orders.expectedReturnDate, orderDate),
+          // Exclude the current order if excludeOrderId is provided
+          excludeOrderId ? ne(orders.id, excludeOrderId) : undefined
         )
       );
 
@@ -73,15 +76,20 @@ export async function calculateItemWarning(
       })
       .reduce((sum, qty) => sum + qty, 0);
 
-    console.log(`Total overlapping quantity: ${overlappingQuantity}`);
-    const availableStock = Math.max(0, originalOnHand - overlappingQuantity);
+    console.log(`Total overlapping quantity (excluding current order): ${overlappingQuantity}`);
+    console.log(`Current order quantity: ${quantity}`);
+    const totalRequestedQuantity = overlappingQuantity + quantity;
+    const availableStock = originalOnHand - totalRequestedQuantity;
+    console.log(`Total requested quantity (overlapping + current): ${totalRequestedQuantity}`);
     console.log(`Available stock: ${availableStock}, requested quantity: ${quantity}`);
+    console.log(`Warning condition check: availableStock < 0`);
+    console.log(`  availableStock < 0: ${availableStock} < 0 = ${availableStock < 0}`);
 
-    if (quantity > availableStock) {
+    if (availableStock < 0) {
       console.log('Creating negative stock warning');
       return {
         warningType: 'negative_stock',
-        warningMessage: `Tồn kho âm: ${availableStock} có sẵn, đặt ${quantity}`,
+        warningMessage: `Tồn kho âm: có sẵn ${originalOnHand}, tổng đặt ${totalRequestedQuantity} (thiếu ${Math.abs(availableStock)})`,
         severity: 'high',
       };
     } else {
@@ -117,6 +125,7 @@ export async function createWarning(
   );
 
   try {
+    console.log('Inserting warning into database...');
     const [result] = await db
       .insert(orderWarnings)
       .values({
@@ -133,15 +142,25 @@ export async function createWarning(
       })
       .returning();
     console.log('Warning created successfully with ID:', result.id);
+    console.log('Warning details:', {
+      orderItemId: result.orderItemId,
+      inventoryItemId: result.inventoryItemId,
+      warningType: result.warningType,
+      warningMessage: result.warningMessage,
+      severity: result.severity,
+      isResolved: result.isResolved,
+    });
   } catch (error) {
     console.error('Error creating warning:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+    });
     throw error;
   }
 }
 
-export async function getWarningsForOrderItem(
-  orderItemId: number
-): Promise<
+export async function getWarningsForOrderItem(orderItemId: number): Promise<
   Array<{
     id: number;
     orderItemId: number;
@@ -302,15 +321,15 @@ export async function addWarningsToAffectedOrders(
 
     // Calculate total overlapping quantity (affectedOrders already includes the new order)
     const totalOverlappingQuantity = affectedOrders.reduce((sum, order) => sum + order.quantity, 0);
-    const availableStock = Math.max(0, originalOnHand - totalOverlappingQuantity);
+    const availableStock = originalOnHand - totalOverlappingQuantity;
     console.log(
       `Total overlapping quantity: ${totalOverlappingQuantity}, available stock: ${availableStock}`
     );
 
-    if (availableStock <= 0) {
-      console.log('Available stock is zero or negative, adding warnings to affected orders');
+    if (availableStock < 0) {
+      console.log('Available stock is negative, adding warnings to affected orders');
       // Add warnings to all affected orders
-      const warningMessage = `Tồn kho ${availableStock < 0 ? 'âm' : 'hết'} do đơn hàng mới: ${availableStock} có sẵn, tổng đặt ${totalOverlappingQuantity}`;
+      const warningMessage = `Tồn kho âm do đơn hàng mới: có sẵn ${originalOnHand}, tổng đặt ${totalOverlappingQuantity} (thiếu ${Math.abs(availableStock)})`;
 
       for (const affectedOrder of affectedOrders) {
         console.log(
