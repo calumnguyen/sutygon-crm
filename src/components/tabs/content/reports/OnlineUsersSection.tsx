@@ -803,13 +803,13 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
 
         {/* Location and Browser - Bottom Row */}
         <div className="flex items-center justify-between text-gray-400 text-xs">
-          <div className="flex items-center gap-1">
-            <MapPin className="w-3 h-3" />
-            <span className="truncate">{user.location}</span>
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{user.location.replace(/\s*\([-\d.,\s]+\)\s*$/, '')}</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
             <Globe className="w-3 h-3" />
-            <span className="truncate">{user.browser}</span>
+            <span className="truncate max-w-[80px]">{user.browser}</span>
           </div>
         </div>
       </div>

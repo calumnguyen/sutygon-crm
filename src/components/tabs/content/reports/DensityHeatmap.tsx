@@ -19,7 +19,7 @@ const cityBoundaryCache = new Map<string, CityBoundary>();
 
 // Helper function to get coordinates from location string
 const getCoordinatesFromLocation = (location: string): { lat: number; lng: number } | null => {
-  // Try to extract coordinates from location string first (e.g., "Los Angeles, United States (34.0522, -118.2437)")
+  // Try to extract coordinates from location string first (e.g., "Garden Grove, United States (33.7739, -117.9414)")
   const coordMatch = location.match(/\(([-\d.]+),\s*([-\d.]+)\)/);
   if (coordMatch) {
     const lat = parseFloat(coordMatch[1]);
@@ -27,14 +27,40 @@ const getCoordinatesFromLocation = (location: string): { lat: number; lng: numbe
 
     // Validate coordinates are reasonable
     if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      console.log(`📍 Extracted coordinates from location: ${lat}, ${lng}`);
       return { lat, lng };
     }
   }
 
-  // Check for international cities (fallback to city centers)
+  // Enhanced international cities with more US cities
   const internationalCities: Record<string, { lat: number; lng: number }> = {
+    // Major US Cities
     'Los Angeles': { lat: 34.0522, lng: -118.2437 },
     'New York': { lat: 40.7128, lng: -74.006 },
+    Chicago: { lat: 41.8781, lng: -87.6298 },
+    Houston: { lat: 29.7604, lng: -95.3698 },
+    Phoenix: { lat: 33.4484, lng: -112.074 },
+    Philadelphia: { lat: 39.9526, lng: -75.1652 },
+    'San Antonio': { lat: 29.4241, lng: -98.4936 },
+    'San Diego': { lat: 32.7157, lng: -117.1611 },
+    Dallas: { lat: 32.7767, lng: -96.797 },
+    'San Jose': { lat: 37.3382, lng: -121.8863 },
+
+    // Orange County Cities (where Garden Grove is)
+    'Garden Grove': { lat: 33.7739, lng: -117.9414 },
+    Anaheim: { lat: 33.8366, lng: -117.9143 },
+    'Santa Ana': { lat: 33.7455, lng: -117.8677 },
+    Irvine: { lat: 33.6846, lng: -117.8265 },
+    'Huntington Beach': { lat: 33.6603, lng: -118.0098 },
+    Fullerton: { lat: 33.8704, lng: -117.9242 },
+    'Costa Mesa': { lat: 33.6411, lng: -117.9186 },
+    Westminster: { lat: 33.7592, lng: -118.0067 },
+    Orange: { lat: 33.7879, lng: -117.8531 },
+    'Fountain Valley': { lat: 33.7092, lng: -117.9537 },
+    'Newport Beach': { lat: 33.6189, lng: -117.9289 },
+    'Seal Beach': { lat: 33.7414, lng: -118.1048 },
+
+    // International Cities
     London: { lat: 51.5074, lng: -0.1278 },
     Tokyo: { lat: 35.6762, lng: 139.6503 },
     Sydney: { lat: -33.8688, lng: 151.2093 },
@@ -45,28 +71,31 @@ const getCoordinatesFromLocation = (location: string): { lat: number; lng: numbe
     'Kuala Lumpur': { lat: 3.139, lng: 101.6869 },
   };
 
-  // Check international cities first
-  for (const [cityName, coords] of Object.entries(internationalCities)) {
-    if (location.toLowerCase().includes(cityName.toLowerCase())) {
-      return coords;
-    }
-  }
-
-  // Extract city name from location string
+  // Extract city name from location string (before the comma)
   const cityMatch = location.match(/^([^,]+)/);
   if (cityMatch) {
     const cityName = cityMatch[1].trim();
-    // Try to find coordinates for this city
+    console.log(`🏙️ Extracted city name: "${cityName}" from location: "${location}"`);
+
+    // Check for exact match first
+    if (internationalCities[cityName]) {
+      console.log(`✅ Found exact city match: ${cityName}`);
+      return internationalCities[cityName];
+    }
+
+    // Check for partial matches
     for (const [knownCity, coords] of Object.entries(internationalCities)) {
       if (
         cityName.toLowerCase().includes(knownCity.toLowerCase()) ||
         knownCity.toLowerCase().includes(cityName.toLowerCase())
       ) {
+        console.log(`✅ Found partial city match: ${cityName} -> ${knownCity}`);
         return coords;
       }
     }
   }
 
+  console.log(`❌ No coordinates found for location: "${location}"`);
   return null;
 };
 
@@ -76,9 +105,42 @@ const fetchCityBoundary = async (
   coordinates: { lat: number; lng: number }
 ): Promise<CityBoundary | null> => {
   try {
-    console.log(`🗺️ Fetching boundary for: ${cityName}`);
+    console.log(
+      `🗺️ Fetching boundary for: ${cityName} at coordinates: ${coordinates.lat}, ${coordinates.lng}`
+    );
 
-    // First try to get the boundary using the city name
+    // First try to get the boundary using coordinates (more accurate)
+    const reverseUrl = `https://nominatim.openstreetmap.org/reverse?lat=${coordinates.lat}&lon=${coordinates.lng}&format=json&polygon_geojson=1&addressdetails=1&zoom=10`;
+
+    const reverseResponse = await fetch(reverseUrl, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'SutygonCRM/1.0',
+      },
+    });
+
+    if (reverseResponse.ok) {
+      const reverseData = await reverseResponse.json();
+      console.log(`📍 Reverse geocoding result:`, reverseData);
+
+      if (reverseData.geojson) {
+        // Get the actual city name from the reverse geocoding result
+        const actualCityName =
+          reverseData.address?.city ||
+          reverseData.address?.town ||
+          reverseData.address?.county ||
+          cityName;
+
+        console.log(`✅ Found boundary using coordinates for: ${actualCityName}`);
+        return {
+          name: actualCityName,
+          geojson: reverseData.geojson,
+          coordinates: coordinates,
+        };
+      }
+    }
+
+    // Fallback: try to get the boundary using the city name
     const searchUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityName)}&format=json&polygon_geojson=1&addressdetails=1&limit=1`;
 
     const response = await fetch(searchUrl, {
@@ -98,33 +160,10 @@ const fetchCityBoundary = async (
       const place = data[0];
 
       if (place.geojson) {
-        console.log(`✅ Found boundary for ${cityName}`);
+        console.log(`✅ Found boundary for ${cityName} using city name search`);
         return {
           name: cityName,
           geojson: place.geojson,
-          coordinates: coordinates,
-        };
-      }
-    }
-
-    // If no boundary found, try with coordinates
-    const reverseUrl = `https://nominatim.openstreetmap.org/reverse?lat=${coordinates.lat}&lon=${coordinates.lng}&format=json&polygon_geojson=1&addressdetails=1&zoom=10`;
-
-    const reverseResponse = await fetch(reverseUrl, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'SutygonCRM/1.0',
-      },
-    });
-
-    if (reverseResponse.ok) {
-      const reverseData = await reverseResponse.json();
-
-      if (reverseData.geojson) {
-        console.log(`✅ Found boundary for ${cityName} using coordinates`);
-        return {
-          name: cityName,
-          geojson: reverseData.geojson,
           coordinates: coordinates,
         };
       }
@@ -169,13 +208,20 @@ const DensityHeatmap: React.FC<DensityHeatmapProps> = ({ users }) => {
           const cityMatch = user.location.match(/^([^,]+)/);
           const cityName = cityMatch ? cityMatch[1].trim() : 'Unknown City';
 
-          if (locationDensity[cityName]) {
-            locationDensity[cityName].count++;
+          // Use city name as key for density calculation
+          const densityKey = cityName;
+
+          if (locationDensity[densityKey]) {
+            locationDensity[densityKey].count++;
+            console.log(
+              `📊 Updated density for ${densityKey}: ${locationDensity[densityKey].count} users`
+            );
           } else {
-            locationDensity[cityName] = {
+            locationDensity[densityKey] = {
               count: 1,
               coordinates,
             };
+            console.log(`📊 New density entry for ${densityKey}: 1 user`);
           }
         } else {
           console.log('❌ Could not get coordinates for user');

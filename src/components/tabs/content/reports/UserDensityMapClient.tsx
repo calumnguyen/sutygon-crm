@@ -268,6 +268,13 @@ const createCustomIcon = (isAdmin: boolean, userInitial: string) => {
   });
 };
 
+// Helper function to get clean location display (without coordinates)
+const getCleanLocation = (location: string): string => {
+  // Remove coordinates from location string
+  const cleanLocation = location.replace(/\s*\([-\d.,\s]+\)\s*$/, '');
+  return cleanLocation;
+};
+
 // User Marker Component
 const UserMarker: React.FC<{ user: OnlineUser }> = ({ user }) => {
   const coordinates = getCoordinatesFromLocation(user.location);
@@ -278,30 +285,35 @@ const UserMarker: React.FC<{ user: OnlineUser }> = ({ user }) => {
 
   const userInitial = user.name.charAt(0).toUpperCase();
   const icon = createCustomIcon(user.role === 'admin', userInitial);
+  const cleanLocation = getCleanLocation(user.location);
 
   return (
     <Marker position={[coordinates.lat, coordinates.lng]} icon={icon}>
       <Popup>
-        <div className="p-2 min-w-[200px]">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="p-3 min-w-[220px] max-w-[280px]">
+          <div className="flex items-center gap-2 mb-3">
             <div
               className={`w-3 h-3 rounded-full ${user.role === 'admin' ? 'bg-yellow-400' : 'bg-blue-400'}`}
             />
-            <h3 className="font-medium text-gray-900">{user.name}</h3>
+            <h3 className="font-medium text-gray-900 text-base">{user.name}</h3>
           </div>
-          <div className="text-sm text-gray-600 space-y-1">
-            <p>
-              <strong>Vai trò:</strong> {user.role === 'admin' ? 'Quản trị viên' : 'Người dùng'}
-            </p>
-            <p>
-              <strong>Thiết bị:</strong> {user.deviceType}
-            </p>
-            <p>
-              <strong>Trình duyệt:</strong> {user.browser}
-            </p>
-            <p>
-              <strong>Vị trí:</strong> {user.location}
-            </p>
+          <div className="text-sm text-gray-600 space-y-2">
+            <div className="flex justify-between">
+              <span className="font-medium">Vai trò:</span>
+              <span>{user.role === 'admin' ? 'Quản trị viên' : 'Người dùng'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Thiết bị:</span>
+              <span className="truncate ml-2">{user.deviceType}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Trình duyệt:</span>
+              <span className="truncate ml-2">{user.browser}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium">Vị trí:</span>
+              <span className="truncate ml-2 text-right">{cleanLocation}</span>
+            </div>
           </div>
         </div>
       </Popup>
@@ -387,8 +399,8 @@ const UserDensityMapClient: React.FC<UserDensityMapClientProps> = ({
       <div className="relative">
         <MapContainer
           key={mapKey}
-          center={[34.0522, -118.2437]} // Los Angeles
-          zoom={10}
+          center={[33.7739, -117.9414]} // Garden Grove, Orange County
+          zoom={11}
           className="h-[400px] w-full"
           zoomControl={true}
           attributionControl={false}
