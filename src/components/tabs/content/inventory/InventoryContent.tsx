@@ -506,16 +506,11 @@ const InventoryContent: React.FC = () => {
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={(e) => {
-              // Only close if clicking directly on the backdrop, not on dropdown content
-              if (e.target === e.currentTarget) {
-                setShowFilter(false);
-              }
-            }}
+            onClick={() => setShowFilter(false)}
           />
-          {/* Filter Panel */}
-          <div className="absolute left-0 top-0 h-full w-full bg-gray-900 shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800 sticky top-0 z-10">
+          {/* Filter Panel - Slide in from right */}
+          <div className="absolute right-0 top-0 h-full w-80 max-w-[90vw] bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-in-out">
+            <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
               <h3 className="text-lg font-semibold text-white">Bộ lọc</h3>
               <button
                 onClick={() => setShowFilter(false)}
