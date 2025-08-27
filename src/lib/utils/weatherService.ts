@@ -35,16 +35,21 @@ interface OpenWeatherResponse {
 }
 
 class WeatherService {
-  private apiKey: string;
+  private apiKey: string | undefined;
   private baseUrl: string;
 
   constructor() {
-    this.apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || '470a0b9a125a0ebd92c74b652327972e';
+    this.apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
     this.baseUrl = '/api/weather'; // Use our proxy API
   }
 
   async getWeatherData(lat: number, lon: number): Promise<WeatherData | null> {
     try {
+      if (!this.apiKey) {
+        console.error('❌ Weather API key not configured');
+        return null;
+      }
+
       console.log('🌤️ Fetching weather data for coordinates:', { lat, lon });
 
       const url = `${this.baseUrl}?lat=${lat}&lon=${lon}`;
@@ -95,6 +100,11 @@ class WeatherService {
 
   async getWeatherByCity(city: string, countryCode?: string): Promise<WeatherData | null> {
     try {
+      if (!this.apiKey) {
+        console.error('❌ Weather API key not configured');
+        return null;
+      }
+
       console.log('🌤️ Fetching weather data for city:', city);
 
       const location = countryCode ? `${city},${countryCode}` : city;

@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // For server-side API routes, use the regular env var name (not NEXT_PUBLIC_)
 const OPENWEATHER_API_KEY =
-  process.env.OPENWEATHER_API_KEY ||
-  process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY ||
-  '470a0b9a125a0ebd92c74b652327972e';
+  process.env.OPENWEATHER_API_KEY || process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
 const BASE_URL = 'https://api.openweathermap.org/data/2.5';
 
 export async function GET(request: NextRequest) {
@@ -13,6 +11,10 @@ export async function GET(request: NextRequest) {
     const city = searchParams.get('city');
     const lat = searchParams.get('lat');
     const lon = searchParams.get('lon');
+
+    if (!OPENWEATHER_API_KEY) {
+      return NextResponse.json({ error: 'Weather API key not configured' }, { status: 500 });
+    }
 
     if (!city && (!lat || !lon)) {
       return NextResponse.json(
