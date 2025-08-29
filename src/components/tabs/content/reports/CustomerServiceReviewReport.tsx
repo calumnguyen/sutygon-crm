@@ -512,109 +512,24 @@ const CustomerServiceReviewReport: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Mobile: Rating on left */}
-                <div className="flex sm:hidden items-start space-x-3 mb-4">
+                {/* Mobile: Rating on top */}
+                <div className="flex sm:hidden items-center space-x-3 mb-4">
                   <div
-                    className={`p-3 rounded-lg ${getRatingBgColor(review.rating)} w-16 h-16 flex items-center justify-center flex-shrink-0`}
+                    className={`p-2 rounded-lg ${getRatingBgColor(review.rating)} flex items-center justify-center flex-shrink-0`}
                   >
                     <div className="text-center">
-                      <div className={`text-xl font-bold ${getRatingColor(review.rating)} mb-0.5`}>
+                      <span className={`text-lg font-bold ${getRatingColor(review.rating)}`}>
                         {review.rating}
-                      </div>
-                      <div
-                        className={`text-xs font-medium ${getRatingColor(review.rating)} leading-tight`}
-                      >
-                        {decodeHtmlEntities(review.ratingDescription)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Review Content for Mobile */}
-                  <div className="flex-1 min-w-0">
-                    {/* Header: Customer Name and Date */}
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-white font-semibold text-lg">
-                        {decodeHtmlEntities(review.customerName)}
-                      </h4>
-                      <span className="text-gray-400 text-sm">
-                        {formatDateTimeForDisplay(review.dateCreated)}
                       </span>
                     </div>
-
-                    {/* Main Review Detail - Championed */}
-                    {review.reviewDetail && (
-                      <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-4 mb-4">
-                        <div className="flex items-start space-x-2">
-                          <div className="text-blue-400 mt-0.5">
-                            <MessageSquare className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-white text-base leading-relaxed italic">
-                              &ldquo;{decodeHtmlEntities(review.reviewDetail)}&rdquo;
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Information Sections for Mobile */}
-                    <div className="space-y-3">
-                      {/* Client Information */}
-                      <div className="bg-gray-700/30 rounded-lg p-3">
-                        <h5 className="text-blue-400 font-medium text-sm mb-2 flex items-center">
-                          <User className="w-4 h-4 mr-2" />
-                          Thông tin khách hàng
-                        </h5>
-                        <div className="space-y-1 text-sm">
-                          {review.phoneNumber && (
-                            <div className="flex items-center text-gray-300">
-                              <span className="text-gray-400 w-16">SĐT:</span>
-                              <span>
-                                {formatPhoneNumber(decodeHtmlEntities(review.phoneNumber))}
-                              </span>
-                            </div>
-                          )}
-                          {review.emailAddress && (
-                            <div className="flex items-center text-gray-300">
-                              <span className="text-gray-400 w-16">Email:</span>
-                              <span>{decodeHtmlEntities(review.emailAddress)}</span>
-                            </div>
-                          )}
-                          {review.invoiceNumber && (
-                            <div className="flex items-center text-gray-300">
-                              <span className="text-gray-400 w-16">Biên lai:</span>
-                              <span className="font-mono">
-                                {decodeHtmlEntities(review.invoiceNumber)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Helper Information */}
-                      {review.helperName && (
-                        <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg p-3">
-                          <h5 className="text-green-400 font-medium text-sm mb-3 flex items-center">
-                            <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center mr-2">
-                              <User className="w-3 h-3 text-green-400" />
-                            </div>
-                            Nhân viên phục vụ
-                          </h5>
-                          <div className="flex items-center">
-                            <div className="bg-green-500/20 rounded-full px-3 py-1.5 border border-green-500/40">
-                              <span className="text-green-300 font-semibold text-sm">
-                                {decodeHtmlEntities(review.helperName)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                  </div>
+                  <div className={`text-sm font-medium ${getRatingColor(review.rating)}`}>
+                    {decodeHtmlEntities(review.ratingDescription)}
                   </div>
                 </div>
 
-                {/* Desktop: Full content layout */}
-                <div className="hidden sm:block">
+                {/* Content for both mobile and desktop */}
+                <div>
                   {/* Header: Customer Name and Date */}
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-white font-semibold text-lg">
@@ -641,7 +556,7 @@ const CustomerServiceReviewReport: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Information Sections for Desktop */}
+                  {/* Information Sections */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Client Information */}
                     <div className="bg-gray-700/30 rounded-lg p-3">
