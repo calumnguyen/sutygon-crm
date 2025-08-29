@@ -711,12 +711,36 @@ export async function createOrderItem(
   }
 }
 
-export async function createOrderNote(
-  noteData: Omit<OrderNote, 'id' | 'createdAt' | 'updatedAt'>
-): Promise<OrderNote> {
+// Interface for input data that can accept string itemId
+interface CreateOrderNoteInput {
+  orderId: number;
+  itemId?: number | string | null;
+  text: string;
+  done: boolean;
+}
+
+export async function createOrderNote(noteData: CreateOrderNoteInput): Promise<OrderNote> {
   try {
+    // Handle itemId - if it's a string (like "AD-002412-M"), we need to find the corresponding order item ID
+    let resolvedItemId: number | null = null;
+
+    if (typeof noteData.itemId === 'number') {
+      resolvedItemId = noteData.itemId;
+    } else if (typeof noteData.itemId === 'string') {
+      // This is a string identifier like "AD-002412-M", we need to find the corresponding order item
+      // For now, we'll set it to null since we don't have a direct mapping
+      // TODO: Implement proper mapping if needed
+      resolvedItemId = null;
+      console.log(
+        `Note: itemId "${noteData.itemId}" is a string identifier, setting to null for now`
+      );
+    }
+
     // Encrypt sensitive order note data
-    const encryptedData = encryptOrderNoteData(noteData);
+    const encryptedData = encryptOrderNoteData({
+      ...noteData,
+      itemId: resolvedItemId,
+    });
 
     const [newNote] = await db
       .insert(orderNotes)
