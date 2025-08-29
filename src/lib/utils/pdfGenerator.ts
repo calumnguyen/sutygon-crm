@@ -16,6 +16,13 @@ export interface ReceiptData {
   totalAmount: number;
   vatAmount: number;
   depositAmount: number;
+  discounts?: Array<{
+    id: number;
+    itemizedName: string;
+    discountAmount: number;
+    discountType: 'vnd' | 'percent';
+    discountValue: number;
+  }>;
   paymentHistory?: Array<{
     date: string;
     method: 'cash' | 'qr';
@@ -29,6 +36,7 @@ export interface ReceiptData {
     documentReturned: boolean;
     documentReturnedDate?: string;
   };
+  paymentStatus?: string; // 'Paid Full', 'Partially Paid', 'Unpaid', 'Paid Full with Deposit'
   lastUpdated?: string;
 }
 

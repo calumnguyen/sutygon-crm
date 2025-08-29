@@ -19,6 +19,14 @@ interface PaymentHistory {
   amount: number;
 }
 
+interface Discount {
+  id: number;
+  itemizedName: string;
+  discountAmount: number;
+  discountType: 'vnd' | 'percent';
+  discountValue: number;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
@@ -281,16 +289,79 @@ export async function POST(request: NextRequest) {
           <div class="info-row">
             <span class="label">Tổng cộng:</span> ${data.totalAmount.toLocaleString('vi-VN')} đ
           </div>
+          ${
+            data.discounts && data.discounts.length > 0
+              ? `
           <div class="info-row">
-            <span class="label">VAT:</span> ${data.vatAmount.toLocaleString('vi-VN')} đ
+            <span class="label">Giảm giá:</span> -${data.discounts.reduce((sum: number, discount: Discount) => sum + discount.discountAmount, 0).toLocaleString('vi-VN')} đ
+          </div>
+          `
+              : ''
+          }
+          <div class="info-row">
+            <span class="label">VAT:</span> ${(() => {
+              const subtotalAfterDiscount =
+                data.totalAmount -
+                (data.discounts?.reduce(
+                  (sum: number, discount: Discount) => sum + discount.discountAmount,
+                  0
+                ) || 0);
+              return Math.round(subtotalAfterDiscount * 0.08).toLocaleString('vi-VN');
+            })()} đ
           </div>
           <div class="info-row">
             <span class="label">Đặt cọc:</span> ${data.depositAmount.toLocaleString('vi-VN')} đ
           </div>
+          <div class="info-row" style="font-weight: bold; font-size: 11px; margin-top: 5px; border-top: 1px solid #ddd; padding-top: 5px;">
+            <span class="label">Tổng cần thanh toán:</span> ${(() => {
+              const subtotalAfterDiscount =
+                data.totalAmount -
+                (data.discounts?.reduce(
+                  (sum: number, discount: Discount) => sum + discount.discountAmount,
+                  0
+                ) || 0);
+              const vatAmount = Math.round(subtotalAfterDiscount * 0.08);
+              const totalWithVat = subtotalAfterDiscount + vatAmount;
+              const totalWithDeposit = totalWithVat + data.depositAmount;
+              return totalWithDeposit.toLocaleString('vi-VN');
+            })()} đ
+          </div>
         </div>
 
         ${
-          data.paymentHistory && data.paymentHistory.length > 0
+          data.discounts && data.discounts.length > 0
+            ? `
+        <div class="payment-history">
+          <h3>Chi Tiết Giảm Giá</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Loại Giảm Giá</th>
+                <th style="text-align: right;">Số Tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.discounts
+                .map(
+                  (discount: Discount) => `
+                <tr>
+                  <td>${discount.itemizedName}${discount.discountType === 'percent' ? ` (${discount.discountValue}%)` : ''}</td>
+                  <td style="text-align: right; color: #dc2626;">-${discount.discountAmount.toLocaleString('vi-VN')} đ</td>
+                </tr>
+              `
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+        `
+            : ''
+        }
+
+        ${
+          data.paymentHistory &&
+          data.paymentHistory.length > 0 &&
+          data.paymentHistory.some((payment: PaymentHistory) => payment.amount > 0)
             ? `
         <div class="payment-history">
           <h3>Lịch Sử Thanh Toán</h3>
@@ -304,6 +375,7 @@ export async function POST(request: NextRequest) {
             </thead>
             <tbody>
               ${data.paymentHistory
+                .filter((payment: PaymentHistory) => payment.amount > 0)
                 .map(
                   (payment: PaymentHistory) => `
                 <tr>
@@ -324,22 +396,38 @@ export async function POST(request: NextRequest) {
             : ''
         }
 
+
+
         ${
           data.settlementInfo
             ? `
         <div class="settlement-info">
-          <h3>Thông Tin Tất Toán</h3>
+          <h3>Thông Tin Thanh Toán</h3>
           <div class="flex">
             <div>
+              ${
+                data.settlementInfo.remainingBalance > 0
+                  ? `
               <div class="info-row">
-                <span class="label">Số dư còn lại:</span>
-                <span style="margin-left: 5px;">${data.settlementInfo.remainingBalance.toLocaleString('vi-VN')} đ</span>
+                <span class="label" style="color: #dc2626; font-weight: bold;">Số tiền còn nợ:</span>
+                <span style="margin-left: 5px; color: #dc2626; font-weight: bold;">${data.settlementInfo.remainingBalance.toLocaleString('vi-VN')} đ</span>
               </div>
+              `
+                  : `
+              <div class="info-row" style="color: #059669; font-weight: bold;">
+                <span>✓ Đơn hàng đã được thanh toán đầy đủ</span>
+              </div>
+              `
+              }
             </div>
             <div>
               <div class="info-row">
-                <span class="label">Tiền cọc trả khách:</span>
-                <span style="margin-left: 5px;">${data.settlementInfo.depositReturned.toLocaleString('vi-VN')} đ</span>
+                <span class="label">Tiền cọc đã trả khách:</span>
+                <span style="margin-left: 5px; ${
+                  data.settlementInfo.depositReturned > 0
+                    ? 'color: #059669; font-weight: bold;'
+                    : ''
+                }">${data.settlementInfo.depositReturned.toLocaleString('vi-VN')} đ</span>
               </div>
               ${
                 data.settlementInfo.depositReturnedDate
@@ -347,6 +435,15 @@ export async function POST(request: NextRequest) {
               <div class="info-row">
                 <span class="label">Ngày trả cọc:</span>
                 <span style="margin-left: 5px;">${data.settlementInfo.depositReturnedDate}</span>
+              </div>
+              `
+                  : ''
+              }
+              ${
+                data.settlementInfo.depositReturned === 0 && data.depositAmount > 0
+                  ? `
+              <div class="info-row" style="color: #d97706; font-weight: bold;">
+                <span>⚠ Tiền cọc chưa được trả</span>
               </div>
               `
                   : ''
@@ -359,17 +456,24 @@ export async function POST(request: NextRequest) {
         }
 
         ${
-          data.settlementInfo && data.settlementInfo.documentType
+          data.settlementInfo &&
+          data.settlementInfo.documentType &&
+          !data.settlementInfo.documentType.includes('TAX_INVOICE_EXPORTED')
             ? `
         <div class="document-info">
           <h3>Thông Tin Giấy Tờ</h3>
           <div>
             <div class="info-row">
-              <span>Bạn đã để lại cho chúng tôi một ${data.settlementInfo.documentType}.</span>
+              <span class="label">Loại giấy tờ để lại:</span>
+              <span style="margin-left: 5px;">${data.settlementInfo.documentType}</span>
             </div>
             <div class="info-row">
               <span class="label">Giấy tờ đã trả khách:</span>
-              <span style="margin-left: 5px;">${data.settlementInfo.documentReturned ? 'Có' : 'Chưa'}</span>
+              <span style="margin-left: 5px; ${
+                data.settlementInfo.documentReturned
+                  ? 'color: #059669; font-weight: bold;'
+                  : 'color: #dc2626; font-weight: bold;'
+              }">${data.settlementInfo.documentReturned ? '✓ Đã trả' : '✗ Chưa trả'}</span>
             </div>
             ${
               data.settlementInfo.documentReturnedDate

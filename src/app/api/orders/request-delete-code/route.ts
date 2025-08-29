@@ -44,6 +44,13 @@ export async function POST(req: NextRequest) {
 
     storeDeleteCode(userId, code, expiresAt);
 
+    console.log('Delete code generated and stored:', {
+      userId,
+      code,
+      expiresAt,
+      expiresAtReadable: new Date(expiresAt).toLocaleString('vi-VN'),
+    });
+
     // Check if RESEND_API_KEY is set
     if (!process.env.RESEND_API_KEY) {
       console.error('RESEND_API_KEY is not set in environment variables');

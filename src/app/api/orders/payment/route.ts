@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import {
   completeOrderPayment,
   createOrder,
@@ -9,6 +11,7 @@ import {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log('=== PAYMENT API CALLED ===');
     console.log('Payment API received body:', JSON.stringify(body, null, 2));
 
     const {
@@ -18,7 +21,11 @@ export async function POST(req: NextRequest) {
       documentInfo,
       depositInfo,
       orderData, // New field for order data if order doesn't exist yet
+      discounts, // New field for discounts if order doesn't exist yet
+      totalPay, // Frontend calculated total including discounts
     } = body;
+
+    console.log('Payment API - Received discounts:', discounts);
 
     console.log('Extracted orderId:', orderId, 'type:', typeof orderId);
 
@@ -63,6 +70,50 @@ export async function POST(req: NextRequest) {
 
       console.log('Created order:', createdOrder.id);
       finalOrderId = createdOrder.id;
+
+      // Save discounts if provided
+      console.log('Checking if discounts need to be saved...');
+      if (discounts && discounts.length > 0) {
+        console.log('Saving discounts for new order:', discounts);
+        const { orderDiscounts } = await import('@/lib/db/schema');
+
+        for (const discount of discounts) {
+          // Find the itemized name ID by the name
+          let itemizedNameId = discount.itemizedNameId;
+          if (!itemizedNameId) {
+            // If itemizedNameId is not provided, find it by the name
+            const { discountItemizedNames } = await import('@/lib/db/schema');
+            const itemizedNameResult = await db
+              .select({ id: discountItemizedNames.id })
+              .from(discountItemizedNames)
+              .where(eq(discountItemizedNames.name, discount.itemizedName))
+              .limit(1);
+
+            if (itemizedNameResult.length > 0) {
+              itemizedNameId = itemizedNameResult[0].id;
+            } else {
+              console.error('Could not find itemized name ID for:', discount.itemizedName);
+              continue; // Skip this discount if we can't find the ID
+            }
+          }
+
+          // Ensure we have valid user IDs for both requesting and authorized users
+          const requestedByUserId = discount.requestedByUserId || discount.authorizedByUserId;
+          const authorizedByUserId = discount.authorizedByUserId;
+
+          await db.insert(orderDiscounts).values({
+            orderId: createdOrder.id,
+            discountType: discount.discountType,
+            discountValue: discount.discountValue,
+            discountAmount: discount.discountAmount,
+            itemizedNameId: itemizedNameId,
+            description: discount.description,
+            requestedByUserId: requestedByUserId,
+            authorizedByUserId: discount.authorizedByUserId,
+          });
+        }
+        console.log('Successfully saved all discounts');
+      }
 
       // Create order items if provided
       if (orderData.items && orderData.items.length > 0) {
@@ -180,13 +231,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Get current user ID from request body or session
+    const processedByUserId = body.currentUser?.id || 1; // Default to user ID 1 if not provided
+
     const updatedOrder = await completeOrderPayment(
       finalOrderId,
       paymentMethod,
       paidAmount,
+      processedByUserId,
       documentInfo,
       depositInfo,
-      orderData ? orderData.totalAmount : undefined // Pass order total amount if order was just created
+      orderData ? orderData.totalAmount : undefined, // Pass order total amount if order was just created
+      totalPay // Pass the frontend calculated total including discounts
     );
 
     return NextResponse.json(updatedOrder);

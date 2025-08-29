@@ -51,8 +51,10 @@ class WeatherService {
       }
 
       console.log('🌤️ Fetching weather data for coordinates:', { lat, lon });
+      console.log('🔑 API Key available:', !!this.apiKey);
 
       const url = `${this.baseUrl}?lat=${lat}&lon=${lon}`;
+      console.log('🌐 Making request to:', url);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -106,9 +108,11 @@ class WeatherService {
       }
 
       console.log('🌤️ Fetching weather data for city:', city);
+      console.log('🔑 API Key available:', !!this.apiKey);
 
       const location = countryCode ? `${city},${countryCode}` : city;
       const url = `${this.baseUrl}?city=${encodeURIComponent(location)}`;
+      console.log('🌐 Making request to:', url);
 
       const response = await fetch(url, {
         method: 'GET',

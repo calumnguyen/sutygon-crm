@@ -35,6 +35,27 @@ function formatVietnameseDate(dateString: string): string {
   return `${dayName}, ${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
+// Helper function to format Vietnamese phone numbers
+function formatVietnamesePhone(phone: string): string {
+  // Remove all non-digit characters
+  const cleaned = phone.replace(/\D/g, '');
+
+  // Handle different Vietnamese phone number formats
+  if (cleaned.length === 10) {
+    // Mobile numbers: 0123456789 -> 0123 456 789
+    return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`;
+  } else if (cleaned.length === 11) {
+    // Mobile numbers: 01234567890 -> 0123 456 7890
+    return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`;
+  } else if (cleaned.length === 9) {
+    // Some mobile numbers: 123456789 -> 123 456 789
+    return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6)}`;
+  }
+
+  // If it doesn't match any pattern, return the original
+  return phone;
+}
+
 interface OrderItem {
   id: number;
   orderId: number;
@@ -430,22 +451,20 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
 
       const [items, customer] = await Promise.all([itemsResponse.json(), customerResponse.json()]);
 
-      // Calculate payment history
-      const paymentHistory = [];
-      if (order.paymentMethod && order.paidAmount > 0) {
-        paymentHistory.push({
-          date: formatVietnameseDate(order.updatedAt.toISOString()),
-          method: order.paymentMethod as 'cash' | 'qr',
-          amount: order.paidAmount,
-        });
-      }
+      // Fetch payment history from database
+      const paymentHistoryResponse = await fetch(`/api/orders/${order.id}/payment-history`, {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
 
-      // Calculate settlement info
-      const totalPaid = order.paidAmount;
-      const totalAmount =
-        order.totalAmount +
-        (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)));
-      const remainingBalance = Math.max(0, totalAmount - totalPaid);
+      const paymentHistory = paymentHistoryResponse.ok ? await paymentHistoryResponse.json() : [];
+
+      // Calculate discount total
+      const totalDiscountAmount =
+        order.discounts?.reduce((sum, discount) => sum + discount.discountAmount, 0) || 0;
+
+      // Calculate deposit amount
       const depositAmount = (() => {
         if (order.depositType && order.depositValue) {
           if (order.depositType === 'percent') {
@@ -456,6 +475,13 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
         }
         return 0;
       })();
+
+      // Calculate correct totals
+      const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
+      const vatAmountCalculated =
+        order.vatAmount || Math.round(subtotalAfterDiscount * (vatPercentage / 100));
+      const totalWithVat = subtotalAfterDiscount + vatAmountCalculated;
+      const totalRequired = totalWithVat + depositAmount; // Total that needs to be paid
 
       const receiptData: ReceiptData = {
         orderId: formatOrderId(order.id),
@@ -484,13 +510,42 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
           })
         ),
         totalAmount: order.totalAmount,
-        vatAmount: order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)),
+        vatAmount: vatAmountCalculated,
         depositAmount: depositAmount,
-        paymentHistory: paymentHistory,
+        discounts: order.discounts?.map((discount) => ({
+          id: discount.id,
+          itemizedName: discount.itemizedName,
+          discountAmount: discount.discountAmount,
+          discountType: discount.discountType,
+          discountValue: discount.discountValue,
+        })),
+        paymentHistory:
+          paymentHistory.length > 0
+            ? paymentHistory.map(
+                (payment: { paymentDate: string; paymentMethod: string; amount: string }) => ({
+                  date: new Date(payment.paymentDate).toLocaleString('vi-VN', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  method: payment.paymentMethod,
+                  amount: Number(payment.amount),
+                })
+              )
+            : [],
+        paymentStatus: order.paymentStatus,
         settlementInfo: {
-          remainingBalance: remainingBalance,
+          remainingBalance:
+            order.paymentStatus === 'Paid Full' || order.paymentStatus === 'Paid Full with Deposit'
+              ? 0
+              : Math.max(0, totalRequired - order.paidAmount),
           depositReturned: 0,
-          documentType: order.documentType || undefined,
+          documentType: order.documentType?.includes('TAX_INVOICE_EXPORTED')
+            ? undefined
+            : order.documentType || undefined,
           documentReturned: false,
         },
         lastUpdated: order.updatedAt.toISOString(),
@@ -603,10 +658,15 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
       <div className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {orders.map((order, index) => {
+            // Calculate discount total
+            const totalDiscountAmount =
+              order.discounts?.reduce((sum, discount) => sum + discount.discountAmount, 0) || 0;
+
             // Calculate remaining balance
-            const totalWithVAT =
-              order.totalAmount +
-              (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)));
+            const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
+            const vatAmountCalculated =
+              order.vatAmount || Math.round(subtotalAfterDiscount * (vatPercentage / 100));
+            const totalWithVAT = subtotalAfterDiscount + vatAmountCalculated;
             const depositAmount = (() => {
               if (order.depositType && order.depositValue) {
                 if (order.depositType === 'percent') {
@@ -617,13 +677,11 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
               }
               return 0;
             })();
-            const totalOwed = totalWithVAT + depositAmount;
+            const totalOwed = totalWithVAT + depositAmount - totalDiscountAmount;
             const remainingBalance = Math.max(0, totalOwed - order.paidAmount);
 
-            // Calculate total amount including VAT and deposit
-            const totalWithVat =
-              order.totalAmount +
-              (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)));
+            // Calculate total amount including VAT, deposit, and discounts
+            const totalWithVat = totalWithVAT;
 
             // Check if we need to refund deposit
             const needsDepositRefund = order.paidAmount > totalWithVat;
@@ -667,7 +725,7 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                               <div className="flex items-center gap-2 text-sm min-w-0">
                                 <Phone className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                                 <span className="text-slate-300 font-medium truncate">
-                                  {customerDetails[order.customerId].phone}
+                                  {formatVietnamesePhone(customerDetails[order.customerId].phone)}
                                 </span>
                               </div>
                             )}
@@ -828,11 +886,38 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                           <span className="text-slate-400">VAT ({vatPercentage}%)</span>
                           <span className="text-slate-200">
                             {formatCurrency(
-                              order.vatAmount ||
-                                Math.round(order.totalAmount * (vatPercentage / 100))
+                              totalDiscountAmount > 0
+                                ? Math.round(
+                                    (order.totalAmount - totalDiscountAmount) *
+                                      (vatPercentage / 100)
+                                  )
+                                : order.vatAmount ||
+                                    Math.round(order.totalAmount * (vatPercentage / 100))
                             )}
                           </span>
                         </div>
+                        {totalDiscountAmount > 0 && (
+                          <div className="space-y-1">
+                            <div className="text-sm">
+                              <span className="text-green-400">Giảm giá</span>
+                            </div>
+                            <div className="ml-4 space-y-1">
+                              {order.discounts?.map((discount) => (
+                                <div key={discount.id} className="flex justify-between text-xs">
+                                  <span className="text-gray-300">{discount.itemizedName}</span>
+                                  <span className="text-green-300">
+                                    -{formatCurrency(discount.discountAmount)}
+                                    {discount.discountType === 'percent' && (
+                                      <span className="text-xs text-blue-200 ml-1">
+                                        ({discount.discountValue}%)
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-400">Tiền cọc</span>
                           <span className="text-slate-200">{formatCurrency(depositAmount)}</span>
@@ -1060,10 +1145,36 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
               Tổng VAT:{' '}
               <span className="text-white">
                 {formatCurrency(
+                  orders.reduce((sum, order) => {
+                    const totalDiscountAmount =
+                      order.discounts?.reduce(
+                        (discountSum, discount) => discountSum + discount.discountAmount,
+                        0
+                      ) || 0;
+                    return (
+                      sum +
+                      (totalDiscountAmount > 0
+                        ? Math.round(
+                            (order.totalAmount - totalDiscountAmount) * (vatPercentage / 100)
+                          )
+                        : order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)))
+                    );
+                  }, 0)
+                )}
+              </span>
+            </span>
+            <span>
+              Tổng giảm giá:{' '}
+              <span className="text-green-400 font-medium">
+                -
+                {formatCurrency(
                   orders.reduce(
                     (sum, order) =>
                       sum +
-                      (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))),
+                      (order.discounts?.reduce(
+                        (discountSum, discount) => discountSum + discount.discountAmount,
+                        0
+                      ) || 0),
                     0
                   )
                 )}

@@ -302,7 +302,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
   const weatherCache = useRef<
     Map<string, { data: WeatherData | null; timestamp: number; attempts: number; failed: boolean }>
   >(new Map());
-  const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes cache
+  const CACHE_DURATION = 30 * 1000; // 30 seconds cache (temporarily reduced for testing)
   const lastFetchTime = useRef<Map<string, number>>(new Map());
   const MIN_FETCH_INTERVAL = process.env.NODE_ENV === 'development' ? 30000 : 5000; // 30 seconds in dev, 5 seconds in prod
   const MAX_RETRY_ATTEMPTS = 3;
@@ -343,6 +343,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
   }, []);
 
   const getWeatherData = async (location: string): Promise<WeatherData | null> => {
+    console.log('🌤️ getWeatherData called for location:', location);
     try {
       // Check cache first
       const cached = weatherCache.current.get(location);
@@ -504,7 +505,9 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
       let fetchInProgress = false;
 
       const fetchWeather = async () => {
+        console.log('🌤️ fetchWeather called for user:', user.name, 'location:', user.location);
         if (!user.location || user.location === 'Unknown') {
+          console.log('❌ No location available for user:', user.name);
           return;
         }
 
@@ -519,7 +522,22 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
         try {
           // Check cache first
           const cached = weatherCache.current.get(user.location);
+          console.log('🌤️ Cache check for location:', user.location, 'cached:', !!cached);
+          if (cached) {
+            console.log(
+              '🌤️ Cache timestamp:',
+              cached.timestamp,
+              'current time:',
+              Date.now(),
+              'diff:',
+              Date.now() - cached.timestamp,
+              'cache duration:',
+              CACHE_DURATION
+            );
+          }
+
           if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+            console.log('🌤️ Using cached weather data, skipping API call');
             if (isMounted) {
               setWeatherData(cached.data);
               weatherInitialized.current = true;
@@ -529,6 +547,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
 
           // If we've failed max retries, show cached data or nothing
           if (cached && cached.failed && cached.attempts >= MAX_RETRY_ATTEMPTS) {
+            console.log('🌤️ Max retries reached, using cached data');
             if (isMounted) {
               setWeatherData(cached.data);
               weatherInitialized.current = true;
@@ -541,6 +560,7 @@ const OnlineUsersSection: React.FC<OnlineUsersSectionProps> = React.memo(({ curr
             setIsLoading(true);
           }
 
+          console.log('🌤️ About to call getWeatherData for location:', user.location);
           const weather = await getWeatherData(user.location);
 
           if (isMounted) {

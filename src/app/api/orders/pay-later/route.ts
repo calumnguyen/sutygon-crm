@@ -8,9 +8,17 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const { orderId, documentInfo, depositInfo, orderData } = await request.json();
+    const { orderId, documentInfo, depositInfo, orderData, discounts, totalPay } =
+      await request.json();
 
-    console.log('Pay later API received:', { orderId, documentInfo, depositInfo, orderData });
+    console.log('Pay later API received:', {
+      orderId,
+      documentInfo,
+      depositInfo,
+      orderData,
+      discounts,
+      totalPay,
+    });
 
     let finalOrderId = orderId;
 
@@ -151,6 +159,49 @@ export async function POST(request: NextRequest) {
             } catch (error) {
               console.error('Error adding warnings to affected orders:', error);
             }
+          }
+        }
+      }
+
+      // Save discounts if provided
+      if (discounts && discounts.length > 0) {
+        console.log('Saving discounts for pay later order:', discounts);
+
+        // Import db and eq for discount operations
+        const { db } = await import('@/lib/db');
+        const { eq } = await import('drizzle-orm');
+        const { orderDiscounts, discountItemizedNames } = await import('@/lib/db/schema');
+
+        for (const discount of discounts) {
+          try {
+            // Find itemizedNameId by itemizedName
+            let itemizedNameId = discount.itemizedNameId;
+            if (!itemizedNameId && discount.itemizedName) {
+              const itemizedNameResult = await db
+                .select({ id: discountItemizedNames.id })
+                .from(discountItemizedNames)
+                .where(eq(discountItemizedNames.name, discount.itemizedName))
+                .limit(1);
+
+              if (itemizedNameResult.length > 0) {
+                itemizedNameId = itemizedNameResult[0].id;
+              }
+            }
+
+            await db.insert(orderDiscounts).values({
+              orderId: createdOrder.id,
+              discountType: discount.discountType,
+              discountValue: discount.discountValue,
+              discountAmount: discount.discountAmount,
+              itemizedNameId: itemizedNameId,
+              description: discount.description,
+              requestedByUserId: discount.requestedByUserId,
+              authorizedByUserId: discount.authorizedByUserId,
+            });
+
+            console.log('Saved discount for pay later order:', discount);
+          } catch (error) {
+            console.error('Error saving discount for pay later order:', error);
           }
         }
       }

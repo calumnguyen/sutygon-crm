@@ -7,6 +7,15 @@ import { OrderSummaryTable } from './step4/OrderSummaryTable';
 import { OrderSummaryDocumentDeposit } from './step4/OrderSummaryDocumentDeposit';
 import { OrderSummaryPaymentRequirement } from './step4/OrderSummaryPaymentRequirement';
 
+interface Discount {
+  id: number;
+  discountType: 'vnd' | 'percent';
+  discountValue: number;
+  discountAmount: number;
+  itemizedName: string;
+  description: string;
+}
+
 interface Customer {
   id: number;
   name: string;
@@ -53,6 +62,7 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
     documentName: string;
     documentId: string;
   }>(null);
+  const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [isPaymentSubmitted, setIsPaymentSubmitted] = useState(false);
 
   // Calculate date range for inventory (order date to expected return date)
@@ -78,7 +88,7 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
   );
 
   // Use the real order ID from the database
-  const orderId = createdOrderId ? createdOrderId.toString() : '0000-A';
+  const orderId = createdOrderId !== null ? createdOrderId.toString() : '0000-A';
   return (
     <div className="p-6 text-white">
       {!isPaymentSubmitted && (
@@ -98,6 +108,7 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
             .reduce((sum, i) => sum + i.quantity * i.price, 0)}
           depositInfo={depositInfo || undefined}
           documentInfo={documentInfo}
+          discounts={discounts}
           isPaymentSubmitted={isPaymentSubmitted}
           setIsPaymentSubmitted={setIsPaymentSubmitted}
           orderId={orderId}
@@ -111,7 +122,10 @@ const OrdersNewStep4: React.FC<OrdersNewStep4Props> = ({
           orderItems={orderItems}
           setDepositInfo={setDepositInfo}
           setDocumentInfo={setDocumentInfo}
+          setDiscounts={setDiscounts}
+          discounts={discounts}
           isPaymentSubmitted={isPaymentSubmitted}
+          orderId={orderId}
         />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">

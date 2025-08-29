@@ -1,7 +1,15 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { orders, orderItems, orderNotes, customers, inventoryItems } from '@/lib/db/schema';
+import {
+  orders,
+  orderItems,
+  orderNotes,
+  customers,
+  inventoryItems,
+  paymentHistory,
+  orderDiscounts,
+} from '@/lib/db/schema';
 import { eq, desc, asc, and, or, gte, lte, count, inArray, sql } from 'drizzle-orm';
 import {
   encryptOrderData,
@@ -49,6 +57,19 @@ function getFormattedId(category: string, categoryCounter: number) {
   return `${code}-${String(categoryCounter).padStart(6, '0')}`;
 }
 
+export interface OrderDiscount {
+  id: number;
+  orderId: number;
+  discountType: 'vnd' | 'percent';
+  discountValue: number;
+  discountAmount: number;
+  itemizedName: string;
+  description: string;
+  requestedByUserId: number;
+  authorizedByUserId: number;
+  createdAt: Date;
+}
+
 export interface Order {
   id: number;
   customerId: number;
@@ -70,6 +91,8 @@ export interface Order {
   depositType?: string | null;
   depositValue?: number | null;
   taxInvoiceExported: boolean;
+  // Discounts
+  discounts?: OrderDiscount[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -282,6 +305,40 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
 
   if (!order) return null;
 
+  // Fetch discounts for this order
+  const { orderDiscounts, discountItemizedNames } = await import('@/lib/db/schema');
+  const discounts = await db
+    .select({
+      id: orderDiscounts.id,
+      orderId: orderDiscounts.orderId,
+      discountType: orderDiscounts.discountType,
+      discountValue: orderDiscounts.discountValue,
+      discountAmount: orderDiscounts.discountAmount,
+      itemizedNameId: orderDiscounts.itemizedNameId,
+      description: orderDiscounts.description,
+      requestedByUserId: orderDiscounts.requestedByUserId,
+      authorizedByUserId: orderDiscounts.authorizedByUserId,
+      createdAt: orderDiscounts.createdAt,
+      itemizedName: discountItemizedNames.name,
+    })
+    .from(orderDiscounts)
+    .innerJoin(discountItemizedNames, eq(orderDiscounts.itemizedNameId, discountItemizedNames.id))
+    .where(eq(orderDiscounts.orderId, orderId))
+    .orderBy(orderDiscounts.createdAt);
+
+  const orderDiscountsData: OrderDiscount[] = discounts.map((discount) => ({
+    id: discount.id,
+    orderId: discount.orderId,
+    discountType: discount.discountType as 'vnd' | 'percent',
+    discountValue: Number(discount.discountValue),
+    discountAmount: Number(discount.discountAmount),
+    itemizedName: discount.itemizedName,
+    description: discount.description || '',
+    requestedByUserId: discount.requestedByUserId,
+    authorizedByUserId: discount.authorizedByUserId,
+    createdAt: discount.createdAt,
+  }));
+
   const decrypted = decryptOrderData(order);
   return {
     id: order.id,
@@ -290,6 +347,7 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
     expectedReturnDate: order.expectedReturnDate,
     status: order.status,
     totalAmount: Number(order.totalAmount),
+    vatAmount: Number(order.vatAmount || 0),
     depositAmount: Number(order.depositAmount),
     paidAmount: Number(order.paidAmount),
     paymentMethod: order.paymentMethod,
@@ -301,6 +359,7 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
     depositType: order.depositType,
     depositValue: order.depositValue ? Number(order.depositValue) : null,
     taxInvoiceExported: order.taxInvoiceExported,
+    discounts: orderDiscountsData,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
   };
@@ -752,6 +811,36 @@ export async function updateOrder(
 
 export async function deleteOrder(orderId: number): Promise<void> {
   try {
+    // Delete payment history first (foreign key constraint)
+    await db.delete(paymentHistory).where(eq(paymentHistory.orderId, orderId));
+
+    // Delete order discounts (foreign key constraint)
+    await db.delete(orderDiscounts).where(eq(orderDiscounts.orderId, orderId));
+
+    // Delete order notes (foreign key constraint)
+    await db.delete(orderNotes).where(eq(orderNotes.orderId, orderId));
+
+    // Get order item IDs to delete related warnings
+    const orderItemIds = await db
+      .select({ id: orderItems.id })
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderId));
+
+    // Delete order warnings for these items (foreign key constraint to order items)
+    if (orderItemIds.length > 0) {
+      const { orderWarnings } = await import('@/lib/db/schema');
+      await db.delete(orderWarnings).where(
+        inArray(
+          orderWarnings.orderItemId,
+          orderItemIds.map((item) => item.id)
+        )
+      );
+    }
+
+    // Delete order items (foreign key constraint)
+    await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
+
+    // Finally delete the order
     await db.delete(orders).where(eq(orders.id, orderId));
   } catch (error) {
     console.error('Error deleting order:', error);
@@ -763,6 +852,7 @@ export async function completeOrderPayment(
   orderId: number,
   paymentMethod: 'cash' | 'qr',
   paidAmount: number,
+  processedByUserId: number, // Add user ID who processed the payment
   documentInfo?: {
     documentType: string;
     documentOther?: string;
@@ -773,7 +863,8 @@ export async function completeOrderPayment(
     depositType: 'vnd' | 'percent';
     depositValue: number;
   },
-  orderTotalAmount?: number // New parameter for when order was just created
+  orderTotalAmount?: number, // New parameter for when order was just created
+  totalPay?: number // Frontend calculated total including discounts
 ): Promise<Order> {
   try {
     console.log('Starting payment completion for order ID:', orderId);
@@ -814,35 +905,54 @@ export async function completeOrderPayment(
     const orderTotal =
       orderTotalAmount !== undefined ? orderTotalAmount : Number(existingOrder[0].totalAmount);
     const depositAmount = depositInfo ? depositInfo.depositValue : 0;
-    const totalRequired = orderTotal + depositAmount; // Total amount that needs to be paid
 
-    if (depositInfo) {
-      // When there's a deposit, check against total required (order + deposit)
-      if (paidAmount >= totalRequired) {
+    // Use frontend calculated total (including discounts) if available, otherwise use original total
+    const discountedTotal = totalPay !== undefined ? totalPay : orderTotal;
+
+    // For payment status, we need to determine if the customer paid the full order amount
+    // If totalPay is provided, it includes deposit, so we need to subtract deposit to get order amount only
+    const orderAmountOnly = totalPay !== undefined ? totalPay - depositAmount : orderTotal;
+
+    if (paidAmount >= orderAmountOnly) {
+      // Check if customer also paid the deposit amount
+      if (depositInfo && paidAmount >= orderAmountOnly + depositAmount) {
         paymentStatus = 'Paid Full with Deposit';
-      } else if (paidAmount > 0) {
-        paymentStatus = 'Partially Paid';
       } else {
-        paymentStatus = 'Unpaid';
-      }
-    } else {
-      // When there's no deposit, check against order total only
-      if (paidAmount >= orderTotal) {
         paymentStatus = 'Paid Full';
-      } else if (paidAmount > 0) {
-        paymentStatus = 'Partially Paid';
-      } else {
-        paymentStatus = 'Unpaid';
       }
+    } else if (paidAmount > 0) {
+      paymentStatus = 'Partially Paid';
+    } else {
+      paymentStatus = 'Unpaid';
     }
 
     console.log('Determined payment status:', paymentStatus);
+
+    // Calculate VAT based on discounted total (if discounts exist)
+    let vatAmount = existingOrder[0].vatAmount ? Number(existingOrder[0].vatAmount) : 0;
+
+    // If there are discounts, recalculate VAT on the discounted amount
+    const discounts = await db
+      .select()
+      .from(orderDiscounts)
+      .where(eq(orderDiscounts.orderId, orderId));
+
+    if (discounts.length > 0) {
+      const totalDiscountAmount = discounts.reduce(
+        (sum: number, discount: { discountAmount: string | number }) =>
+          sum + Number(discount.discountAmount),
+        0
+      );
+      const subtotalAfterDiscount = orderTotal - totalDiscountAmount;
+      vatAmount = Math.round(subtotalAfterDiscount * 0.08); // 8% VAT
+    }
 
     // Prepare update data
     const updateData: Record<string, unknown> = {
       paidAmount: paidAmount.toString(),
       paymentMethod,
       paymentStatus,
+      vatAmount: vatAmount.toString(), // Update VAT amount
       updatedAt: new Date(),
       ...encryptedDocumentInfo,
       ...processedDepositInfo,
@@ -874,6 +984,22 @@ export async function completeOrderPayment(
     if (!updatedOrder) {
       throw new Error('Order not found');
     }
+
+    // Save payment history
+    await db.insert(paymentHistory).values({
+      orderId: orderId,
+      paymentMethod: paymentMethod,
+      amount: paidAmount.toString(),
+      processedByUserId: processedByUserId,
+      paymentDate: new Date(),
+    });
+
+    console.log('Payment history saved:', {
+      orderId,
+      paymentMethod,
+      amount: paidAmount,
+      processedByUserId,
+    });
 
     // Debug: Log the order structure
     console.log('Updated order from DB:', JSON.stringify(updatedOrder, null, 2));
@@ -1184,6 +1310,52 @@ export async function getOrdersWithCustomers(options?: {
         });
       }
 
+      // Fetch discounts for all orders
+      const discountsByOrderId: Record<number, OrderDiscount[]> = {};
+      if (orderIds.length > 0) {
+        const { orderDiscounts, discountItemizedNames } = await import('@/lib/db/schema');
+        const allDiscounts = await db
+          .select({
+            id: orderDiscounts.id,
+            orderId: orderDiscounts.orderId,
+            discountType: orderDiscounts.discountType,
+            discountValue: orderDiscounts.discountValue,
+            discountAmount: orderDiscounts.discountAmount,
+            itemizedNameId: orderDiscounts.itemizedNameId,
+            description: orderDiscounts.description,
+            requestedByUserId: orderDiscounts.requestedByUserId,
+            authorizedByUserId: orderDiscounts.authorizedByUserId,
+            createdAt: orderDiscounts.createdAt,
+            itemizedName: discountItemizedNames.name,
+          })
+          .from(orderDiscounts)
+          .innerJoin(
+            discountItemizedNames,
+            eq(orderDiscounts.itemizedNameId, discountItemizedNames.id)
+          )
+          .where(inArray(orderDiscounts.orderId, orderIds))
+          .orderBy(orderDiscounts.createdAt);
+
+        // Group discounts by order ID
+        allDiscounts.forEach((discount) => {
+          if (!discountsByOrderId[discount.orderId]) {
+            discountsByOrderId[discount.orderId] = [];
+          }
+          discountsByOrderId[discount.orderId].push({
+            id: discount.id,
+            orderId: discount.orderId,
+            discountType: discount.discountType as 'vnd' | 'percent',
+            discountValue: Number(discount.discountValue),
+            discountAmount: Number(discount.discountAmount),
+            itemizedName: discount.itemizedName,
+            description: discount.description || '',
+            requestedByUserId: discount.requestedByUserId,
+            authorizedByUserId: discount.authorizedByUserId,
+            createdAt: discount.createdAt,
+          });
+        });
+      }
+
       // Calculate return dates for each order with optimized processing
       const ordersWithCalculatedDates = dbOrders.map((order) => {
         // Only decrypt document fields if they exist and are encrypted
@@ -1257,6 +1429,7 @@ export async function getOrdersWithCustomers(options?: {
           depositType: order.depositType,
           depositValue: order.depositValue ? Number(order.depositValue) : null,
           taxInvoiceExported: order.taxInvoiceExported,
+          discounts: discountsByOrderId[order.id] || [],
           createdAt: order.createdAt,
           updatedAt: order.updatedAt,
           customerName: decryptedCustomerName,

@@ -1,24 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { OrderItem } from '../types';
+import { DiscountModal } from './DiscountModal';
+import IdentityConfirmModal from '@/components/common/IdentityConfirmModal';
+import { useUser } from '@/context/UserContext';
+
+interface Discount {
+  id: number;
+  discountType: 'vnd' | 'percent';
+  discountValue: number;
+  discountAmount: number;
+  itemizedName: string;
+  description: string;
+  requestedByUserId?: number;
+  authorizedByUserId?: number;
+}
 
 /**
  * Document & deposit card for step 4 summary.
  * @param orderItems Array of order items
  * @param setDepositInfo Callback to set deposit info in parent
+ * @param setDocumentInfo Callback to set document info in parent
+ * @param setDiscounts Callback to set discounts in parent
+ * @param discounts Current discounts
  * @param isPaymentSubmitted Whether the payment is completed
  */
 export const OrderSummaryDocumentDeposit: React.FC<{
   orderItems?: OrderItem[];
   setDepositInfo?: (info: { type: 'vnd' | 'percent'; value: number } | null) => void;
-  setDocumentInfo?: (info: {
-    documentType: string;
-    documentOther?: string;
-    documentName: string;
-    documentId: string;
-  } | null) => void;
+  setDocumentInfo?: (
+    info: {
+      documentType: string;
+      documentOther?: string;
+      documentName: string;
+      documentId: string;
+    } | null
+  ) => void;
+  setDiscounts?: (discounts: Discount[]) => void;
+  discounts?: Discount[];
   isPaymentSubmitted?: boolean;
-}> = ({ orderItems = [], setDepositInfo, setDocumentInfo, isPaymentSubmitted }) => {
-  const [showModal, setShowModal] = useState<'doc' | 'deposit' | null>(null);
+  orderId?: string;
+}> = ({
+  orderItems = [],
+  setDepositInfo,
+  setDocumentInfo,
+  setDiscounts,
+  discounts = [],
+  isPaymentSubmitted,
+  orderId,
+}) => {
+  const [showModal, setShowModal] = useState<'doc' | 'deposit' | 'discount' | null>(null);
+  const [showIdentityModal, setShowIdentityModal] = useState(false);
+  const [pendingDiscountData, setPendingDiscountData] = useState<{
+    discountType: 'vnd' | 'percent';
+    discountValue: number;
+    itemizedNameId: number;
+    description: string;
+  } | null>(null);
+  const { currentUser } = useUser();
   const [docType, setDocType] = useState('');
   const [docOther, setDocOther] = useState('');
   const [docName, setDocName] = useState('');
@@ -40,7 +78,7 @@ export const OrderSummaryDocumentDeposit: React.FC<{
   useEffect(() => {
     if (setDepositInfo) setDepositInfo(depositInfo);
   }, [depositInfo, setDepositInfo]);
-  
+
   useEffect(() => {
     if (setDocumentInfo) {
       console.log('=== OrderSummaryDocumentDeposit Debug ===');
@@ -133,6 +171,140 @@ export const OrderSummaryDocumentDeposit: React.FC<{
   const handleClearDeposit = () => {
     setLocalDepositInfo(null);
   };
+
+  // Discount handlers
+  const handleOpenDiscount = () => {
+    setShowModal('discount');
+  };
+
+  const handleCloseDiscount = () => {
+    setShowModal(null);
+  };
+
+  const handleSubmitDiscount = (discountData: {
+    discountType: 'vnd' | 'percent';
+    discountValue: number;
+    itemizedNameId: number;
+    description: string;
+  }) => {
+    setPendingDiscountData(discountData);
+    setShowIdentityModal(true);
+  };
+
+  const handleIdentitySuccess = async (user: {
+    id: number;
+    name: string;
+    employeeKey: string;
+    role: string;
+    status: string;
+  }) => {
+    try {
+      const discountAmount =
+        pendingDiscountData!.discountType === 'vnd'
+          ? pendingDiscountData!.discountValue
+          : Math.round(subtotal * (pendingDiscountData!.discountValue / 100));
+
+      // If order doesn't exist yet, add to local state
+      if (!orderId || orderId === '0000-A') {
+        if (setDiscounts) {
+          // Fetch the itemized name for display
+          try {
+            const itemizedNamesResponse = await fetch('/api/discount-itemized-names');
+            const itemizedNamesData = await itemizedNamesResponse.json();
+            const itemizedName =
+              itemizedNamesData.itemizedNames?.find(
+                (item: { id: number; name: string }) =>
+                  item.id === pendingDiscountData!.itemizedNameId
+              )?.name || 'Unknown';
+
+            const newDiscount: Discount = {
+              id: Date.now(), // Temporary ID for local state
+              discountType: pendingDiscountData!.discountType,
+              discountValue: pendingDiscountData!.discountValue,
+              discountAmount,
+              itemizedName,
+              description: pendingDiscountData!.description,
+              requestedByUserId: user.id, // The user approving is also the one requesting
+              authorizedByUserId: user.id,
+            };
+            setDiscounts([...discounts, newDiscount]);
+          } catch (error) {
+            console.error('Error fetching itemized name:', error);
+            // Fallback with temporary name
+            const newDiscount: Discount = {
+              id: Date.now(),
+              discountType: pendingDiscountData!.discountType,
+              discountValue: pendingDiscountData!.discountValue,
+              discountAmount,
+              itemizedName: 'Temporary',
+              description: pendingDiscountData!.description,
+              requestedByUserId: user.id, // The user approving is also the one requesting
+              authorizedByUserId: user.id,
+            };
+            setDiscounts([...discounts, newDiscount]);
+          }
+        }
+      } else {
+        // Order exists, save to database
+        const response = await fetch(`/api/orders/${orderId}/discount`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            currentUser,
+            ...pendingDiscountData,
+            discountAmount,
+            authorizedByUserId: user.id,
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && setDiscounts) {
+            // Refresh discounts
+            const discountResponse = await fetch(`/api/orders/${orderId}/discounts`);
+            if (discountResponse.ok) {
+              const discountResult = await discountResponse.json();
+              if (discountResult.success) {
+                setDiscounts(discountResult.discounts);
+              }
+            }
+          }
+        } else {
+          console.error('Failed to add discount');
+        }
+      }
+    } catch (error) {
+      console.error('Error adding discount:', error);
+    } finally {
+      setPendingDiscountData(null);
+      setShowIdentityModal(false);
+    }
+  };
+
+  const handleClearDiscount = async (discountId: number) => {
+    try {
+      // If order exists, call API to remove discount
+      if (orderId !== '0000-A') {
+        const response = await fetch(`/api/orders/${orderId}/discount/${discountId}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to remove discount');
+        }
+      }
+
+      // Remove discount from local state
+      if (setDiscounts) {
+        setDiscounts(discounts.filter((d) => d.id !== discountId));
+      }
+    } catch (error) {
+      console.error('Error removing discount:', error);
+      // You might want to show a toast notification here
+    }
+  };
   return (
     <div className="bg-gray-800 rounded-lg p-3 shadow flex flex-col gap-3">
       <div className="text-base font-bold text-cyan-400 mb-1 text-left">Giấy Tờ & Đặt Cọc</div>
@@ -211,6 +383,56 @@ export const OrderSummaryDocumentDeposit: React.FC<{
               </button>
             )}
             <span>{depositDisplay}</span>
+          </div>
+        )}
+
+        {/* Discount Section */}
+        <div
+          className="flex items-center gap-2 rounded transition-colors cursor-pointer group hover:bg-green-900/30 px-1 py-1"
+          onClick={isPaymentSubmitted ? undefined : handleOpenDiscount}
+        >
+          <input
+            type="checkbox"
+            id="giam-gia"
+            className="accent-green-500 w-4 h-4 cursor-pointer"
+            checked={discounts.length > 0}
+            readOnly
+            tabIndex={-1}
+            disabled={isPaymentSubmitted}
+          />
+          <label
+            htmlFor="giam-gia"
+            className={`text-white font-medium select-none text-sm group-hover:text-green-300 ${isPaymentSubmitted ? 'opacity-60 cursor-not-allowed' : ''}`}
+          >
+            Giảm Giá
+          </label>
+        </div>
+        {discounts.length > 0 && (
+          <div className="ml-6 mt-1 space-y-2">
+            {discounts.map((discount) => (
+              <div
+                key={discount.id}
+                className="px-2 py-1 rounded border border-green-500 bg-green-900/20 text-xs text-green-200 flex flex-col gap-0.5 relative"
+              >
+                {!isPaymentSubmitted && (
+                  <button
+                    type="button"
+                    className="absolute top-1 right-1 text-xs text-red-300 hover:text-red-500 px-2 py-0.5 rounded focus:outline-none"
+                    onClick={() => handleClearDiscount(discount.id)}
+                    title="Huỷ giảm giá"
+                  >
+                    Huỷ
+                  </button>
+                )}
+                <span className="font-semibold">{discount.itemizedName}</span>
+                <span>
+                  -{discount.discountAmount.toLocaleString('vi-VN')} đ
+                  {discount.discountType === 'percent' && (
+                    <span className="text-blue-200"> ({discount.discountValue}% của đơn hàng)</span>
+                  )}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -367,6 +589,26 @@ export const OrderSummaryDocumentDeposit: React.FC<{
           </div>
         </div>
       )}
+
+      {/* Discount Modal */}
+      <DiscountModal
+        show={showModal === 'discount'}
+        onClose={handleCloseDiscount}
+        onSubmit={handleSubmitDiscount}
+        subtotal={subtotal}
+        currentTotalDiscount={discounts.reduce((sum, discount) => sum + discount.discountAmount, 0)}
+      />
+
+      {/* Identity Confirmation Modal */}
+      <IdentityConfirmModal
+        open={showIdentityModal}
+        onClose={() => {
+          setShowIdentityModal(false);
+          setPendingDiscountData(null);
+        }}
+        onSuccess={handleIdentitySuccess}
+        requiredRole="admin"
+      />
     </div>
   );
 };

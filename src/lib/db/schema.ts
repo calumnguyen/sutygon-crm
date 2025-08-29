@@ -371,3 +371,85 @@ export const aiTrainingData = pgTable(
     };
   }
 );
+
+export const discountItemizedNames = pgTable(
+  'discount_itemized_names',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull().unique(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      // Index for name lookups
+      nameIdx: index('discount_itemized_names_name_idx').on(table.name),
+    };
+  }
+);
+
+export const orderDiscounts = pgTable(
+  'order_discounts',
+  {
+    id: serial('id').primaryKey(),
+    orderId: integer('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    discountType: varchar('discount_type', { length: 10 }).notNull(),
+    discountValue: decimal('discount_value', { precision: 10, scale: 2 }).notNull(),
+    discountAmount: decimal('discount_amount', { precision: 10, scale: 2 }).notNull(),
+    itemizedNameId: integer('itemized_name_id')
+      .notNull()
+      .references(() => discountItemizedNames.id),
+    description: text('description'),
+    requestedByUserId: integer('requested_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    authorizedByUserId: integer('authorized_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      // Index for order ID lookups
+      orderIdIdx: index('order_discounts_order_id_idx').on(table.orderId),
+      // Index for requesting user lookups
+      requestedByIdx: index('order_discounts_requested_by_idx').on(table.requestedByUserId),
+      // Index for authorized user lookups
+      authorizedByIdx: index('order_discounts_authorized_by_idx').on(table.authorizedByUserId),
+      // Index for creation date sorting
+      createdAtIdx: index('order_discounts_created_at_idx').on(table.createdAt),
+    };
+  }
+);
+
+export const paymentHistory = pgTable(
+  'payment_history',
+  {
+    id: serial('id').primaryKey(),
+    orderId: integer('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    paymentMethod: varchar('payment_method', { length: 10 }).notNull(), // 'cash' or 'qr'
+    amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+    processedByUserId: integer('processed_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    paymentDate: timestamp('payment_date').notNull().defaultNow(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      // Index for order ID lookups
+      orderIdIdx: index('payment_history_order_id_idx').on(table.orderId),
+      // Index for user who processed the payment
+      processedByUserIdIdx: index('payment_history_processed_by_user_id_idx').on(
+        table.processedByUserId
+      ),
+      // Index for payment date sorting
+      paymentDateIdx: index('payment_history_payment_date_idx').on(table.paymentDate),
+      // Index for payment method filtering
+      paymentMethodIdx: index('payment_history_payment_method_idx').on(table.paymentMethod),
+    };
+  }
+);

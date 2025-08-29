@@ -194,3 +194,48 @@ export const inventoryTags = pgTable("inventory_tags", {
 		}),
 	primaryKey({ columns: [table.itemId, table.tagId], name: "inventory_tags_pkey"}),
 ]);
+
+export const discountItemizedNames = pgTable("discount_itemized_names", {
+	id:serial().primaryKey().notNull(),
+	name:text().notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	unique("discount_itemized_names_name_key").on(table.name),
+]);
+
+export const orderDiscounts = pgTable("order_discounts", {
+	id:serial().primaryKey().notNull(),
+	orderId: integer("order_id").notNull(),
+	discountType: varchar("discount_type", { length: 10 }).notNull(),
+	discountValue: numeric("discount_value", { precision: 10, scale:  2 }).notNull(),
+	discountAmount: numeric("discount_amount", { precision: 10, scale:  2 }).notNull(),
+	itemizedNameId: integer("itemized_name_id").notNull(),
+	description: text("description"),
+	requestedByUserId: integer("requested_by_user_id").notNull(),
+	authorizedByUserId: integer("authorized_by_user_id").notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("idx_order_discounts_order_id").using("btree", table.orderId.asc().nullsLast().op("int4_ops")),
+	index("idx_order_discounts_requested_by").using("btree", table.requestedByUserId.asc().nullsLast().op("int4_ops")),
+	index("idx_order_discounts_authorized_by").using("btree", table.authorizedByUserId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.orderId],
+			foreignColumns: [orders.id],
+			name: "order_discounts_order_id_fkey"
+		}),
+	foreignKey({
+			columns: [table.itemizedNameId],
+			foreignColumns: [discountItemizedNames.id],
+			name: "order_discounts_itemized_name_id_fkey"
+		}),
+	foreignKey({
+			columns: [table.requestedByUserId],
+			foreignColumns: [users.id],
+			name: "order_discounts_requested_by_user_id_fkey"
+		}),
+	foreignKey({
+			columns: [table.authorizedByUserId],
+			foreignColumns: [users.id],
+			name: "order_discounts_authorized_by_user_id_fkey"
+		}),
+]);

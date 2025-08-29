@@ -12,6 +12,27 @@ function formatVietnameseDate(dateString: string): string {
   return `${dayName}, ${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
+// Helper function to format Vietnamese phone numbers
+function formatVietnamesePhone(phone: string): string {
+  // Remove all non-digit characters
+  const cleaned = phone.replace(/\D/g, '');
+
+  // Handle different Vietnamese phone number formats
+  if (cleaned.length === 10) {
+    // Mobile numbers: 0123456789 -> 0123 456 789
+    return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`;
+  } else if (cleaned.length === 11) {
+    // Mobile numbers: 01234567890 -> 0123 456 7890
+    return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`;
+  } else if (cleaned.length === 9) {
+    // Some mobile numbers: 123456789 -> 123 456 789
+    return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6)}`;
+  }
+
+  // If it doesn't match any pattern, return the original
+  return phone;
+}
+
 interface OrdersTableProps {
   orders: (Order & {
     customerName: string;
@@ -200,23 +221,20 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
 
       const [items, customer] = await Promise.all([itemsResponse.json(), customerResponse.json()]);
 
-      // Calculate payment history
-      const paymentHistory = [];
-      if (order.paymentMethod && order.paidAmount > 0) {
-        paymentHistory.push({
-          date: formatVietnameseDate(order.updatedAt.toISOString()),
-          method: order.paymentMethod as 'cash' | 'qr',
-          amount: order.paidAmount,
-        });
-      }
+      // Fetch payment history from database
+      const paymentHistoryResponse = await fetch(`/api/orders/${order.id}/payment-history`, {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
 
-      // Calculate settlement info
-      const totalPaid = order.paidAmount;
-      const totalAmount =
-        order.totalAmount +
-        (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)));
-      const remainingBalance = Math.max(0, totalAmount - totalPaid);
+      const paymentHistory = paymentHistoryResponse.ok ? await paymentHistoryResponse.json() : [];
 
+      // Calculate discount total
+      const totalDiscountAmount =
+        order.discounts?.reduce((sum, discount) => sum + discount.discountAmount, 0) || 0;
+
+      // Calculate deposit amount
       const depositAmount = (() => {
         if (order.depositType && order.depositValue) {
           if (order.depositType === 'percent') {
@@ -228,14 +246,18 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
         return 0;
       })();
 
-      // Check if we need to refund deposit
-      const needsDepositRefund = order.paidAmount > totalAmount;
+      // Calculate correct totals
+      const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
+      const vatAmountCalculated =
+        order.vatAmount || Math.round(subtotalAfterDiscount * (vatPercentage / 100));
+      const totalWithVat = subtotalAfterDiscount + vatAmountCalculated;
+      const totalRequired = totalWithVat + depositAmount; // Total that needs to be paid
 
       const receiptData: ReceiptData = {
         orderId: formatOrderId(order.id),
         customerName: customer.name || 'N/A',
         customerAddress: customer.address || 'N/A',
-        customerPhone: customer.phone || 'N/A',
+        customerPhone: formatVietnamesePhone(customer.phone || 'N/A'),
         orderDate: formatDate(order.orderDate),
         rentDate: formatDate(order.orderDate),
         returnDate: formatDate(order.calculatedReturnDate),
@@ -258,13 +280,42 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
           })
         ),
         totalAmount: order.totalAmount,
-        vatAmount: order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)),
+        vatAmount: vatAmountCalculated,
         depositAmount: depositAmount,
-        paymentHistory: paymentHistory,
+        discounts: order.discounts?.map((discount) => ({
+          id: discount.id,
+          itemizedName: discount.itemizedName,
+          discountAmount: discount.discountAmount,
+          discountType: discount.discountType,
+          discountValue: discount.discountValue,
+        })),
+        paymentHistory:
+          paymentHistory.length > 0
+            ? paymentHistory.map(
+                (payment: { paymentDate: string; paymentMethod: string; amount: string }) => ({
+                  date: new Date(payment.paymentDate).toLocaleString('vi-VN', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  method: payment.paymentMethod,
+                  amount: Number(payment.amount),
+                })
+              )
+            : [],
+        paymentStatus: order.paymentStatus,
         settlementInfo: {
-          remainingBalance: remainingBalance,
+          remainingBalance:
+            order.paymentStatus === 'Paid Full' || order.paymentStatus === 'Paid Full with Deposit'
+              ? 0
+              : Math.max(0, totalRequired - order.paidAmount),
           depositReturned: 0, // Will be updated when deposit is returned
-          documentType: order.documentType || undefined,
+          documentType: order.documentType?.includes('TAX_INVOICE_EXPORTED')
+            ? undefined
+            : order.documentType || undefined,
           documentReturned: false, // Will be updated when document is returned
         },
         lastUpdated: order.updatedAt.toISOString(),
@@ -385,143 +436,179 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
       noteNotComplete: number;
       noteTotal: number;
     };
-  }) => (
-    <div className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
-      <div className="flex justify-between items-start mb-3">
-        <div className="text-lg font-semibold text-white">{formatOrderId(order.id)}</div>
-        <div className="flex gap-2">
-          {getStatusBadge(order.status)}
-          {getPaymentStatusBadge(order.paymentStatus)}
-        </div>
-      </div>
+  }) => {
+    // Calculate discount total
+    const totalDiscountAmount =
+      order.discounts?.reduce((sum, discount) => sum + discount.discountAmount, 0) || 0;
 
-      <div className="space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">Khách hàng:</span>
-          <span className="text-white font-medium">{order.customerName}</span>
-        </div>
-
-        <div className="flex justify-between">
-          <span className="text-gray-400">Ngày thuê:</span>
-          <span className="text-white">{formatDate(order.orderDate)}</span>
+    return (
+      <div className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
+        <div className="flex justify-between items-start mb-3">
+          <div className="text-lg font-semibold text-white">{formatOrderId(order.id)}</div>
+          <div className="flex gap-2">
+            {getStatusBadge(order.status)}
+            {getPaymentStatusBadge(order.paymentStatus)}
+          </div>
         </div>
 
-        <div className="flex justify-between">
-          <span className="text-gray-400">Ngày trả:</span>
-          <span className="text-white">{formatDate(order.calculatedReturnDate)}</span>
-        </div>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-400">Khách hàng:</span>
+            <span className="text-white font-medium">{order.customerName}</span>
+          </div>
 
-        <div className="flex justify-between">
-          <span className="text-gray-400">Tổng tiền:</span>
-          <span className="text-white font-medium">{formatCurrency(order.totalAmount)}</span>
-        </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Ngày thuê:</span>
+            <span className="text-white">{formatDate(order.orderDate)}</span>
+          </div>
 
-        <div className="flex justify-between">
-          <span className="text-gray-400">VAT ({vatPercentage}%):</span>
-          <span className="text-white">
-            {formatCurrency(
-              order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))
-            )}
-          </span>
-        </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Ngày trả:</span>
+            <span className="text-white">{formatDate(order.calculatedReturnDate)}</span>
+          </div>
 
-        <div className="flex justify-between">
-          <span className="text-gray-400">Tiền cọc:</span>
-          <span className="text-white">
-            {(() => {
-              // Calculate deposit amount for display
+          <div className="flex justify-between">
+            <span className="text-gray-400">Tổng tiền:</span>
+            <span className="text-white font-medium">{formatCurrency(order.totalAmount)}</span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-gray-400">VAT ({vatPercentage}%):</span>
+            <span className="text-white">
+              {formatCurrency(
+                (() => {
+                  const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
+                  return (
+                    order.vatAmount || Math.round(subtotalAfterDiscount * (vatPercentage / 100))
+                  );
+                })()
+              )}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-gray-400">Tiền cọc:</span>
+            <span className="text-white">
+              {(() => {
+                // Calculate deposit amount for display
+                if (order.depositType && order.depositValue) {
+                  if (order.depositType === 'percent') {
+                    // For percentage deposits, calculate based on order total
+                    const calculatedAmount = Math.round(
+                      order.totalAmount * (order.depositValue / 100)
+                    );
+                    return formatCurrency(calculatedAmount);
+                  } else {
+                    // For fixed amount deposits, use the value directly
+                    return formatCurrency(order.depositValue);
+                  }
+                }
+                // If no deposit info, show 0
+                return formatCurrency(0);
+              })()}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-gray-400">Đã trả:</span>
+            <span className="text-white">{formatCurrency(order.paidAmount)}</span>
+          </div>
+
+          {/* Discounts */}
+          {totalDiscountAmount > 0 && (
+            <div className="space-y-1">
+              <div className="text-sm">
+                <span className="text-green-400">Giảm giá</span>
+              </div>
+              <div className="ml-4 space-y-1">
+                {order.discounts?.map((discount) => (
+                  <div key={discount.id} className="flex justify-between text-xs">
+                    <span className="text-gray-300">{discount.itemizedName}</span>
+                    <span className="text-green-300">
+                      -{formatCurrency(discount.discountAmount)}
+                      {discount.discountType === 'percent' && (
+                        <span className="text-xs text-blue-200 ml-1">
+                          ({discount.discountValue}%)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Deposit Refund Notice */}
+          {(() => {
+            const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
+            const vatAmountCalculated =
+              order.vatAmount || Math.round(subtotalAfterDiscount * (vatPercentage / 100));
+            const totalAmount = subtotalAfterDiscount + vatAmountCalculated;
+            const needsDepositRefund = order.paidAmount > totalAmount;
+            const depositAmount = (() => {
               if (order.depositType && order.depositValue) {
                 if (order.depositType === 'percent') {
-                  // For percentage deposits, calculate based on order total
-                  const calculatedAmount = Math.round(
-                    order.totalAmount * (order.depositValue / 100)
-                  );
-                  return formatCurrency(calculatedAmount);
+                  return Math.round(order.totalAmount * (order.depositValue / 100));
                 } else {
-                  // For fixed amount deposits, use the value directly
-                  return formatCurrency(order.depositValue);
+                  return order.depositValue;
                 }
               }
-              // If no deposit info, show 0
-              return formatCurrency(0);
-            })()}
-          </span>
-        </div>
+              return 0;
+            })();
+            const refundAmount = needsDepositRefund
+              ? Math.min(depositAmount, order.paidAmount - totalAmount)
+              : 0;
 
-        <div className="flex justify-between">
-          <span className="text-gray-400">Đã trả:</span>
-          <span className="text-white">{formatCurrency(order.paidAmount)}</span>
-        </div>
+            return needsDepositRefund && refundAmount > 0 ? (
+              <div className="flex justify-between">
+                <span className="text-amber-400">Cần hoàn tiền cọc:</span>
+                <span className="text-amber-300 font-medium">{formatCurrency(refundAmount)}</span>
+              </div>
+            ) : null;
+          })()}
 
-        {/* Deposit Refund Notice */}
-        {(() => {
-          const totalAmount =
-            order.totalAmount +
-            (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)));
-          const needsDepositRefund = order.paidAmount > totalAmount;
-          const depositAmount = (() => {
-            if (order.depositType && order.depositValue) {
-              if (order.depositType === 'percent') {
-                return Math.round(order.totalAmount * (order.depositValue / 100));
-              } else {
-                return order.depositValue;
-              }
-            }
-            return 0;
-          })();
-          const refundAmount = needsDepositRefund
-            ? Math.min(depositAmount, order.paidAmount - totalAmount)
-            : 0;
+          <div className="flex justify-between">
+            <span className="text-gray-400">Giấy tờ:</span>
+            <span className="text-white">{hasDocument(order) ? 'Có' : 'Không'}</span>
+          </div>
 
-          return needsDepositRefund && refundAmount > 0 ? (
-            <div className="flex justify-between">
-              <span className="text-amber-400">Cần hoàn tiền cọc:</span>
-              <span className="text-amber-300 font-medium">{formatCurrency(refundAmount)}</span>
-            </div>
-          ) : null;
-        })()}
+          <div className="flex justify-between">
+            <span className="text-gray-400">Ghi chú:</span>
+            <span className="text-white">
+              {order.noteTotal > 0
+                ? `${order.noteNotComplete}/${order.noteTotal} ghi chú`
+                : 'Không có ghi chú'}
+            </span>
+          </div>
 
-        <div className="flex justify-between">
-          <span className="text-gray-400">Giấy tờ:</span>
-          <span className="text-white">{hasDocument(order) ? 'Có' : 'Không'}</span>
-        </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Xuất hóa đơn:</span>
+            <button
+              onClick={() => handleToggleTaxInvoice(order.id, getTaxInvoiceStatus(order))}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                getTaxInvoiceStatus(order)
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-gray-600 hover:bg-gray-700 text-gray-300'
+              }`}
+              title={getTaxInvoiceStatus(order) ? 'Đã xuất hóa đơn' : 'Chưa xuất hóa đơn'}
+            >
+              {getTaxInvoiceStatus(order) ? '✅ Đã xuất' : '❌ Chưa xuất'}
+            </button>
+          </div>
 
-        <div className="flex justify-between">
-          <span className="text-gray-400">Ghi chú:</span>
-          <span className="text-white">
-            {order.noteTotal > 0
-              ? `${order.noteNotComplete}/${order.noteTotal} ghi chú`
-              : 'Không có ghi chú'}
-          </span>
-        </div>
-
-        <div className="flex justify-between">
-          <span className="text-gray-400">Xuất hóa đơn:</span>
-          <button
-            onClick={() => handleToggleTaxInvoice(order.id, getTaxInvoiceStatus(order))}
-            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-              getTaxInvoiceStatus(order)
-                ? 'bg-green-600 hover:bg-green-700 text-white'
-                : 'bg-gray-600 hover:bg-gray-700 text-gray-300'
-            }`}
-            title={getTaxInvoiceStatus(order) ? 'Đã xuất hóa đơn' : 'Chưa xuất hóa đơn'}
-          >
-            {getTaxInvoiceStatus(order) ? '✅ Đã xuất' : '❌ Chưa xuất'}
-          </button>
-        </div>
-
-        <div className="mt-4 pt-3 border-t border-gray-600">
-          <button
-            onClick={() => handlePrintReceipt(order)}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
-            title="In Biên Nhận"
-          >
-            📄 In Biên Nhận
-          </button>
+          <div className="mt-4 pt-3 border-t border-gray-600">
+            <button
+              onClick={() => handlePrintReceipt(order)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+              title="In Biên Nhận"
+            >
+              📄 In Biên Nhận
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
@@ -689,90 +776,104 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
             </tr>
           </thead>
           <tbody className="bg-gray-800 divide-y divide-gray-700">
-            {orders.map((order, index) => (
-              <tr
-                key={`${order.id}-${index}`}
-                className="hover:bg-gray-700 transition-colors"
-                ref={index === orders.length - 1 ? lastElementRef : null}
-              >
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                  {formatOrderId(order.id)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {order.customerName}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {formatDate(order.orderDate)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {formatDate(order.calculatedReturnDate)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {formatCurrency(order.totalAmount)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {formatCurrency(
-                    order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {(() => {
-                    // Calculate deposit amount for display
-                    if (order.depositType && order.depositValue) {
-                      if (order.depositType === 'percent') {
-                        // For percentage deposits, calculate based on order total
-                        const calculatedAmount = Math.round(
-                          order.totalAmount * (order.depositValue / 100)
+            {orders.map((order, index) => {
+              // Calculate discount total for this order
+              const totalDiscountAmount =
+                order.discounts?.reduce((sum, discount) => sum + discount.discountAmount, 0) || 0;
+
+              return (
+                <tr
+                  key={`${order.id}-${index}`}
+                  className="hover:bg-gray-700 transition-colors"
+                  ref={index === orders.length - 1 ? lastElementRef : null}
+                >
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                    {formatOrderId(order.id)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {order.customerName}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {formatDate(order.orderDate)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {formatDate(order.calculatedReturnDate)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {formatCurrency(order.totalAmount)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {formatCurrency(
+                      (() => {
+                        const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
+                        return (
+                          order.vatAmount ||
+                          Math.round(subtotalAfterDiscount * (vatPercentage / 100))
                         );
-                        return formatCurrency(calculatedAmount);
-                      } else {
-                        // For fixed amount deposits, use the value directly
-                        return formatCurrency(order.depositValue);
+                      })()
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {(() => {
+                      // Calculate deposit amount for display
+                      if (order.depositType && order.depositValue) {
+                        if (order.depositType === 'percent') {
+                          // For percentage deposits, calculate based on order total
+                          const calculatedAmount = Math.round(
+                            order.totalAmount * (order.depositValue / 100)
+                          );
+                          return formatCurrency(calculatedAmount);
+                        } else {
+                          // For fixed amount deposits, use the value directly
+                          return formatCurrency(order.depositValue);
+                        }
                       }
-                    }
-                    // If no deposit info, show 0
-                    return formatCurrency(0);
-                  })()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {formatCurrency(order.paidAmount)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {hasDocument(order) ? 'Có' : 'Không'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {getStatusBadge(order.status)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {getPaymentStatusBadge(order.paymentStatus)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {order.noteTotal > 0 ? `${order.noteNotComplete}/${order.noteTotal}` : 'Không có'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  <button
-                    onClick={() => handleToggleTaxInvoice(order.id, getTaxInvoiceStatus(order))}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                      getTaxInvoiceStatus(order)
-                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                        : 'bg-gray-600 hover:bg-gray-700 text-gray-300'
-                    }`}
-                    title={getTaxInvoiceStatus(order) ? 'Đã xuất hóa đơn' : 'Chưa xuất hóa đơn'}
-                  >
-                    {getTaxInvoiceStatus(order) ? '✅ Đã xuất' : '❌ Chưa xuất'}
-                  </button>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  <button
-                    onClick={() => handlePrintReceipt(order)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
-                    title="In Biên Nhận"
-                  >
-                    📄 In
-                  </button>
-                </td>
-              </tr>
-            ))}
+                      // If no deposit info, show 0
+                      return formatCurrency(0);
+                    })()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {formatCurrency(order.paidAmount)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {hasDocument(order) ? 'Có' : 'Không'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {getStatusBadge(order.status)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {getPaymentStatusBadge(order.paymentStatus)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    {order.noteTotal > 0
+                      ? `${order.noteNotComplete}/${order.noteTotal}`
+                      : 'Không có'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    <button
+                      onClick={() => handleToggleTaxInvoice(order.id, getTaxInvoiceStatus(order))}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        getTaxInvoiceStatus(order)
+                          ? 'bg-green-600 hover:bg-green-700 text-white'
+                          : 'bg-gray-600 hover:bg-gray-700 text-gray-300'
+                      }`}
+                      title={getTaxInvoiceStatus(order) ? 'Đã xuất hóa đơn' : 'Chưa xuất hóa đơn'}
+                    >
+                      {getTaxInvoiceStatus(order) ? '✅ Đã xuất' : '❌ Chưa xuất'}
+                    </button>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                    <button
+                      onClick={() => handlePrintReceipt(order)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                      title="In Biên Nhận"
+                    >
+                      📄 In
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
 
             {/* Loading indicator for infinite scroll */}
             {loadingMore && (
@@ -802,12 +903,18 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
             <span>Tổng VAT:</span>
             <span className="text-white">
               {formatCurrency(
-                orders.reduce(
-                  (sum, order) =>
+                orders.reduce((sum, order) => {
+                  const totalDiscountAmount =
+                    order.discounts?.reduce(
+                      (discountSum, discount) => discountSum + discount.discountAmount,
+                      0
+                    ) || 0;
+                  const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
+                  return (
                     sum +
-                    (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))),
-                  0
-                )
+                    (order.vatAmount || Math.round(subtotalAfterDiscount * (vatPercentage / 100)))
+                  );
+                }, 0)
               )}
             </span>
           </div>
@@ -828,12 +935,18 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
               Tổng VAT:{' '}
               <span className="text-white">
                 {formatCurrency(
-                  orders.reduce(
-                    (sum, order) =>
+                  orders.reduce((sum, order) => {
+                    const totalDiscountAmount =
+                      order.discounts?.reduce(
+                        (discountSum, discount) => discountSum + discount.discountAmount,
+                        0
+                      ) || 0;
+                    const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
+                    return (
                       sum +
-                      (order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100))),
-                    0
-                  )
+                      (order.vatAmount || Math.round(subtotalAfterDiscount * (vatPercentage / 100)))
+                    );
+                  }, 0)
                 )}
               </span>
             </span>

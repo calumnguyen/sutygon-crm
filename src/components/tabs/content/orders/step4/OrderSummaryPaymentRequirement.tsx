@@ -24,6 +24,15 @@ interface DepositInfo {
   value: number;
 }
 
+interface Discount {
+  id: number;
+  discountType: 'vnd' | 'percent';
+  discountValue: number;
+  discountAmount: number;
+  itemizedName: string;
+  description: string;
+}
+
 interface OrderSummaryPaymentRequirementProps {
   total: number;
   subtotal: number;
@@ -34,6 +43,7 @@ interface OrderSummaryPaymentRequirementProps {
     documentName: string;
     documentId: string;
   } | null;
+  discounts?: Discount[];
   isPaymentSubmitted: boolean;
   setIsPaymentSubmitted: (v: boolean) => void;
   orderId: string;
@@ -64,6 +74,7 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
   subtotal,
   depositInfo,
   documentInfo,
+  discounts = [],
   isPaymentSubmitted,
   setIsPaymentSubmitted,
   orderId,
@@ -92,8 +103,10 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
       ? depositInfo.value
       : Math.round(subtotal * (depositInfo.value / 100))
     : 0;
-  const vatAmount = Math.round(total * (vatPercentage / 100)); // 8% VAT
-  const totalPay = total + vatAmount + depositValue;
+  const totalDiscountAmount = discounts.reduce((sum, discount) => sum + discount.discountAmount, 0);
+  const subtotalAfterDiscount = total - totalDiscountAmount;
+  const vatAmount = Math.round(subtotalAfterDiscount * (vatPercentage / 100)); // 8% VAT on amount after discount
+  const totalPay = subtotalAfterDiscount + vatAmount + depositValue;
 
   // Calculate return date based on order items (including extensions)
   const extensionItem = orderItems.find((item) => item.isExtension);
@@ -150,6 +163,7 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
     orderData,
     documentInfo,
     depositInfo,
+    discounts,
     onPaymentSuccess,
     setIsPaymentSubmitted,
     customer?.name,
@@ -305,6 +319,30 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
             )}
           </span>
         </div>
+
+        {/* Discounts */}
+        {discounts.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-sm">
+              <span className="text-white font-medium">Giảm giá</span>
+            </div>
+            <div className="ml-4 space-y-1">
+              {discounts.map((discount) => (
+                <div key={discount.id} className="flex items-center justify-between text-xs">
+                  <span className="text-gray-300">{discount.itemizedName}</span>
+                  <span className="text-green-400 font-medium">
+                    -{discount.discountAmount.toLocaleString('vi-VN')} đ
+                    {discount.discountType === 'percent' && (
+                      <span className="text-xs text-blue-200 ml-1">
+                        ({discount.discountValue}%)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {isPaymentSubmitted && payment.selectedPaymentMethod === 'qr' ? (
           <>
             <div className="flex items-center justify-between text-sm mt-1">

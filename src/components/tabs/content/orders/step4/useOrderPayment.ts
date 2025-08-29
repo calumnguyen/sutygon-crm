@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useUser } from '@/context/UserContext';
 
 export function useOrderPayment(
   totalPay: number,
@@ -37,6 +38,17 @@ export function useOrderPayment(
     type: 'vnd' | 'percent';
     value: number;
   } | null,
+  discounts?: Array<{
+    id: number;
+    discountType: 'vnd' | 'percent';
+    discountValue: number;
+    discountAmount: number;
+    itemizedName: string;
+    description: string;
+    requestedByUserId?: number;
+    authorizedByUserId?: number;
+    itemizedNameId?: number;
+  }> | null,
   onPaymentSuccess?: () => void,
   setIsPaymentSubmitted?: (submitted: boolean) => void,
   customerName?: string,
@@ -46,6 +58,9 @@ export function useOrderPayment(
   rentDate?: string,
   returnDate?: string
 ) {
+  // Get current user
+  const { currentUser } = useUser();
+
   // State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
@@ -209,17 +224,27 @@ export function useOrderPayment(
         : undefined;
 
       // Call API to complete payment
+      const requestBody = {
+        orderId: orderId === '0000-A' ? null : parseInt(orderId), // Pass null if it's a placeholder ID
+        orderData: orderId === '0000-A' ? orderData : null, // Pass order data if order doesn't exist yet
+        paymentMethod: selectedPaymentMethod,
+        paidAmount: paymentAmount,
+        documentInfo: documentInfo,
+        depositInfo: transformedDepositInfo,
+        discounts: orderId === '0000-A' ? discounts : null, // Pass discounts if order doesn't exist yet
+        totalPay: totalPay, // Pass the frontend calculated total including discounts
+        currentUser: currentUser, // Pass current user for payment history
+      };
+
+      console.log('🚨 PAYMENT API CALL - FRONTEND 🚨');
+      console.log('Payment API request body:', requestBody);
+      console.log('Discounts being sent:', discounts);
+      console.log('🚨 END PAYMENT API CALL - FRONTEND 🚨');
+
       const response = await fetch('/api/orders/payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: orderId === '0000-A' ? null : parseInt(orderId), // Pass null if it's a placeholder ID
-          orderData: orderId === '0000-A' ? orderData : null, // Pass order data if order doesn't exist yet
-          paymentMethod: selectedPaymentMethod,
-          paidAmount: paymentAmount,
-          documentInfo: documentInfo,
-          depositInfo: transformedDepositInfo,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -415,6 +440,9 @@ export function useOrderPayment(
           paidAmount: paymentAmount,
           documentInfo: documentInfo,
           depositInfo: transformedDepositInfo,
+          discounts: orderId === '0000-A' ? discounts : null, // Pass discounts if order doesn't exist yet
+          totalPay: totalPay, // Pass the frontend calculated total including discounts
+          currentUser: currentUser, // Pass current user for payment history
         }),
       });
 
@@ -516,6 +544,8 @@ export function useOrderPayment(
           orderData: orderId === '0000-A' ? orderData : null, // Pass order data if order doesn't exist yet
           documentInfo: documentInfo,
           depositInfo: transformedDepositInfo,
+          discounts: orderId === '0000-A' ? discounts : null, // Pass discounts if order doesn't exist yet
+          totalPay: totalPay, // Pass the frontend calculated total including discounts
         }),
       });
 
