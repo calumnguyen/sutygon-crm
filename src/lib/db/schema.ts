@@ -453,3 +453,32 @@ export const paymentHistory = pgTable(
     };
   }
 );
+
+export const reviews = pgTable(
+  'reviews',
+  {
+    id: text('id').primaryKey().notNull(),
+    customerName: text('customerName').notNull(),
+    phoneNumber: text('phoneNumber'),
+    emailAddress: text('emailAddress'),
+    invoiceNumber: text('invoiceNumber'),
+    rating: integer('rating').notNull(),
+    ratingDescription: text('ratingDescription').notNull(),
+    helperName: text('helperName'),
+    reviewDetail: text('reviewDetail').notNull(),
+    dateCreated: timestamp('dateCreated').notNull().defaultNow(),
+    ipAddress: text('ipAddress'),
+    deviceType: text('deviceType'),
+    browserType: text('browserType'),
+  },
+  (table) => {
+    return {
+      // Index for date-based queries
+      dateCreatedIdx: index('reviews_dateCreated_idx').on(table.dateCreated),
+      // Index for rating analytics
+      ratingIdx: index('reviews_rating_idx').on(table.rating),
+      // Index for customer name lookups (encrypted)
+      customerNameIdx: index('reviews_customerName_idx').on(table.customerName),
+    };
+  }
+);

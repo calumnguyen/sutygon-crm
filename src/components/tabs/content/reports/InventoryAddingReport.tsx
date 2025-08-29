@@ -642,14 +642,14 @@ const InventoryAddingReport: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={fromDateInput || formatDateForDisplay(dateRange.from)}
+                  value={fromDateInput}
                   onChange={(e) => {
                     const value = e.target.value;
                     setFromDateInput(value);
 
-                    // Parse DD/MM/YYYY format
+                    // Only parse if we have a complete DD/MM/YYYY format
                     const parts = value.split('/');
-                    if (parts.length === 3) {
+                    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
                       const day = parseInt(parts[0]);
                       const month = parseInt(parts[1]) - 1; // Month is 0-indexed
                       const year = parseInt(parts[2]);
@@ -683,14 +683,14 @@ const InventoryAddingReport: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={toDateInput || formatDateForDisplay(dateRange.to)}
+                  value={toDateInput}
                   onChange={(e) => {
                     const value = e.target.value;
                     setToDateInput(value);
 
-                    // Parse DD/MM/YYYY format
+                    // Only parse if we have a complete DD/MM/YYYY format
                     const parts = value.split('/');
-                    if (parts.length === 3) {
+                    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
                       const day = parseInt(parts[0]);
                       const month = parseInt(parts[1]) - 1; // Month is 0-indexed
                       const year = parseInt(parts[2]);

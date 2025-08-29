@@ -14,6 +14,7 @@ import StoreSettingsContent from '@/components/tabs/content/store-settings/Store
 import ReportsContent from '@/components/tabs/content/reports/ReportsContent';
 import InventoryAddingReport from '@/components/tabs/content/reports/InventoryAddingReport';
 import SystemActivityReport from '@/components/tabs/content/reports/SystemActivityReport';
+import CustomerServiceReviewReport from '@/components/tabs/content/reports/CustomerServiceReviewReport';
 
 const contentComponents = {
   home: HomeContent,
@@ -142,6 +143,8 @@ const TabContent: React.FC = () => {
             ReportComponent = InventoryAddingReport;
           } else if (reportId === 'trailing-audit-report') {
             ReportComponent = SystemActivityReport;
+          } else if (reportId === 'customer-service-review-report') {
+            ReportComponent = CustomerServiceReviewReport;
           }
 
           return (

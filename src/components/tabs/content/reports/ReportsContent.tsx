@@ -3,7 +3,7 @@ import React from 'react';
 import { useUser } from '@/context/UserContext';
 import { useTabContext } from '@/context/TabContext';
 import { createTabId } from '@/types/tabTypes';
-import { Activity, Package, ArrowRight, Pin } from 'lucide-react';
+import { FileText, ArrowRight, Pin, User } from 'lucide-react';
 
 const ReportsContent: React.FC = () => {
   const { currentUser } = useUser();
@@ -14,19 +14,28 @@ const ReportsContent: React.FC = () => {
       id: 'system-activity',
       title: 'Báo cáo hoạt động hệ thống',
       description: 'Theo dõi hoạt động hệ thống, người dùng online và các thao tác',
-      icon: Activity,
-      color: 'from-cyan-400 via-blue-500 to-purple-600',
+      color: 'from-blue-500 to-purple-600',
       reportId: 'trailing-audit-report',
       isPinned: true,
+      author: 'Calum',
     },
     {
       id: 'inventory-adding',
       title: 'Báo cáo nhập kho theo nhân viên',
       description: 'Thống kê số lượng mặt hàng được thêm vào kho theo từng nhân viên',
-      icon: Package,
-      color: 'from-emerald-400 via-green-500 to-teal-600',
+      color: 'from-green-500 to-teal-600',
       reportId: 'inventory-adding-per-head-count-2025',
       isPinned: false,
+      author: 'Calum',
+    },
+    {
+      id: 'customer-service-review',
+      title: 'Báo cáo đánh giá dịch vụ khách hàng',
+      description: 'Phân tích phản hồi và đánh giá từ khách hàng về chất lượng dịch vụ',
+      color: 'from-pink-500 to-rose-600',
+      reportId: 'customer-service-review-report',
+      isPinned: false,
+      author: 'Calum',
     },
   ];
 
@@ -46,46 +55,53 @@ const ReportsContent: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold text-white mb-1">Báo cáo</h1>
-        <p className="text-gray-400 text-sm">Chọn báo cáo để xem chi tiết</p>
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-white mb-2">Báo cáo</h1>
+        <p className="text-gray-400">Chọn báo cáo để xem chi tiết</p>
       </div>
 
-      <div className="space-y-3">
-        {availableReports.map((report) => {
-          const IconComponent = report.icon;
-          return (
-            <div
-              key={report.id}
-              onClick={() => handleOpenReport(report)}
-              className={`relative bg-gray-800 border-2 border-transparent bg-gradient-to-r from-gray-800 to-gray-800 rounded-lg p-4 cursor-pointer group transition-all duration-300 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] before:absolute before:inset-0 before:rounded-lg before:p-[2px] before:bg-gradient-to-r ${report.color} before:-z-10 hover:before:opacity-100 before:opacity-0 before:transition-opacity before:duration-300`}
-            >
-              {report.isPinned && (
-                <div className="absolute -top-2 -right-2 bg-yellow-400 text-gray-900 p-1 rounded-full shadow-lg z-10">
-                  <Pin className="w-3 h-3" />
-                </div>
-              )}
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <div className={`bg-gradient-to-r ${report.color} p-2 rounded-lg flex-shrink-0`}>
-                    <IconComponent className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-white font-semibold text-sm sm:text-base truncate">
-                      {report.title}
-                    </h3>
-                    <p className="text-gray-300 text-xs sm:text-sm truncate">
-                      {report.description}
-                    </p>
-                  </div>
-                </div>
-                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-white group-hover:translate-x-1 transition-all duration-300 flex-shrink-0" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {availableReports.map((report) => (
+          <div
+            key={report.id}
+            onClick={() => handleOpenReport(report)}
+            className="group relative bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-4 cursor-pointer transition-all duration-300 hover:bg-gray-800 hover:border-gray-600 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-1"
+          >
+            {/* Pin indicator */}
+            {report.isPinned && (
+              <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-1.5 rounded-full shadow-lg z-10">
+                <Pin className="w-3 h-3" />
               </div>
+            )}
+
+            {/* Icon and title */}
+            <div className="flex items-center space-x-3 mb-3">
+              <div
+                className={`bg-gradient-to-r ${report.color} w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0`}
+              >
+                <FileText className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-white font-semibold text-sm leading-tight flex-1">
+                {report.title}
+              </h3>
             </div>
-          );
-        })}
+
+            {/* Description */}
+            <div className="mb-4">
+              <p className="text-gray-300 text-xs leading-relaxed">{report.description}</p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-700/50">
+              <div className="flex items-center space-x-2">
+                <User className="w-3 h-3 text-gray-400" />
+                <span className="text-gray-400 text-xs">{report.author}</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-white group-hover:translate-x-1 transition-all duration-300" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

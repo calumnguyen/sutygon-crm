@@ -92,6 +92,26 @@ export const inventorySizes = pgTable("inventory_sizes", {
 		}),
 ]);
 
+export const reviews = pgTable("reviews", {
+	id: text().primaryKey().notNull(),
+	customerName: text("customerName").notNull(),
+	phoneNumber: text("phoneNumber"),
+	emailAddress: text("emailAddress"),
+	invoiceNumber: text("invoiceNumber"),
+	rating: integer().notNull(),
+	ratingDescription: text("ratingDescription").notNull(),
+	helperName: text("helperName"),
+	reviewDetail: text("reviewDetail").notNull(),
+	dateCreated: timestamp("dateCreated", { mode: 'string' }).defaultNow().notNull(),
+	ipAddress: text("ipAddress"),
+	deviceType: text("deviceType"),
+	browserType: text("browserType"),
+}, (table) => [
+	index("reviews_dateCreated_idx").using("btree", table.dateCreated.asc().nullsLast().op("text_ops")),
+	index("reviews_rating_idx").using("btree", table.rating.asc().nullsLast().op("int4_ops")),
+	index("reviews_customerName_idx").using("btree", table.customerName.asc().nullsLast().op("text_ops")),
+]);
+
 export const orderItems = pgTable("order_items", {
 	id: serial().primaryKey().notNull(),
 	orderId: integer("order_id").notNull(),
