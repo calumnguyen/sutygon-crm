@@ -8,8 +8,15 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const { orderId, documentInfo, depositInfo, orderData, discounts, totalPay } =
+    const { orderId, documentInfo, depositInfo, orderData, discounts, totalPay, currentUser } =
       await request.json();
+
+    // Get current user ID from request body
+    const currentUserId = currentUser?.id;
+
+    if (!currentUserId) {
+      return NextResponse.json({ error: 'No current user provided' }, { status: 401 });
+    }
 
     console.log('Pay later API received:', {
       orderId,
@@ -43,6 +50,7 @@ export async function POST(request: NextRequest) {
         depositType: null,
         depositValue: null,
         taxInvoiceExported: false,
+        createdByUserId: currentUserId, // Add the current user ID
       });
 
       console.log('Created order for pay later:', createdOrder.id);

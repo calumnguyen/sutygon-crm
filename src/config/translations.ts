@@ -56,15 +56,16 @@ export const TRANSLATIONS = {
   orders: {
     title: 'Quản lý đơn hàng',
     status: {
-      'Processing': 'Đang Xử Lý',
-      'Completed': 'Hoàn Thành',
-      'Cancelled': 'Đã Hủy',
-      'Returned': 'Đã Trả',
+      Processing: 'Đang Xử Lý',
+      'Picked Up': 'Đã Nhận Hàng',
+      Completed: 'Hoàn Thành',
+      Cancelled: 'Đã Hủy',
+      Returned: 'Đã Trả',
     },
     paymentStatus: {
       'Paid Full': 'Đã Thanh Toán Đầy Đủ',
       'Partially Paid': 'Thanh Toán Một Phần',
-      'Unpaid': 'Chưa Thanh Toán',
+      Unpaid: 'Chưa Thanh Toán',
       'Paid Full with Deposit': 'Đã Thanh Toán Đầy Đủ Có Cọc',
     },
   },

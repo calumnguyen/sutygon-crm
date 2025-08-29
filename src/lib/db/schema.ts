@@ -219,6 +219,10 @@ export const orders = pgTable(
     depositType: varchar('deposit_type', { length: 10 }), // 'vnd' or 'percent'
     depositValue: decimal('deposit_value', { precision: 10, scale: 2 }),
     taxInvoiceExported: boolean('tax_invoice_exported').notNull().default(false),
+    // User tracking fields
+    createdByUserId: integer('created_by_user_id').references(() => users.id),
+    pickedUpByUserId: integer('picked_up_by_user_id').references(() => users.id),
+    pickedUpAt: timestamp('picked_up_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -250,6 +254,10 @@ export const orders = pgTable(
         table.customerId,
         table.createdAt
       ),
+      // User tracking indexes
+      createdByUserIdIdx: index('orders_created_by_user_id_idx').on(table.createdByUserId),
+      pickedUpByUserIdIdx: index('orders_picked_up_by_user_id_idx').on(table.pickedUpByUserId),
+      pickedUpAtIdx: index('orders_picked_up_at_idx').on(table.pickedUpAt),
     };
   }
 );

@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Button from '@/components/common/dropdowns/Button';
-import { Plus, RefreshCw, List, Grid } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { useTabContext } from '@/context/TabContext';
 import { createTabId } from '@/types/tabTypes';
 import { useOrdersTable } from './hooks';
-import { OrdersTable } from './OrdersTable';
 import { OrdersGrid } from './OrdersGrid';
 import DeleteAllOrdersModal from '@/components/common/DeleteAllOrdersModal';
 
 const OrdersContent: React.FC = () => {
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid'); // Default to grid view
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { addFirstLevelTab, activateTab } = useTabContext();
   const { orders, loading, error, loadingMore, hasMore, loadMore, refetch } = useOrdersTable();
@@ -97,47 +95,14 @@ const OrdersContent: React.FC = () => {
         </div>
       </div>
 
-      {/* View Mode Toggle */}
-      <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <div className="flex items-center gap-2 bg-gray-800 rounded-md p-1">
-          <Button
-            variant={viewMode === 'list' ? 'primary' : 'secondary'}
-            onClick={() => setViewMode('list')}
-            className="p-2"
-            title="Chế độ danh sách"
-          >
-            <List className="w-5 h-5" />
-          </Button>
-          <Button
-            variant={viewMode === 'grid' ? 'primary' : 'secondary'}
-            onClick={() => setViewMode('grid')}
-            className="p-2"
-            title="Chế độ lưới"
-          >
-            <Grid className="w-5 h-5" />
-          </Button>
-        </div>
-      </div>
-
-      {viewMode === 'list' ? (
-        <OrdersTable
-          orders={orders}
-          loading={loading}
-          error={error}
-          loadingMore={loadingMore}
-          hasMore={hasMore}
-          loadMore={loadMore}
-        />
-      ) : (
-        <OrdersGrid
-          orders={orders}
-          loading={loading}
-          error={error}
-          loadingMore={loadingMore}
-          hasMore={hasMore}
-          loadMore={loadMore}
-        />
-      )}
+      <OrdersGrid
+        orders={orders}
+        loading={loading}
+        error={error}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
+        loadMore={loadMore}
+      />
 
       {/* Secret Delete All Orders Modal */}
       <DeleteAllOrdersModal

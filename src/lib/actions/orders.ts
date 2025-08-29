@@ -91,6 +91,10 @@ export interface Order {
   depositType?: string | null;
   depositValue?: number | null;
   taxInvoiceExported: boolean;
+  // User tracking fields
+  createdByUserId?: number | null;
+  pickedUpByUserId?: number | null;
+  pickedUpAt?: Date | null;
   // Discounts
   discounts?: OrderDiscount[];
   createdAt: Date;
@@ -538,16 +542,22 @@ export async function getOrderNoteCounts(
 }
 
 export async function createOrder(
-  orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>
+  orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>,
+  discounts?: Array<{ discountAmount: number }>
 ): Promise<Order> {
   try {
     // Get current VAT percentage from settings
     const { getVATPercentage } = await import('@/lib/utils/storeSettings');
     const vatPercentage = await getVATPercentage();
 
-    // Calculate VAT using configurable percentage
+    // Calculate total discount amount
+    const totalDiscountAmount =
+      discounts?.reduce((sum, discount) => sum + discount.discountAmount, 0) || 0;
+
+    // Calculate VAT on discounted amount
     const orderTotal = Number(orderData.totalAmount);
-    const vatAmount = Math.round(orderTotal * (vatPercentage / 100));
+    const discountedTotal = orderTotal - totalDiscountAmount;
+    const vatAmount = Math.round(discountedTotal * (vatPercentage / 100));
 
     // Encrypt sensitive order data
     const encryptedData = encryptOrderData({
@@ -575,6 +585,7 @@ export async function createOrder(
         depositType: null,
         depositValue: null,
         taxInvoiceExported: false, // Initialize new field
+        createdByUserId: orderData.createdByUserId || null,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -600,7 +611,10 @@ export async function createOrder(
       documentId: decryptedOrder.documentId,
       depositType: newOrder.depositType,
       depositValue: newOrder.depositValue ? Number(newOrder.depositValue) : null,
-      taxInvoiceExported: newOrder.taxInvoiceExported, // Include new field
+      taxInvoiceExported: newOrder.taxInvoiceExported,
+      createdByUserId: newOrder.createdByUserId,
+      pickedUpByUserId: newOrder.pickedUpByUserId,
+      pickedUpAt: newOrder.pickedUpAt,
       createdAt: newOrder.createdAt,
       updatedAt: newOrder.updatedAt,
     };
@@ -968,7 +982,11 @@ export async function completeOrderPayment(
         0
       );
       const subtotalAfterDiscount = orderTotal - totalDiscountAmount;
-      vatAmount = Math.round(subtotalAfterDiscount * 0.08); // 8% VAT
+
+      // Get current VAT percentage from settings
+      const { getVATPercentage } = await import('@/lib/utils/storeSettings');
+      const vatPercentage = await getVATPercentage();
+      vatAmount = Math.round(subtotalAfterDiscount * (vatPercentage / 100));
     }
 
     // Prepare update data

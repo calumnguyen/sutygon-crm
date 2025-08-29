@@ -664,8 +664,7 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
 
             // Calculate remaining balance
             const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
-            const vatAmountCalculated =
-              order.vatAmount || Math.round(subtotalAfterDiscount * (vatPercentage / 100));
+            const vatAmountCalculated = Math.round(subtotalAfterDiscount * (vatPercentage / 100));
             const totalWithVAT = subtotalAfterDiscount + vatAmountCalculated;
             const depositAmount = (() => {
               if (order.depositType && order.depositValue) {
@@ -677,7 +676,7 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
               }
               return 0;
             })();
-            const totalOwed = totalWithVAT + depositAmount - totalDiscountAmount;
+            const totalOwed = totalWithVAT + depositAmount;
             const remainingBalance = Math.max(0, totalOwed - order.paidAmount);
 
             // Calculate total amount including VAT, deposit, and discounts
@@ -764,17 +763,26 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                         className={`flex items-center justify-center sm:justify-start gap-2 px-3 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-all duration-200 ${
                           order.status === 'Processing'
                             ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                            : order.status === 'Completed'
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              : order.status === 'Cancelled'
-                                ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                                : 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                            : order.status === 'Picked Up'
+                              ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                              : order.status === 'Completed'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : order.status === 'Cancelled'
+                                  ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                  : 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
                         }`}
                       >
                         {order.status === 'Processing' ? (
                           <>
                             <Clock className="w-4 h-4 flex-shrink-0" />
                             <span className="truncate">Đang xử lý</span>
+                          </>
+                        ) : order.status === 'Picked Up' ? (
+                          <>
+                            <Package className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">
+                              {TRANSLATIONS.orders.status['Picked Up']}
+                            </span>
                           </>
                         ) : order.status === 'Completed' ? (
                           <>

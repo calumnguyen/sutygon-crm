@@ -43,30 +43,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get current user from request body (frontend sends currentUser object)
+    const currentUserId = body.currentUser?.id;
+
+    if (!currentUserId) {
+      return NextResponse.json({ error: 'No current user provided' }, { status: 401 });
+    }
     let finalOrderId = orderId;
 
     // If orderData is provided, create the order first
     if (orderData && !orderId) {
       console.log('Creating new order from orderData...');
 
-      const createdOrder = await createOrder({
-        customerId: orderData.customerId,
-        orderDate: new Date(orderData.orderDate),
-        expectedReturnDate: new Date(orderData.expectedReturnDate),
-        status: 'Processing', // Set status to Processing since payment is being completed
-        totalAmount: orderData.totalAmount,
-        depositAmount: orderData.depositAmount,
-        paidAmount: 0, // Will be updated by completeOrderPayment
-        paymentMethod: null,
-        paymentStatus: 'Unpaid',
-        documentType: null,
-        documentOther: null,
-        documentName: null,
-        documentId: null,
-        depositType: null,
-        depositValue: null,
-        taxInvoiceExported: false,
-      });
+      const createdOrder = await createOrder(
+        {
+          customerId: orderData.customerId,
+          orderDate: new Date(orderData.orderDate),
+          expectedReturnDate: new Date(orderData.expectedReturnDate),
+          status: 'Processing', // Set status to Processing since payment is being completed
+          totalAmount: orderData.totalAmount,
+          depositAmount: orderData.depositAmount,
+          paidAmount: 0, // Will be updated by completeOrderPayment
+          paymentMethod: null,
+          paymentStatus: 'Unpaid',
+          documentType: null,
+          documentOther: null,
+          documentName: null,
+          documentId: null,
+          depositType: null,
+          depositValue: null,
+          taxInvoiceExported: false,
+          createdByUserId: currentUserId, // Add the current user ID
+        },
+        discounts
+      );
 
       console.log('Created order:', createdOrder.id);
       finalOrderId = createdOrder.id;

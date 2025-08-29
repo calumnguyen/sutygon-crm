@@ -67,7 +67,7 @@ export function useOrderPayment(
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [showDocumentRetentionModal, setShowDocumentRetentionModal] = useState(false);
-  const [showPayLaterModal, setShowPayLaterModal] = useState(false);
+  const [showPickupConfirmationModal, setShowPickupConfirmationModal] = useState(false);
   const [qrSVG, setQrSVG] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
@@ -79,6 +79,7 @@ export function useOrderPayment(
   const [qrConfirmed, setQrConfirmed] = useState(false);
   const [isPartialPayment, setIsPartialPayment] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
+  const [actualOrderId, setActualOrderId] = useState<number | null>(null);
 
   // Effects
   useEffect(() => {
@@ -152,8 +153,8 @@ export function useOrderPayment(
       setShowPaymentMethodModal(true);
       setShowPaymentModal(false);
     } else if (option === 'later') {
-      setShowPayLaterModal(true);
-      setShowPaymentModal(false);
+      // For pay later, directly proceed to pickup confirmation if needed
+      handlePayLaterDirect();
     } else {
       // fallback - close all modals and reset state
       resetAllPaymentState();
@@ -196,6 +197,106 @@ export function useOrderPayment(
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddPayment();
+    }
+  }
+
+  // Helper function to check if pickup confirmation is needed
+  function shouldShowPickupConfirmation(): boolean {
+    if (!orderDate) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of day
+
+    // Parse orderDate - it can be in format "dd/MM/yyyy" or "yyyy-MM-dd"
+    let orderDateObj: Date;
+    if (orderDate.includes('/')) {
+      // Format: "dd/MM/yyyy"
+      const [day, month, year] = orderDate.split('/').map(Number);
+      orderDateObj = new Date(year, month - 1, day);
+    } else {
+      // Format: "yyyy-MM-dd"
+      orderDateObj = new Date(orderDate);
+    }
+    orderDateObj.setHours(0, 0, 0, 0); // Set to start of day
+
+    console.log('=== Pickup Confirmation Debug ===');
+    console.log('orderDate input:', orderDate);
+    console.log('parsed orderDateObj:', orderDateObj);
+    console.log('today:', today);
+    console.log('orderDateObj <= today:', orderDateObj <= today);
+
+    // Show pickup confirmation if order date is today or in the past
+    return orderDateObj <= today;
+  }
+
+  // Handle pay later directly without the orange modal
+  async function handlePayLaterDirect() {
+    try {
+      console.log('=== Pay Later Direct ===');
+      console.log('documentInfo:', documentInfo);
+      console.log('depositInfo:', depositInfo);
+
+      // Transform depositInfo to match backend expectation
+      const transformedDepositInfo = depositInfo
+        ? {
+            depositType: depositInfo.type,
+            depositValue: depositInfo.value,
+          }
+        : undefined;
+
+      // Call API to mark order as pay later
+      const response = await fetch('/api/orders/pay-later', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: orderId === '0000-A' ? null : parseInt(orderId), // Pass null if it's a placeholder ID
+          orderData: orderId === '0000-A' ? orderData : null, // Pass order data if order doesn't exist yet
+          documentInfo: documentInfo,
+          depositInfo: transformedDepositInfo,
+          discounts: orderId === '0000-A' ? discounts : null, // Pass discounts if order doesn't exist yet
+          totalPay: totalPay, // Pass the frontend calculated total including discounts
+          currentUser: currentUser, // Pass current user for tracking
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to mark order as pay later');
+      }
+
+      // Get the response data to extract the order ID
+      const responseData = await response.json();
+      console.log('Pay later API response:', responseData);
+
+      // Extract the actual order ID from the response
+      const actualOrderId = responseData.order?.id || responseData.id;
+      console.log('Actual order ID from pay later API:', actualOrderId);
+
+      // Mark as payment submitted (though it's pay later)
+      setIsPaymentSubmitted?.(true);
+
+      // Check if pickup confirmation is needed
+      if (shouldShowPickupConfirmation()) {
+        console.log('✅ Showing pickup confirmation for pay later');
+        // Store the actual order ID for pickup confirmation
+        setActualOrderId(actualOrderId);
+        setShowPickupConfirmationModal(true);
+      } else {
+        console.log('❌ No pickup confirmation needed for pay later');
+        // Check if there's document info to show retention modal
+        if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
+          console.log('✅ Document info found - showing retention modal for pay later');
+          setShowDocumentRetentionModal(true);
+        } else {
+          console.log('❌ No document info - proceeding to print modal for pay later');
+          // No document, proceed directly to print modal
+          setShowPrintModal(true);
+          onPaymentSuccess?.();
+        }
+      }
+    } catch (error) {
+      console.error('Error confirming pay later:', error);
+      // For now, proceed anyway - we don't want to block the user
+      onPaymentSuccess?.();
     }
   }
 
@@ -251,6 +352,14 @@ export function useOrderPayment(
         throw new Error('Failed to complete payment');
       }
 
+      // Get the response data to extract the order ID
+      const responseData = await response.json();
+      console.log('Payment API response:', responseData);
+
+      // Extract the actual order ID from the response
+      const actualOrderId = responseData.id || responseData.order?.id;
+      console.log('Actual order ID from payment API:', actualOrderId);
+
       // Mark payment as submitted
       setIsPaymentSubmitted?.(true);
 
@@ -263,16 +372,24 @@ export function useOrderPayment(
       setChangeAmount(0);
       setSelectedPaymentMethod(null);
 
-      // Check if there's document info to show retention modal
-      console.log('Checking document info for modal...');
-      if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
-        console.log('✅ Document info found - showing retention modal');
-        setShowDocumentRetentionModal(true);
+      // Check if pickup confirmation is needed first
+      if (shouldShowPickupConfirmation()) {
+        console.log('✅ Showing pickup confirmation');
+        // Store the actual order ID for pickup confirmation
+        setActualOrderId(actualOrderId);
+        setShowPickupConfirmationModal(true);
       } else {
-        console.log('❌ No document info - skipping retention modal');
-        // No document, proceed directly to print modal and success
-        setShowPrintModal(true);
-        onPaymentSuccess?.();
+        console.log('❌ No pickup confirmation needed');
+        // Check if there's document info to show retention modal
+        if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
+          console.log('✅ Document info found - showing retention modal');
+          setShowDocumentRetentionModal(true);
+        } else {
+          console.log('❌ No document info - skipping retention modal');
+          // No document, proceed directly to print modal and success
+          setShowPrintModal(true);
+          onPaymentSuccess?.();
+        }
       }
     } catch (error) {
       console.error('Error completing payment:', error);
@@ -302,7 +419,7 @@ export function useOrderPayment(
     setShowPrintModal(false);
     setShowQRModal(false);
     setShowDocumentRetentionModal(false);
-    setShowPayLaterModal(false);
+    setShowPickupConfirmationModal(false);
     setSelectedPaymentMethod(null);
     setPaidAmount(0);
     setInputAmount('');
@@ -314,6 +431,7 @@ export function useOrderPayment(
     setQrSVG(null);
     setQrError(null);
     setQrLoading(false);
+    setActualOrderId(null);
   }
 
   async function handlePrint() {
@@ -323,6 +441,12 @@ export function useOrderPayment(
       console.log('customerName:', customerName);
       console.log('totalPay:', totalPay);
       console.log('orderData:', orderData);
+      console.log('discounts:', discounts);
+
+      // Calculate the base amount (before discounts and VAT)
+      const baseAmount =
+        orderData?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0;
+      console.log('Base amount (before discounts/VAT):', baseAmount);
 
       // Generate PDF receipt instead of using window.print()
       const response = await fetch('/api/generate-pdf', {
@@ -348,13 +472,18 @@ export function useOrderPayment(
               quantity: item.quantity,
               total: item.price * item.quantity,
             })) || [],
-          totalAmount: totalPay,
-          vatAmount: Math.round(totalPay * 0.08), // 8% VAT
+          totalAmount: baseAmount, // Use base amount (before discounts and VAT)
+          vatAmount: Math.round(
+            (baseAmount -
+              (discounts?.reduce((sum, discount) => sum + discount.discountAmount, 0) || 0)) *
+              0.08
+          ), // 8% VAT on amount after discounts
           depositAmount: depositInfo
             ? depositInfo.type === 'vnd'
               ? depositInfo.value
               : Math.round(totalPay * (depositInfo.value / 100))
             : 0,
+          discounts: discounts || [], // Add discounts to PDF generation
           paymentHistory: [
             {
               date: new Date().toLocaleString('vi-VN', {
@@ -457,15 +586,22 @@ export function useOrderPayment(
       setShowQRModal(false);
       setSelectedPaymentMethod('qr');
 
-      // Check if there's document info to show retention modal
-      if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
-        console.log('✅ Document info found - showing retention modal (QR)');
-        setShowDocumentRetentionModal(true);
+      // Check if pickup confirmation is needed first
+      if (shouldShowPickupConfirmation()) {
+        console.log('✅ Showing pickup confirmation (QR)');
+        setShowPickupConfirmationModal(true);
       } else {
-        console.log('❌ No document info - skipping retention modal (QR)');
-        // No document, proceed directly to print modal and success
-        setShowPrintModal(true);
-        onPaymentSuccess?.();
+        console.log('❌ No pickup confirmation needed (QR)');
+        // Check if there's document info to show retention modal
+        if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
+          console.log('✅ Document info found - showing retention modal (QR)');
+          setShowDocumentRetentionModal(true);
+        } else {
+          console.log('❌ No document info - skipping retention modal (QR)');
+          // No document, proceed directly to print modal and success
+          setShowPrintModal(true);
+          onPaymentSuccess?.();
+        }
       }
     } catch (error) {
       console.error('Error completing payment:', error);
@@ -521,64 +657,88 @@ export function useOrderPayment(
     }
   }
 
-  async function handlePayLaterConfirm() {
+  // Handle pickup confirmation
+  async function handlePickupConfirmed() {
     try {
-      console.log('=== Pay Later Confirmed ===');
-      console.log('documentInfo:', documentInfo);
-      console.log('depositInfo:', depositInfo);
+      console.log('=== Pickup Confirmation Debug ===');
+      console.log('orderId:', orderId);
+      console.log('orderId type:', typeof orderId);
+      console.log('actualOrderId:', actualOrderId);
 
-      // Transform depositInfo to match backend expectation
-      const transformedDepositInfo = depositInfo
-        ? {
-            depositType: depositInfo.type,
-            depositValue: depositInfo.value,
-          }
-        : undefined;
+      // Use actualOrderId if available (for new orders), otherwise use orderId
+      const orderIdToUpdate = actualOrderId || (orderId !== '0000-A' ? parseInt(orderId) : null);
 
-      // Call API to mark order as pay later
-      const response = await fetch('/api/orders/pay-later', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: orderId === '0000-A' ? null : parseInt(orderId), // Pass null if it's a placeholder ID
-          orderData: orderId === '0000-A' ? orderData : null, // Pass order data if order doesn't exist yet
-          documentInfo: documentInfo,
-          depositInfo: transformedDepositInfo,
-          discounts: orderId === '0000-A' ? discounts : null, // Pass discounts if order doesn't exist yet
-          totalPay: totalPay, // Pass the frontend calculated total including discounts
-        }),
-      });
+      if (orderIdToUpdate) {
+        console.log('✅ Order exists, updating status to "Picked Up"');
+        console.log('Order ID to update:', orderIdToUpdate);
 
-      if (!response.ok) {
-        throw new Error('Failed to mark order as pay later');
+        const requestBody = {
+          orderId: orderIdToUpdate,
+          status: 'Picked Up',
+          currentUser: currentUser, // Pass current user for tracking
+        };
+        console.log('Request body:', requestBody);
+
+        const response = await fetch('/api/orders/update-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Failed to update order status to Picked Up');
+          console.error('Error response:', errorText);
+        } else {
+          const responseData = await response.json();
+          console.log('✅ Successfully updated order status');
+          console.log('Response data:', responseData);
+        }
+      } else {
+        console.log('❌ No valid order ID available, skipping status update');
       }
 
-      setShowPayLaterModal(false);
-
-      // Mark as payment submitted (though it's pay later)
-      setIsPaymentSubmitted?.(true);
+      setShowPickupConfirmationModal(false);
 
       // Check if there's document info to show retention modal
       if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
-        console.log('✅ Document info found - showing retention modal for pay later');
+        console.log('✅ Document info found - showing retention modal after pickup');
         setShowDocumentRetentionModal(true);
       } else {
-        console.log('❌ No document info - proceeding to success for pay later');
-        // No document, proceed directly to success
+        console.log('❌ No document info - proceeding to print modal after pickup');
+        // No document, proceed directly to print modal
+        setShowPrintModal(true);
         onPaymentSuccess?.();
       }
     } catch (error) {
-      console.error('Error confirming pay later:', error);
-      // For now, proceed anyway - we don't want to block the user
-      setShowPayLaterModal(false);
-      onPaymentSuccess?.();
+      console.error('Error updating order status:', error);
+      // Proceed anyway
+      setShowPickupConfirmationModal(false);
+      if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
+        setShowDocumentRetentionModal(true);
+      } else {
+        setShowPrintModal(true);
+        onPaymentSuccess?.();
+      }
     }
   }
 
-  function handlePayLaterCancel() {
-    setShowPayLaterModal(false);
-    // Return to main payment options
-    setShowPaymentModal(true);
+  function handlePickupCancelled() {
+    setShowPickupConfirmationModal(false);
+
+    // Check if there's document info to show retention modal
+    if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
+      console.log('✅ Document info found - showing retention modal after pickup cancelled');
+      setShowDocumentRetentionModal(true);
+    } else {
+      console.log('❌ No document info - proceeding to print modal after pickup cancelled');
+      // No document, proceed directly to print modal
+      setShowPrintModal(true);
+      onPaymentSuccess?.();
+    }
   }
 
   return {
@@ -592,8 +752,8 @@ export function useOrderPayment(
     setShowQRModal,
     showDocumentRetentionModal,
     setShowDocumentRetentionModal,
-    showPayLaterModal,
-    setShowPayLaterModal,
+    showPickupConfirmationModal,
+    setShowPickupConfirmationModal,
     qrSVG,
     setQrSVG,
     qrLoading,
@@ -629,8 +789,8 @@ export function useOrderPayment(
     handleConfirmQRPayment,
     handleCancelQRPayment,
     handleConfirmDocumentRetention,
-    handlePayLaterConfirm,
-    handlePayLaterCancel,
+    handlePickupConfirmed,
+    handlePickupCancelled,
     totalPay,
     resetAllPaymentState,
   };

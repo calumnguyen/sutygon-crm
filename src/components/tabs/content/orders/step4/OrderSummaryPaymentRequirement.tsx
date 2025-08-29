@@ -6,7 +6,7 @@ import PaymentMethodModal from './PaymentMethodModal';
 import PrintReceiptModal from './PrintReceiptModal';
 import VietQRModal from './VietQRModal';
 import { DocumentRetentionModal } from './DocumentRetentionModal';
-import { PayLaterConfirmationModal } from './PayLaterConfirmationModal';
+import { PickupConfirmationModal } from './PickupConfirmationModal';
 
 /**
  * Payment summary card for step 4 summary.
@@ -451,11 +451,11 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
         />
       )}
 
-      {/* Pay Later Confirmation Modal */}
-      <PayLaterConfirmationModal
-        show={payment.showPayLaterModal}
-        onConfirm={payment.handlePayLaterConfirm}
-        onCancel={payment.handlePayLaterCancel}
+      {/* Pickup Confirmation Modal */}
+      <PickupConfirmationModal
+        show={payment.showPickupConfirmationModal}
+        onConfirm={payment.handlePickupConfirmed}
+        onCancel={payment.handlePickupCancelled}
       />
     </>
   );
