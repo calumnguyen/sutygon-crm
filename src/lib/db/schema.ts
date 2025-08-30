@@ -204,7 +204,8 @@ export const orders = pgTable(
     expectedReturnDate: timestamp('expected_return_date').notNull(),
     status: varchar('status', { length: 50 }).notNull().default('active'), // active, completed, cancelled, paid
     totalAmount: decimal('total_amount', { precision: 10, scale: 2 }).notNull(),
-    vatAmount: decimal('vat_amount', { precision: 10, scale: 2 }).notNull().default('0'), // 8% VAT on order total
+    vatAmount: decimal('vat_amount', { precision: 10, scale: 2 }).notNull().default('0'), // VAT amount on order total
+    vatRate: decimal('vat_rate', { precision: 5, scale: 2 }).notNull().default('8.00'), // VAT rate used for this order
     depositAmount: decimal('deposit_amount', { precision: 10, scale: 2 }).notNull(),
     paidAmount: decimal('paid_amount', { precision: 10, scale: 2 }).notNull().default('0'),
     paymentMethod: varchar('payment_method', { length: 20 }), // 'cash', 'qr', 'partial'

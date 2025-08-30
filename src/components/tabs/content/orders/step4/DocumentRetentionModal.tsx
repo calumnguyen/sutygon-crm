@@ -10,12 +10,12 @@ interface DocumentRetentionModalProps {
 // Function to determine file category based on customer name (using given name - last word)
 function getFileCategory(name: string): string {
   if (!name) return 'A-C';
-  
+
   // Split the name and get the last word (given name in Vietnamese)
   const nameParts = name.trim().split(' ');
   const givenName = nameParts[nameParts.length - 1]; // Last word is the given name
   const firstLetter = givenName.charAt(0).toUpperCase();
-  
+
   if (firstLetter >= 'A' && firstLetter <= 'C') return 'A-C';
   if (firstLetter >= 'D' && firstLetter <= 'F') return 'D-F';
   if (firstLetter >= 'G' && firstLetter <= 'I') return 'G-I';
@@ -25,7 +25,7 @@ function getFileCategory(name: string): string {
   if (firstLetter >= 'S' && firstLetter <= 'U') return 'S-U';
   if (firstLetter >= 'V' && firstLetter <= 'X') return 'V-X';
   if (firstLetter >= 'Y' && firstLetter <= 'Z') return 'Y-Z';
-  
+
   return 'A-C'; // Default fallback
 }
 
@@ -35,13 +35,7 @@ export const DocumentRetentionModal: React.FC<DocumentRetentionModalProps> = ({
   documentName,
   onConfirm,
 }) => {
-  console.log('=== DocumentRetentionModal Debug ===');
-  console.log('show:', show);
-  console.log('documentType:', documentType);
-  console.log('documentName:', documentName);
-  
   if (!show) {
-    console.log('Modal not showing - show is false');
     return null;
   }
 
@@ -54,22 +48,31 @@ export const DocumentRetentionModal: React.FC<DocumentRetentionModalProps> = ({
         <div className="text-center">
           <div className="mb-4">
             <div className="w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <svg
+                className="w-8 h-8 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">
-              Lưu Trữ Giấy Tờ
-            </h2>
+            <h2 className="text-xl font-bold text-white mb-2">Lưu Trữ Giấy Tờ</h2>
           </div>
-          
+
           <div className="bg-gray-700 rounded-lg p-4 mb-6 text-left">
             <p className="text-white text-base leading-relaxed">
-              Vui lòng giữ <span className="font-bold text-yellow-400">{documentType}</span> của khách hàng{' '}
-              <span className="font-bold text-blue-400">{documentName}</span> và bảo quản trong hồ sơ thuộc nhóm{' '}
+              Vui lòng giữ <span className="font-bold text-yellow-400">{documentType}</span> của
+              khách hàng <span className="font-bold text-blue-400">{documentName}</span> và bảo quản
+              trong hồ sơ thuộc nhóm{' '}
               <span className="font-bold text-green-400 text-lg">[{fileCategory}]</span>
             </p>
-            
+
             <div className="mt-3 pt-3 border-t border-gray-600">
               <p className="text-gray-300 text-sm">
                 <span className="font-medium">Trạng thái:</span>{' '}
@@ -88,4 +91,4 @@ export const DocumentRetentionModal: React.FC<DocumentRetentionModalProps> = ({
       </div>
     </div>
   );
-}; 
+};

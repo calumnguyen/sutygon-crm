@@ -78,6 +78,7 @@ export interface Order {
   status: string;
   totalAmount: number;
   vatAmount?: number; // Make optional for backward compatibility
+  vatRate?: number; // VAT rate used for this order
   depositAmount: number;
   paidAmount: number;
   paymentMethod?: string | null;
@@ -87,6 +88,7 @@ export interface Order {
   documentOther?: string | null;
   documentName?: string | null;
   documentId?: string | null;
+  documentStatus?: string | null; // 'not kept', 'on_file', 'returned'
   // Deposit info
   depositType?: string | null;
   depositValue?: number | null;
@@ -352,6 +354,7 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
     status: order.status,
     totalAmount: Number(order.totalAmount),
     vatAmount: Number(order.vatAmount || 0),
+    vatRate: Number(order.vatRate || 8.0), // Include stored VAT rate
     depositAmount: Number(order.depositAmount),
     paidAmount: Number(order.paidAmount),
     paymentMethod: order.paymentMethod,
@@ -360,6 +363,7 @@ export async function getOrderById(orderId: number): Promise<Order | null> {
     documentOther: decrypted.documentOther,
     documentName: decrypted.documentName,
     documentId: decrypted.documentId,
+    documentStatus: order.documentStatus,
     depositType: order.depositType,
     depositValue: order.depositValue ? Number(order.depositValue) : null,
     taxInvoiceExported: order.taxInvoiceExported,
@@ -574,6 +578,7 @@ export async function createOrder(
         status: 'Processing', // All orders start as Processing
         totalAmount: String(encryptedData.totalAmount),
         vatAmount: String(vatAmount),
+        vatRate: String(vatPercentage), // Store the VAT rate used for this order
         depositAmount: String(encryptedData.depositAmount),
         paidAmount: '0',
         paymentMethod: null,
@@ -582,6 +587,7 @@ export async function createOrder(
         documentOther: null,
         documentName: null,
         documentId: null,
+        documentStatus: null, // Will be set when document is added
         depositType: null,
         depositValue: null,
         taxInvoiceExported: false, // Initialize new field
@@ -922,6 +928,7 @@ export async function completeOrderPayment(
           documentOther: documentInfo.documentOther ? encrypt(documentInfo.documentOther) : null,
           documentName: documentInfo.documentName ? encrypt(documentInfo.documentName) : null,
           documentId: documentInfo.documentId ? encrypt(documentInfo.documentId) : null,
+          documentStatus: 'not kept', // Set initial document status when document is added
         }
       : {};
 
@@ -966,10 +973,11 @@ export async function completeOrderPayment(
 
     console.log('Determined payment status:', paymentStatus);
 
-    // Calculate VAT based on discounted total (if discounts exist)
+    // Use stored VAT rate and amount from the order
+    const storedVatRate = existingOrder[0].vatRate ? Number(existingOrder[0].vatRate) : 8.0;
     let vatAmount = existingOrder[0].vatAmount ? Number(existingOrder[0].vatAmount) : 0;
 
-    // If there are discounts, recalculate VAT on the discounted amount
+    // If there are discounts, recalculate VAT on the discounted amount using the stored VAT rate
     const discounts = await db
       .select()
       .from(orderDiscounts)
@@ -982,11 +990,7 @@ export async function completeOrderPayment(
         0
       );
       const subtotalAfterDiscount = orderTotal - totalDiscountAmount;
-
-      // Get current VAT percentage from settings
-      const { getVATPercentage } = await import('@/lib/utils/storeSettings');
-      const vatPercentage = await getVATPercentage();
-      vatAmount = Math.round(subtotalAfterDiscount * (vatPercentage / 100));
+      vatAmount = Math.round(subtotalAfterDiscount * (storedVatRate / 100));
     }
 
     // Prepare update data
@@ -1076,6 +1080,7 @@ export async function completeOrderPayment(
       documentOther: decryptedOrder.documentOther,
       documentName: decryptedOrder.documentName,
       documentId: decryptedOrder.documentId,
+      documentStatus: updatedOrder.documentStatus,
       depositType: updatedOrder.depositType,
       depositValue: updatedOrder.depositValue ? Number(updatedOrder.depositValue) : null,
       taxInvoiceExported: updatedOrder.taxInvoiceExported, // Include new field
@@ -1137,6 +1142,7 @@ export async function markOrderPayLater(
           documentOther: documentInfo.documentOther ? encrypt(documentInfo.documentOther) : null,
           documentName: documentInfo.documentName ? encrypt(documentInfo.documentName) : null,
           documentId: documentInfo.documentId ? encrypt(documentInfo.documentId) : null,
+          documentStatus: 'not kept', // Set initial document status when document is added
         }
       : {};
 
@@ -1205,6 +1211,7 @@ export async function markOrderPayLater(
       documentOther: decryptedOrder.documentOther,
       documentName: decryptedOrder.documentName,
       documentId: decryptedOrder.documentId,
+      documentStatus: updatedOrder.documentStatus,
       depositType: updatedOrder.depositType,
       depositValue: updatedOrder.depositValue ? Number(updatedOrder.depositValue) : null,
       taxInvoiceExported: updatedOrder.taxInvoiceExported, // Include new field
@@ -1296,6 +1303,7 @@ export async function getOrdersWithCustomers(options?: {
           status: orders.status,
           totalAmount: orders.totalAmount,
           vatAmount: orders.vatAmount,
+          vatRate: orders.vatRate,
           depositAmount: orders.depositAmount,
           paidAmount: orders.paidAmount,
           paymentMethod: orders.paymentMethod,
@@ -1460,6 +1468,7 @@ export async function getOrdersWithCustomers(options?: {
           status: order.status,
           totalAmount: Number(order.totalAmount),
           vatAmount: Number(order.vatAmount || 0),
+          vatRate: Number(order.vatRate || 8.0), // Include stored VAT rate
           depositAmount: Number(order.depositAmount),
           paidAmount: Number(order.paidAmount),
           paymentMethod: order.paymentMethod,

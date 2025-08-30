@@ -9,6 +9,7 @@ import UsersContent from '@/components/tabs/content/users/UsersContent';
 import CustomerContent from '@/components/tabs/content/customers/CustomerContent';
 import OrdersContent from '@/components/tabs/content/orders/OrdersContent';
 import OrdersNewContent from '@/components/tabs/content/orders/OrdersNewContent';
+import OrderDetailsContent from '@/components/tabs/content/orders/OrderDetailsContent';
 import InventoryContent from '@/components/tabs/content/inventory/InventoryContent';
 import StoreSettingsContent from '@/components/tabs/content/store-settings/StoreSettingsContent';
 import ReportsContent from '@/components/tabs/content/reports/ReportsContent';
@@ -129,6 +130,21 @@ const TabContent: React.FC = () => {
               }}
             >
               <OrdersNewContent tabId={tab.id} />
+            </div>
+          );
+        }
+
+        // Special case for order details tabs
+        if (tab.id.startsWith('order-details-')) {
+          return (
+            <div
+              key={tab.id}
+              style={{
+                display: isActive ? 'block' : 'none',
+                height: '100%',
+              }}
+            >
+              <OrderDetailsContent orderId={tab.id} />
             </div>
           );
         }

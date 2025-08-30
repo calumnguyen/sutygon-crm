@@ -80,8 +80,21 @@ export function useOrderPayment(
   const [isPartialPayment, setIsPartialPayment] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
   const [actualOrderId, setActualOrderId] = useState<number | null>(null);
+  const [vatPercentage, setVatPercentage] = useState(8); // Default VAT rate
 
   // Effects
+  useEffect(() => {
+    // Fetch VAT percentage on mount
+    fetch('/api/store-settings/vat-percentage')
+      .then((res) => res.json())
+      .then((data) => {
+        setVatPercentage(data.vatPercentage || 8);
+      })
+      .catch(() => {
+        setVatPercentage(8); // Default fallback
+      });
+  }, []);
+
   useEffect(() => {
     if (showQRModal) {
       setQrSVG(null);
@@ -476,8 +489,8 @@ export function useOrderPayment(
           vatAmount: Math.round(
             (baseAmount -
               (discounts?.reduce((sum, discount) => sum + discount.discountAmount, 0) || 0)) *
-              0.08
-          ), // 8% VAT on amount after discounts
+              (vatPercentage / 100)
+          ), // Use current VAT rate on amount after discounts
           depositAmount: depositInfo
             ? depositInfo.type === 'vnd'
               ? depositInfo.value
@@ -622,9 +635,10 @@ export function useOrderPayment(
 
   async function handleConfirmDocumentRetention() {
     try {
-      // Don't try to update document status if order is temporary (0000-A)
-      if (orderId === '0000-A') {
-        console.log('Skipping document status update for temporary order');
+      // Use actualOrderId if available (for new orders), otherwise use orderId
+      const orderIdToUpdate = actualOrderId || (orderId !== '0000-A' ? parseInt(orderId) : null);
+
+      if (!orderIdToUpdate) {
         setShowDocumentRetentionModal(false);
         setShowPrintModal(true);
         onPaymentSuccess?.();
@@ -636,7 +650,7 @@ export function useOrderPayment(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: parseInt(orderId),
+          orderId: orderIdToUpdate,
         }),
       });
 
@@ -669,15 +683,11 @@ export function useOrderPayment(
       const orderIdToUpdate = actualOrderId || (orderId !== '0000-A' ? parseInt(orderId) : null);
 
       if (orderIdToUpdate) {
-        console.log('✅ Order exists, updating status to "Picked Up"');
-        console.log('Order ID to update:', orderIdToUpdate);
-
         const requestBody = {
           orderId: orderIdToUpdate,
           status: 'Picked Up',
           currentUser: currentUser, // Pass current user for tracking
         };
-        console.log('Request body:', requestBody);
 
         const response = await fetch('/api/orders/update-status', {
           method: 'POST',
@@ -685,30 +695,19 @@ export function useOrderPayment(
           body: JSON.stringify(requestBody),
         });
 
-        console.log('Response status:', response.status);
-        console.log('Response ok:', response.ok);
-
         if (!response.ok) {
           const errorText = await response.text();
           console.error('❌ Failed to update order status to Picked Up');
           console.error('Error response:', errorText);
-        } else {
-          const responseData = await response.json();
-          console.log('✅ Successfully updated order status');
-          console.log('Response data:', responseData);
         }
-      } else {
-        console.log('❌ No valid order ID available, skipping status update');
       }
 
       setShowPickupConfirmationModal(false);
 
       // Check if there's document info to show retention modal
       if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
-        console.log('✅ Document info found - showing retention modal after pickup');
         setShowDocumentRetentionModal(true);
       } else {
-        console.log('❌ No document info - proceeding to print modal after pickup');
         // No document, proceed directly to print modal
         setShowPrintModal(true);
         onPaymentSuccess?.();
@@ -729,16 +728,10 @@ export function useOrderPayment(
   function handlePickupCancelled() {
     setShowPickupConfirmationModal(false);
 
-    // Check if there's document info to show retention modal
-    if (documentInfo && documentInfo.documentType && documentInfo.documentName) {
-      console.log('✅ Document info found - showing retention modal after pickup cancelled');
-      setShowDocumentRetentionModal(true);
-    } else {
-      console.log('❌ No document info - proceeding to print modal after pickup cancelled');
-      // No document, proceed directly to print modal
-      setShowPrintModal(true);
-      onPaymentSuccess?.();
-    }
+    // If customer didn't pick up, don't show document retention modal
+    // Just proceed to print modal
+    setShowPrintModal(true);
+    onPaymentSuccess?.();
   }
 
   return {

@@ -3,9 +3,10 @@ import { Order } from '@/lib/actions/orders';
 import { TRANSLATIONS } from '@/config/translations';
 import { generateReceiptPDF, ReceiptData } from '@/lib/utils/pdfGenerator';
 import { useUser } from '@/context/UserContext';
+import { useTabContext } from '@/context/TabContext';
+import { createTabId } from '@/types/tabTypes';
 import {
   Clock,
-  Calendar,
   DollarSign,
   Receipt,
   FileText,
@@ -14,8 +15,6 @@ import {
   AlertCircle,
   CreditCard,
   Package,
-  Printer,
-  Eye,
   CalendarDays,
   TrendingUp,
   AlertTriangle,
@@ -26,14 +25,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { WarningAffectedOrdersModal } from './WarningAffectedOrdersModal';
-
-// Helper function to format date with Vietnamese day names
-function formatVietnameseDate(dateString: string): string {
-  const date = new Date(dateString);
-  const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-  const dayName = days[date.getDay()];
-  return `${dayName}, ${date.toLocaleDateString('vi-VN')} ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
-}
+import OrderActionsModal from './OrderActionsModal';
 
 // Helper function to format Vietnamese phone numbers
 function formatVietnamesePhone(phone: string): string {
@@ -104,6 +96,7 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
   loadMore,
 }) => {
   const { sessionToken } = useUser();
+  const { addFirstLevelTab, activateTab } = useTabContext();
   const [orders, setOrders] = React.useState(initialOrders);
   const [vatPercentage, setVatPercentage] = React.useState(8);
   const [orderItems, setOrderItems] = useState<Record<number, OrderItem[]>>({});
@@ -116,6 +109,16 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
   const [resolvingWarnings, setResolvingWarnings] = useState<Record<number, boolean>>({});
   const [warningModalOpen, setWarningModalOpen] = useState(false);
   const [currentWarningItem, setCurrentWarningItem] = useState<OrderItem | null>(null);
+  const [orderActionsModalOpen, setOrderActionsModalOpen] = useState(false);
+  const [currentOrderForActions, setCurrentOrderForActions] = useState<
+    | (Order & {
+        customerName: string;
+        calculatedReturnDate: Date;
+        noteNotComplete: number;
+        noteTotal: number;
+      })
+    | null
+  >(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Update local state when props change
@@ -279,6 +282,41 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
   const handleShowWarningModal = (item: OrderItem) => {
     setCurrentWarningItem(item);
     setWarningModalOpen(true);
+  };
+
+  // Handle opening order actions modal
+  const handleOpenOrderActions = (
+    order: Order & {
+      customerName: string;
+      calculatedReturnDate: Date;
+      noteNotComplete: number;
+      noteTotal: number;
+    }
+  ) => {
+    setCurrentOrderForActions(order);
+    setOrderActionsModalOpen(true);
+  };
+
+  // Handle viewing order details
+  const handleViewOrderDetails = (
+    order: Order & {
+      customerName: string;
+      calculatedReturnDate: Date;
+      noteNotComplete: number;
+      noteTotal: number;
+    }
+  ) => {
+    const newTabId = createTabId(`order-details-${order.id}`);
+    addFirstLevelTab({
+      id: newTabId,
+      label: `ORDER #${order.id.toString().padStart(6, '0')}`,
+      type: 'first',
+      options: [],
+      isClosable: true,
+      isDefault: false,
+      selectedOption: undefined,
+    });
+    activateTab(newTabId);
   };
 
   const handleNextImage = () => {
@@ -476,10 +514,11 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
         return 0;
       })();
 
-      // Calculate correct totals
+      // Calculate correct totals using stored VAT rate
       const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
+      const storedVatRate = order.vatRate || vatPercentage;
       const vatAmountCalculated =
-        order.vatAmount || Math.round(subtotalAfterDiscount * (vatPercentage / 100));
+        order.vatAmount || Math.round(subtotalAfterDiscount * (storedVatRate / 100));
       const totalWithVat = subtotalAfterDiscount + vatAmountCalculated;
       const totalRequired = totalWithVat + depositAmount; // Total that needs to be paid
 
@@ -662,9 +701,10 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
             const totalDiscountAmount =
               order.discounts?.reduce((sum, discount) => sum + discount.discountAmount, 0) || 0;
 
-            // Calculate remaining balance
+            // Calculate remaining balance using stored VAT rate
             const subtotalAfterDiscount = order.totalAmount - totalDiscountAmount;
-            const vatAmountCalculated = Math.round(subtotalAfterDiscount * (vatPercentage / 100));
+            const storedVatRate = order.vatRate || vatPercentage; // Use stored VAT rate, fallback to current rate
+            const vatAmountCalculated = Math.round(subtotalAfterDiscount * (storedVatRate / 100));
             const totalWithVAT = subtotalAfterDiscount + vatAmountCalculated;
             const depositAmount = (() => {
               if (order.depositType && order.depositValue) {
@@ -706,8 +746,13 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                     <div className="flex-1 min-w-0">
                       {/* Order ID and Customer Name */}
                       <div className="mb-3">
-                        <div className="text-lg sm:text-xl font-bold text-white mb-2">
-                          {formatOrderId(order.id)}
+                        <div className="text-lg sm:text-xl font-bold text-white mb-2 flex items-center gap-2">
+                          <span>{formatOrderId(order.id)}</span>
+                          {getTaxInvoiceStatus(order) && (
+                            <span className="text-xs text-emerald-400/60 font-normal">
+                              (Đã xuất hóa đơn)
+                            </span>
+                          )}
                         </div>
                         <div className="text-slate-200 font-medium text-sm leading-tight">
                           <div className="line-clamp-2 break-words">
@@ -891,16 +936,16 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-slate-400">VAT ({vatPercentage}%)</span>
+                          <span className="text-slate-400">VAT ({storedVatRate}%)</span>
                           <span className="text-slate-200">
                             {formatCurrency(
                               totalDiscountAmount > 0
                                 ? Math.round(
                                     (order.totalAmount - totalDiscountAmount) *
-                                      (vatPercentage / 100)
+                                      (storedVatRate / 100)
                                   )
                                 : order.vatAmount ||
-                                    Math.round(order.totalAmount * (vatPercentage / 100))
+                                    Math.round(order.totalAmount * (storedVatRate / 100))
                             )}
                           </span>
                         </div>
@@ -1094,33 +1139,15 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                 {/* Actions */}
                 <div className="p-6 bg-slate-800/50 border-t border-slate-700/50 space-y-3 backdrop-blur-sm">
                   <button
-                    onClick={() => handleToggleTaxInvoice(order.id, getTaxInvoiceStatus(order))}
-                    className={`w-full px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                      getTaxInvoiceStatus(order)
-                        ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 hover:border-emerald-500/60'
-                        : 'bg-slate-600/20 hover:bg-slate-600/30 text-slate-300 border border-slate-600/40 hover:border-slate-600/60 hover:text-white'
-                    }`}
-                    title={getTaxInvoiceStatus(order) ? 'Đã xuất hóa đơn' : 'Chưa xuất hóa đơn'}
+                    onClick={() => handleOpenOrderActions(order)}
+                    className="w-full p-[2px] rounded-xl bg-gradient-to-tr from-blue-500 via-green-400 to-blue-500 shadow-neon hover:shadow-neon-glow hover:scale-105 hover:from-blue-400 hover:via-green-300 hover:to-blue-400 transition-all duration-300 transform"
+                    title="Bạn muốn làm gì với đơn hàng?"
                   >
-                    {getTaxInvoiceStatus(order) ? (
-                      <>
-                        <CheckCircle className="w-4 h-4" />
-                        Đã xuất hóa đơn
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="w-4 h-4" />
-                        Chưa xuất hóa đơn
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handlePrintReceipt(order)}
-                    className="w-full bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 hover:border-blue-500/60 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2"
-                    title="In Biên Nhận"
-                  >
-                    <Printer className="w-4 h-4" />
-                    In Biên Nhận
+                    <div className="bg-gray-900 rounded-xl px-4 py-3 text-center hover:bg-gray-800 transition-colors duration-300">
+                      <span className="text-white font-bold text-sm hover:text-blue-200 transition-colors duration-300">
+                        Bạn muốn làm gì với đơn hàng này?
+                      </span>
+                    </div>
                   </button>
                 </div>
               </div>
@@ -1159,13 +1186,14 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
                         (discountSum, discount) => discountSum + discount.discountAmount,
                         0
                       ) || 0;
+                    const storedVatRate = order.vatRate || vatPercentage;
                     return (
                       sum +
                       (totalDiscountAmount > 0
                         ? Math.round(
-                            (order.totalAmount - totalDiscountAmount) * (vatPercentage / 100)
+                            (order.totalAmount - totalDiscountAmount) * (storedVatRate / 100)
                           )
-                        : order.vatAmount || Math.round(order.totalAmount * (vatPercentage / 100)))
+                        : order.vatAmount || Math.round(order.totalAmount * (storedVatRate / 100)))
                     );
                   }, 0)
                 )}
@@ -1381,6 +1409,26 @@ export const OrdersGrid: React.FC<OrdersGridProps> = ({
           size={currentWarningItem.size}
           itemName={currentWarningItem.name}
           warningMessage={currentWarningItem.warning!}
+        />
+      )}
+
+      {/* Order Actions Modal */}
+      {currentOrderForActions && (
+        <OrderActionsModal
+          isOpen={orderActionsModalOpen}
+          onClose={() => {
+            setOrderActionsModalOpen(false);
+            setCurrentOrderForActions(null);
+          }}
+          onPrintReceipt={() => handlePrintReceipt(currentOrderForActions)}
+          onToggleTaxInvoice={() =>
+            handleToggleTaxInvoice(
+              currentOrderForActions.id,
+              getTaxInvoiceStatus(currentOrderForActions)
+            )
+          }
+          onViewOrderDetails={() => handleViewOrderDetails(currentOrderForActions)}
+          hasTaxInvoiceExported={getTaxInvoiceStatus(currentOrderForActions)}
         />
       )}
     </div>
