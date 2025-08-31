@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { inventoryItems, inventorySizes, orders, orderItems, orderNotes, customers, inventoryTags, tags, users } from "./schema";
+import { inventoryItems, inventorySizes, orders, orderItems, orderItemPickups, orderNotes, customers, inventoryTags, tags, users } from "./schema";
 import { userSessions } from "../src/lib/db/schema";
 
 export const usersRelations = relations(users, ({many}) => ({
@@ -36,6 +36,22 @@ export const orderItemsRelations = relations(orderItems, ({one, many}) => ({
 		references: [inventoryItems.id]
 	}),
 	orderNotes: many(orderNotes),
+	pickups: many(orderItemPickups),
+}));
+
+export const orderItemPickupsRelations = relations(orderItemPickups, ({one}) => ({
+	orderItem: one(orderItems, {
+		fields: [orderItemPickups.orderItemId],
+		references: [orderItems.id]
+	}),
+	pickedUpByUser: one(users, {
+		fields: [orderItemPickups.pickedUpByUserId],
+		references: [users.id]
+	}),
+	facilitatedByUser: one(users, {
+		fields: [orderItemPickups.facilitatedByUserId],
+		references: [users.id]
+	}),
 }));
 
 export const ordersRelations = relations(orders, ({one, many}) => ({

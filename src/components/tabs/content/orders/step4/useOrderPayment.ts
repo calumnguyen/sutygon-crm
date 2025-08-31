@@ -80,7 +80,44 @@ export function useOrderPayment(
   const [isPartialPayment, setIsPartialPayment] = useState(false);
   const [partialAmount, setPartialAmount] = useState('');
   const [actualOrderId, setActualOrderId] = useState<number | null>(null);
+  const [actualOrderItems, setActualOrderItems] = useState<
+    Array<{
+      id: number;
+      orderId: number;
+      inventoryItemId: number | null;
+      formattedId: string | null;
+      name: string;
+      size: string;
+      quantity: number;
+      price: number;
+      imageUrl?: string;
+    }>
+  >([]);
   const [vatPercentage, setVatPercentage] = useState(8); // Default VAT rate
+
+  // Show pickup confirmation modal when actualOrderId is set
+  useEffect(() => {
+    if (actualOrderId && shouldShowPickupConfirmation()) {
+      console.log(
+        '✅ Showing pickup confirmation modal - actualOrderId is now set:',
+        actualOrderId
+      );
+      setShowPickupConfirmationModal(true);
+    }
+  }, [actualOrderId, orderDate]);
+
+  // Function to fetch actual order items with database IDs
+  const fetchActualOrderItems = async (orderId: number) => {
+    try {
+      const response = await fetch(`/api/orders/${orderId}/items/pickup`);
+      if (response.ok) {
+        const data = await response.json();
+        setActualOrderItems(data.items || []);
+      }
+    } catch (error) {
+      console.error('Error fetching actual order items:', error);
+    }
+  };
 
   // Effects
   useEffect(() => {
@@ -215,7 +252,14 @@ export function useOrderPayment(
 
   // Helper function to check if pickup confirmation is needed
   function shouldShowPickupConfirmation(): boolean {
-    if (!orderDate) return false;
+    console.log('=== shouldShowPickupConfirmation called ===');
+    console.log('orderDate parameter:', orderDate);
+    console.log('orderDate type:', typeof orderDate);
+
+    if (!orderDate) {
+      console.log('❌ No orderDate provided, returning false');
+      return false;
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Set to start of day
@@ -239,7 +283,9 @@ export function useOrderPayment(
     console.log('orderDateObj <= today:', orderDateObj <= today);
 
     // Show pickup confirmation if order date is today or in the past
-    return orderDateObj <= today;
+    const shouldShow = orderDateObj <= today;
+    console.log('shouldShow pickup confirmation:', shouldShow);
+    return shouldShow;
   }
 
   // Handle pay later directly without the orange modal
@@ -279,20 +325,29 @@ export function useOrderPayment(
       // Get the response data to extract the order ID
       const responseData = await response.json();
       console.log('Pay later API response:', responseData);
+      console.log('Response data keys:', Object.keys(responseData));
+      console.log('Response data.id:', responseData.id);
+      console.log('Response data.order:', responseData.order);
+      console.log('Response data type:', typeof responseData);
+      console.log('Response data structure:', JSON.stringify(responseData, null, 2));
 
       // Extract the actual order ID from the response
-      const actualOrderId = responseData.order?.id || responseData.id;
-      console.log('Actual order ID from pay later API:', actualOrderId);
+      const newOrderId = responseData.order?.id;
+      console.log('Actual order ID from pay later API:', newOrderId);
+      console.log('newOrderId type:', typeof newOrderId);
+      console.log('newOrderId value:', newOrderId);
 
       // Mark as payment submitted (though it's pay later)
       setIsPaymentSubmitted?.(true);
 
       // Check if pickup confirmation is needed
       if (shouldShowPickupConfirmation()) {
-        console.log('✅ Showing pickup confirmation for pay later');
+        console.log('✅ Setting up pickup confirmation for pay later');
         // Store the actual order ID for pickup confirmation
-        setActualOrderId(actualOrderId);
-        setShowPickupConfirmationModal(true);
+        setActualOrderId(newOrderId);
+        // Fetch actual order items with database IDs
+        fetchActualOrderItems(newOrderId);
+        // Note: Pickup confirmation modal will be shown via useEffect when actualOrderId is set
       } else {
         console.log('❌ No pickup confirmation needed for pay later');
         // Check if there's document info to show retention modal
@@ -368,10 +423,17 @@ export function useOrderPayment(
       // Get the response data to extract the order ID
       const responseData = await response.json();
       console.log('Payment API response:', responseData);
+      console.log('Response data keys:', Object.keys(responseData));
+      console.log('Response data.id:', responseData.id);
+      console.log('Response data.order:', responseData.order);
+      console.log('Response data type:', typeof responseData);
+      console.log('Response data structure:', JSON.stringify(responseData, null, 2));
 
       // Extract the actual order ID from the response
-      const actualOrderId = responseData.id || responseData.order?.id;
-      console.log('Actual order ID from payment API:', actualOrderId);
+      const newOrderId = responseData.id;
+      console.log('Actual order ID from payment API:', newOrderId);
+      console.log('newOrderId type:', typeof newOrderId);
+      console.log('newOrderId value:', newOrderId);
 
       // Mark payment as submitted
       setIsPaymentSubmitted?.(true);
@@ -387,10 +449,12 @@ export function useOrderPayment(
 
       // Check if pickup confirmation is needed first
       if (shouldShowPickupConfirmation()) {
-        console.log('✅ Showing pickup confirmation');
+        console.log('✅ Setting up pickup confirmation');
         // Store the actual order ID for pickup confirmation
-        setActualOrderId(actualOrderId);
-        setShowPickupConfirmationModal(true);
+        setActualOrderId(newOrderId);
+        // Fetch actual order items with database IDs
+        fetchActualOrderItems(newOrderId);
+        // Note: Pickup confirmation modal will be shown via useEffect when actualOrderId is set
       } else {
         console.log('❌ No pickup confirmation needed');
         // Check if there's document info to show retention modal
@@ -592,6 +656,13 @@ export function useOrderPayment(
         throw new Error('Failed to complete payment');
       }
 
+      const responseData = await response.json();
+      console.log('QR Payment API response:', responseData);
+
+      // Extract the actual order ID from the response
+      const newOrderId = responseData.id;
+      console.log('Actual order ID from QR payment API:', newOrderId);
+
       // Mark payment as submitted
       setIsPaymentSubmitted?.(true);
 
@@ -600,9 +671,17 @@ export function useOrderPayment(
       setSelectedPaymentMethod('qr');
 
       // Check if pickup confirmation is needed first
-      if (shouldShowPickupConfirmation()) {
-        console.log('✅ Showing pickup confirmation (QR)');
-        setShowPickupConfirmationModal(true);
+      console.log('=== Checking pickup confirmation after QR payment ===');
+      const needsPickupConfirmation = shouldShowPickupConfirmation();
+      console.log('needsPickupConfirmation result:', needsPickupConfirmation);
+
+      if (needsPickupConfirmation) {
+        console.log('✅ Setting up pickup confirmation (QR)');
+        // Store the actual order ID for pickup confirmation
+        setActualOrderId(newOrderId);
+        // Fetch actual order items with database IDs
+        fetchActualOrderItems(newOrderId);
+        // Note: Pickup confirmation modal will be shown via useEffect when actualOrderId is set
       } else {
         console.log('❌ No pickup confirmation needed (QR)');
         // Check if there's document info to show retention modal
@@ -679,28 +758,9 @@ export function useOrderPayment(
       console.log('orderId type:', typeof orderId);
       console.log('actualOrderId:', actualOrderId);
 
-      // Use actualOrderId if available (for new orders), otherwise use orderId
-      const orderIdToUpdate = actualOrderId || (orderId !== '0000-A' ? parseInt(orderId) : null);
-
-      if (orderIdToUpdate) {
-        const requestBody = {
-          orderId: orderIdToUpdate,
-          status: 'Picked Up',
-          currentUser: currentUser, // Pass current user for tracking
-        };
-
-        const response = await fetch('/api/orders/update-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('❌ Failed to update order status to Picked Up');
-          console.error('Error response:', errorText);
-        }
-      }
+      // Note: Order status is now updated by the pickup API based on actual pickup progress
+      // No need to manually update order status here
+      console.log('✅ Pickup confirmed - order status will be updated by pickup API');
 
       setShowPickupConfirmationModal(false);
 
@@ -786,5 +846,8 @@ export function useOrderPayment(
     handlePickupCancelled,
     totalPay,
     resetAllPaymentState,
+    actualOrderId,
+    currentUser,
+    actualOrderItems,
   };
 }

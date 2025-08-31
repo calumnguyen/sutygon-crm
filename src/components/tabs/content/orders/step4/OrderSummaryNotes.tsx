@@ -26,7 +26,7 @@ export const OrderSummaryNotes: React.FC<{
           ))}
         {orderItems.map(
           (item) =>
-            notes.filter((n) => n.itemId === item.id).length > 0 && (
+            notes.filter((n) => n.itemId === String(item.id)).length > 0 && (
               <li key={item.id}>
                 <span className="font-semibold text-blue-300">
                   [{item.name}
@@ -34,7 +34,7 @@ export const OrderSummaryNotes: React.FC<{
                 </span>
                 <ul className="ml-2 list-disc list-inside">
                   {notes
-                    .filter((n) => n.itemId === item.id)
+                    .filter((n) => n.itemId === String(item.id))
                     .map((n) => (
                       <li key={n.id} className="text-white">
                         {n.text} {n.done && <span className="text-green-400">✓</span>}

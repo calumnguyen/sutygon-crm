@@ -1,6 +1,6 @@
 import React from 'react';
-import { Package, AlertTriangle } from 'lucide-react';
-import { OrderItem } from './types';
+import { Package, AlertTriangle, CheckCircle, Clock, User, History } from 'lucide-react';
+import { OrderItem, PickupHistory } from './types';
 
 interface OrderItemsSectionProps {
   orderItems: OrderItem[];
@@ -9,6 +9,86 @@ interface OrderItemsSectionProps {
 const OrderItemsSection: React.FC<OrderItemsSectionProps> = ({ orderItems }) => {
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('vi-VN') + ' đ';
+  };
+
+  const formatPickupStatus = (item: OrderItem) => {
+    const pickedUpQuantity = item.pickedUpQuantity || 0;
+    const totalQuantity = item.quantity;
+
+    if (pickedUpQuantity === 0) {
+      return {
+        icon: <Clock className="w-4 h-4 text-yellow-400" />,
+        text: 'Chờ nhận hàng',
+        bgColor: 'bg-yellow-900/30',
+        textColor: 'text-yellow-300',
+        borderColor: 'border-yellow-500/30',
+      };
+    }
+
+    if (pickedUpQuantity >= totalQuantity) {
+      return {
+        icon: <CheckCircle className="w-4 h-4 text-green-400" />,
+        text: `Đã nhận đầy đủ ${pickedUpQuantity}/${totalQuantity}`,
+        bgColor: 'bg-green-900/30',
+        textColor: 'text-green-300',
+        borderColor: 'border-green-500/30',
+      };
+    }
+
+    if (pickedUpQuantity > 0 && pickedUpQuantity < totalQuantity) {
+      return {
+        icon: <Clock className="w-4 h-4 text-orange-400" />,
+        text: `Đã nhận ${pickedUpQuantity}/${totalQuantity}`,
+        bgColor: 'bg-orange-900/30',
+        textColor: 'text-orange-300',
+        borderColor: 'border-orange-500/30',
+      };
+    }
+
+    return null;
+  };
+
+  const formatPickupDate = (dateString?: string) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    return date.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const groupPickupHistoryBySession = (pickupHistory: PickupHistory[]) => {
+    if (!pickupHistory || pickupHistory.length === 0) return [];
+
+    // Group by timestamp (within 5 minutes = same session)
+    const groups: PickupHistory[][] = [];
+    const sortedHistory = [...pickupHistory].sort(
+      (a, b) => new Date(b.pickedUpAt).getTime() - new Date(a.pickedUpAt).getTime()
+    );
+
+    for (const pickup of sortedHistory) {
+      const pickupTime = new Date(pickup.pickedUpAt).getTime();
+      let addedToGroup = false;
+
+      for (const group of groups) {
+        const groupTime = new Date(group[0].pickedUpAt).getTime();
+        // If within 5 minutes (300000 ms), consider it the same session
+        if (Math.abs(pickupTime - groupTime) <= 300000) {
+          group.push(pickup);
+          addedToGroup = true;
+          break;
+        }
+      }
+
+      if (!addedToGroup) {
+        groups.push([pickup]);
+      }
+    }
+
+    return groups;
   };
 
   return (
@@ -73,6 +153,87 @@ const OrderItemsSection: React.FC<OrderItemsSectionProps> = ({ orderItems }) => 
                       <span className="text-white font-medium ml-2">{item.quantity}</span>
                     </div>
                   </div>
+
+                  {/* Pickup Status and History */}
+                  {(() => {
+                    const pickupStatus = formatPickupStatus(item);
+                    const pickupHistoryGroups = groupPickupHistoryBySession(
+                      item.pickupHistory || []
+                    );
+
+                    if (!pickupStatus && pickupHistoryGroups.length === 0) return null;
+
+                    return (
+                      <div className="mt-3">
+                        {/* Current Pickup Status */}
+                        {pickupStatus && (
+                          <div
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${pickupStatus.bgColor} ${pickupStatus.borderColor} mb-3`}
+                          >
+                            {pickupStatus.icon}
+                            <span className={`text-sm font-medium ${pickupStatus.textColor}`}>
+                              {pickupStatus.text}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Pickup History */}
+                        {pickupHistoryGroups.length > 0 && (
+                          <div className="mt-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <History className="w-4 h-4 text-blue-400" />
+                              <span className="text-sm font-medium text-blue-300">
+                                Lịch sử nhận hàng
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              {pickupHistoryGroups.map((session, sessionIndex) => {
+                                const totalQuantityInSession = session.reduce(
+                                  (sum, pickup) => sum + pickup.pickedUpQuantity,
+                                  0
+                                );
+                                const firstPickup = session[0];
+
+                                return (
+                                  <div
+                                    key={sessionIndex}
+                                    className="bg-gray-600/30 rounded-lg p-3 border border-gray-500/30"
+                                  >
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2 sm:gap-0">
+                                      <div className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-400" />
+                                        <span className="text-sm font-medium text-green-300">
+                                          Đã nhận {totalQuantityInSession} sản phẩm
+                                        </span>
+                                      </div>
+                                      <span className="text-xs text-gray-400 sm:text-right">
+                                        {formatPickupDate(firstPickup.pickedUpAt)}
+                                      </span>
+                                    </div>
+
+                                    <div className="text-xs text-gray-300 space-y-1">
+                                      <div className="flex items-center gap-1">
+                                        <User className="w-3 h-3" />
+                                        <span>
+                                          Khách hàng: {firstPickup.pickedUpByCustomerName}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <User className="w-3 h-3" />
+                                        <span>
+                                          Nhân viên hỗ trợ: {firstPickup.facilitatedByUserName}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Check for unresolved notes or warnings */}
                   {((item.warning && !item.warningResolved) ||

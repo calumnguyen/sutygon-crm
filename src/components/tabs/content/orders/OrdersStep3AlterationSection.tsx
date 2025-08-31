@@ -35,11 +35,11 @@ const OrdersStep3AlterationSection: React.FC<OrdersStep3AlterationSectionProps> 
   const getItemName = (id: string | null) => {
     if (!id) return 'Toàn bộ đơn hàng';
     const item = orderItems.find(
-      (i) => i.id === id || (i.isCustom && i.name + '_' + i.price === id)
+      (i) => String(i.id) === id || (i.isCustom && i.name + '_' + i.price === id)
     );
     if (!item) return id;
     if (!item.id || item.isCustom) return item.name;
-    return item.id;
+    return String(item.id);
   };
 
   // Add note
@@ -70,7 +70,7 @@ const OrdersStep3AlterationSection: React.FC<OrdersStep3AlterationSectionProps> 
   useEffect(() => {
     setNotes((prevNotes) =>
       prevNotes.filter(
-        (note) => note.itemId === null || orderItems.some((item) => item.id === note.itemId)
+        (note) => note.itemId === null || orderItems.some((item) => String(item.id) === note.itemId)
       )
     );
   }, [orderItems]);

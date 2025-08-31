@@ -1,15 +1,35 @@
 import React from 'react';
 
+interface OrderItem {
+  id?: number;
+  inventoryItemId?: number | null;
+  name: string;
+  size: string;
+  quantity: number;
+  price: number;
+  imageUrl?: string;
+}
+
+interface ItemPickupSelection {
+  itemId: number;
+  quantity: number;
+  isSelected: boolean;
+}
+
 interface PickupConfirmationModalProps {
   show: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  orderItems?: OrderItem[];
+  onItemPickupConfirm?: (selectedItems: ItemPickupSelection[]) => void;
 }
 
 export const PickupConfirmationModal: React.FC<PickupConfirmationModalProps> = ({
   show,
   onConfirm,
   onCancel,
+  orderItems,
+  onItemPickupConfirm,
 }) => {
   if (!show) return null;
 
@@ -57,7 +77,16 @@ export const PickupConfirmationModal: React.FC<PickupConfirmationModalProps> = (
               Chưa Nhận
             </button>
             <button
-              onClick={onConfirm}
+              onClick={() => {
+                // If we have order items and item pickup handler, show item selection
+                if (orderItems && orderItems.length > 0 && onItemPickupConfirm) {
+                  // Import and show ItemPickupSelectionModal
+                  // For now, we'll call the original onConfirm and let the parent handle the item selection
+                  onConfirm();
+                } else {
+                  onConfirm();
+                }
+              }}
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               Đã Nhận

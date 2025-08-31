@@ -280,6 +280,7 @@ export const orderItems = pgTable(
     feeType: varchar('fee_type', { length: 20 }), // 'vnd' or 'percent'
     percent: integer('percent'),
     isCustom: boolean('is_custom').notNull().default(false),
+    pickedUpQuantity: integer('picked_up_quantity').default(0).notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -351,6 +352,36 @@ export const orderNotes = pgTable(
       itemIdIdx: index('order_notes_item_id_idx').on(table.itemId),
       // Index for completion status filtering
       doneIdx: index('order_notes_done_idx').on(table.done),
+    };
+  }
+);
+
+export const orderItemPickups = pgTable(
+  'order_item_pickups',
+  {
+    id: serial('id').primaryKey(),
+    orderItemId: integer('order_item_id')
+      .notNull()
+      .references(() => orderItems.id),
+    pickedUpQuantity: integer('picked_up_quantity').notNull(),
+    pickedUpAt: timestamp('picked_up_at').notNull(),
+    pickedUpByCustomerName: varchar('picked_up_by_customer_name', { length: 255 }).notNull(),
+    facilitatedByUserId: integer('facilitated_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      orderItemIdIdx: index('order_item_pickups_order_item_id_idx').on(table.orderItemId),
+      pickedUpAtIdx: index('order_item_pickups_picked_up_at_idx').on(table.pickedUpAt),
+      pickedUpByCustomerNameIdx: index('order_item_pickups_picked_up_by_customer_name_idx').on(
+        table.pickedUpByCustomerName
+      ),
+      facilitatedByUserIdIdx: index('order_item_pickups_facilitated_by_user_id_idx').on(
+        table.facilitatedByUserId
+      ),
     };
   }
 );

@@ -57,6 +57,7 @@ export const TRANSLATIONS = {
     title: 'Quản lý đơn hàng',
     status: {
       Processing: 'Đang Xử Lý',
+      'Partially Picked Up': 'Lấy Dang Dở',
       'Picked Up': 'Đã Nhận Hàng',
       Completed: 'Hoàn Thành',
       Cancelled: 'Đã Hủy',

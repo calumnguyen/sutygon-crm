@@ -130,11 +130,12 @@ const OrdersNewStep3 = ({
   function addItemToOrder(item: (typeof MOCK_ITEMS)[number], size: string, price: number) {
     setOrderItems((prev) => {
       const key = `${item.id}-${size}`;
-      const idx = prev.findIndex((i) => i.id === key);
+      const numericId = prev.length > 0 ? Math.max(...prev.map((i) => i.id)) + 1 : 1;
+      const idx = prev.findIndex((i) => `${i.id}` === key);
       if (idx !== -1) {
         return prev.map((i, iIdx) => (iIdx === idx ? { ...i, quantity: i.quantity + 1 } : i));
       }
-      return [...prev, { id: key, name: item.name, size, quantity: 1, price }];
+      return [...prev, { id: numericId, name: item.name, size, quantity: 1, price }];
     });
   }
 
@@ -146,7 +147,7 @@ const OrdersNewStep3 = ({
     setSizeOptions([]);
   }
 
-  const handleQuantityChange = (id: string, delta: number) => {
+  const handleQuantityChange = (id: number, delta: number) => {
     setOrderItems((prev) => {
       const item = prev.find((i) => i.id === id);
       if (!item) return prev;
@@ -242,10 +243,11 @@ const OrdersNewStep3 = ({
     }
     setOrderItems((prev) => {
       const filtered = prev.filter((i) => !i.isExtension);
+      const numericId = prev.length > 0 ? Math.max(...prev.map((i) => i.id)) + 1 : 1;
       return [
         ...filtered,
         {
-          id: 'EXTENSION',
+          id: numericId,
           name: `Gia hạn thời gian thuê - ${extraDays} ngày`,
           size: '',
           quantity: 1,
@@ -322,7 +324,7 @@ const OrdersNewStep3 = ({
         <OrdersStep3ItemsSection
           orderItems={orderItems}
           setOrderItems={setOrderItems}
-          onItemClick={(item) => setSelectedItemId(item.id)}
+          onItemClick={(item) => setSelectedItemId(String(item.id))}
           selectedItemId={selectedItemId}
           date={date}
         />
@@ -365,7 +367,7 @@ const OrdersNewStep3 = ({
           <OrdersStep3ItemsSection
             orderItems={orderItems}
             setOrderItems={setOrderItems}
-            onItemClick={(item) => setSelectedItemId(item.id)}
+            onItemClick={(item) => setSelectedItemId(String(item.id))}
             selectedItemId={selectedItemId}
             date={date}
           />

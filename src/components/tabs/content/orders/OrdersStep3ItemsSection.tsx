@@ -65,14 +65,14 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
 
   // Robust handler: only event-driven state updates
   const handleQuantityChange = (id: string, delta: number) => {
-    const item = orderItems.find((i) => i.id === id);
+    const item = orderItems.find((i) => String(i.id) === id);
     if (!item) return;
     if (item.quantity === 1 && delta === -1) {
       logic.setItemToDelete(item);
       logic.setShowDeleteModal(true);
       return;
     }
-    logic.handleQuantityChange(id, delta);
+    logic.handleQuantityChange(String(item.id), delta);
   };
 
   const handleDelete = (item: OrderItem) => {
@@ -245,17 +245,22 @@ const OrdersStep3ItemsSection: React.FC<OrdersStep3ItemsSectionProps> = ({
                       return;
                     }
                     const customId = customName.trim() + '_' + customPrice;
-                    setOrderItems((prev) => [
-                      ...prev,
-                      {
-                        id: customId,
-                        name: customName.trim(),
-                        size: '',
-                        quantity: 1,
-                        price: Number(customPrice),
-                        isCustom: true,
-                      },
-                    ]);
+                    setOrderItems((prev) => {
+                      const numericId =
+                        prev.length > 0 ? Math.max(...prev.map((i) => i.id)) + 1 : 1;
+                      return [
+                        ...prev,
+                        {
+                          id: numericId,
+                          name: customName.trim(),
+                          size: '',
+                          quantity: 1,
+                          price: Number(customPrice),
+                          inventoryItemId: null,
+                          isCustom: true,
+                        },
+                      ];
+                    });
                     setShowCustomModal(false);
                     setCustomName('');
                     setCustomPrice('');

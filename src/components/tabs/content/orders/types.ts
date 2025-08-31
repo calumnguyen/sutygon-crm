@@ -6,7 +6,7 @@ export interface Customer {
 }
 
 export interface OrderItem {
-  id: string;
+  id: number;
   name: string;
   size: string;
   quantity: number;

@@ -1,3 +1,13 @@
+export interface PickupHistory {
+  id: number;
+  orderItemId: number;
+  pickedUpQuantity: number;
+  pickedUpAt: string;
+  pickedUpByCustomerName: string;
+  facilitatedByUserId: number;
+  facilitatedByUserName: string;
+}
+
 export interface OrderItem {
   id: number;
   orderId: number;
@@ -11,6 +21,12 @@ export interface OrderItem {
   warning?: string;
   warningResolved?: boolean;
   noteNotComplete?: number;
+  pickedUpQuantity?: number;
+  pickedUpAt?: string;
+  pickedUpByCustomerName?: string;
+  facilitatedByUserId?: number;
+  facilitatedByUserName?: string;
+  pickupHistory?: PickupHistory[];
 }
 
 export interface CustomerDetails {

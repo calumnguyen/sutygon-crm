@@ -9,6 +9,7 @@ import {
   inventoryItems,
   paymentHistory,
   orderDiscounts,
+  orderItemPickups,
 } from '@/lib/db/schema';
 import { eq, desc, asc, and, or, gte, lte, count, inArray, sql } from 'drizzle-orm';
 import {
@@ -22,6 +23,7 @@ import {
 } from '@/lib/utils/orderEncryption';
 import { decryptInventoryData } from '@/lib/utils/inventoryEncryption';
 import { encrypt, decrypt } from '@/lib/utils/encryption';
+import { decryptUserData } from '@/lib/utils/userEncryption';
 import { monitorDatabaseQuery } from '@/lib/utils/performance';
 import { calculateExpectedReturnDate } from '@/lib/utils/orderUtils';
 
@@ -406,6 +408,44 @@ export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
       .where(inArray(orderWarnings.orderItemId, orderItemIds));
   }
 
+  // Get pickup data from the new order_item_pickups table
+  let pickupData: Array<{
+    id: number;
+    orderItemId: number;
+    pickedUpQuantity: number;
+    pickedUpAt: Date;
+    pickedUpByCustomerName: string;
+    facilitatedByUserId: number;
+  }> = [];
+
+  if (orderItemIds.length > 0) {
+    pickupData = await db
+      .select({
+        id: orderItemPickups.id,
+        orderItemId: orderItemPickups.orderItemId,
+        pickedUpQuantity: orderItemPickups.pickedUpQuantity,
+        pickedUpAt: orderItemPickups.pickedUpAt,
+        pickedUpByCustomerName: orderItemPickups.pickedUpByCustomerName,
+        facilitatedByUserId: orderItemPickups.facilitatedByUserId,
+      })
+      .from(orderItemPickups)
+      .where(inArray(orderItemPickups.orderItemId, orderItemIds));
+  }
+
+  // Get user names for pickup tracking (only for facilitatedByUserId now)
+  const userIds = [...new Set([...pickupData.map((p) => p.facilitatedByUserId)])].filter(
+    (id): id is number => id !== null
+  );
+
+  let usersData: Array<{ id: number; name: string }> = [];
+  if (userIds.length > 0) {
+    const { users } = await import('@/lib/db/schema');
+    usersData = await db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(inArray(users.id, userIds));
+  }
+
   // Decrypt sensitive data for display
   return dbItems.map((item) => {
     const decrypted = decryptOrderItemData(item);
@@ -425,6 +465,75 @@ export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
     const itemWarnings = warningsData.filter((w) => w.orderItemId === item.id);
     const hasUnresolvedWarnings = itemWarnings.some((w) => !w.isResolved);
     const hasResolvedWarnings = itemWarnings.some((w) => w.isResolved);
+
+    // Find pickup data for this item
+    const itemPickups = pickupData.filter((p) => p.orderItemId === item.id);
+    const totalPickedUp = itemPickups.reduce((sum, p) => sum + p.pickedUpQuantity, 0);
+    const latestPickup = itemPickups.sort(
+      (a, b) => new Date(b.pickedUpAt).getTime() - new Date(a.pickedUpAt).getTime()
+    )[0];
+
+    // Create pickup history with decrypted names
+    const pickupHistory = itemPickups
+      .map((pickup) => {
+        const facilitatedByUser = usersData.find((u) => u.id === pickup.facilitatedByUserId);
+
+        // Decrypt customer name
+        let decryptedCustomerName = pickup.pickedUpByCustomerName;
+        try {
+          decryptedCustomerName = decrypt(pickup.pickedUpByCustomerName);
+        } catch (error) {
+          console.warn('Failed to decrypt customer name:', error);
+          decryptedCustomerName = pickup.pickedUpByCustomerName; // Fallback to encrypted value
+        }
+
+        // Decrypt user name if available
+        let decryptedUserName = `User #${pickup.facilitatedByUserId}`;
+        if (facilitatedByUser?.name) {
+          try {
+            decryptedUserName = decrypt(facilitatedByUser.name);
+          } catch (error) {
+            console.warn('Failed to decrypt user name:', error);
+            decryptedUserName = facilitatedByUser.name; // Fallback to encrypted value
+          }
+        }
+
+        return {
+          id: pickup.id,
+          orderItemId: pickup.orderItemId,
+          pickedUpQuantity: pickup.pickedUpQuantity,
+          pickedUpAt: pickup.pickedUpAt.toISOString(),
+          pickedUpByCustomerName: decryptedCustomerName,
+          facilitatedByUserId: pickup.facilitatedByUserId,
+          facilitatedByUserName: decryptedUserName,
+        };
+      })
+      .sort((a, b) => new Date(b.pickedUpAt).getTime() - new Date(a.pickedUpAt).getTime());
+
+    // Find user names for pickup tracking (decrypt latest pickup data)
+    let decryptedLatestCustomerName = null;
+    if (latestPickup?.pickedUpByCustomerName) {
+      try {
+        decryptedLatestCustomerName = decrypt(latestPickup.pickedUpByCustomerName);
+      } catch (error) {
+        console.warn('Failed to decrypt latest customer name:', error);
+        decryptedLatestCustomerName = latestPickup.pickedUpByCustomerName;
+      }
+    }
+
+    const facilitatedByUser = latestPickup?.facilitatedByUserId
+      ? usersData.find((u) => u.id === latestPickup.facilitatedByUserId)
+      : null;
+
+    let decryptedFacilitatedByUserName = null;
+    if (facilitatedByUser?.name) {
+      try {
+        decryptedFacilitatedByUserName = decrypt(facilitatedByUser.name);
+      } catch (error) {
+        console.warn('Failed to decrypt facilitated by user name:', error);
+        decryptedFacilitatedByUserName = facilitatedByUser.name;
+      }
+    }
 
     return {
       id: item.id,
@@ -451,6 +560,13 @@ export async function getOrderItems(orderId: number): Promise<OrderItem[]> {
       warningResolvedBy: hasResolvedWarnings
         ? itemWarnings.find((w) => w.isResolved)?.resolvedBy
         : null,
+      // Pickup status fields
+      pickedUpQuantity: item.pickedUpQuantity || 0,
+      pickedUpAt: latestPickup?.pickedUpAt?.toISOString(),
+      pickedUpByCustomerName: decryptedLatestCustomerName,
+      facilitatedByUserId: latestPickup?.facilitatedByUserId,
+      facilitatedByUserName: decryptedFacilitatedByUserName,
+      pickupHistory: pickupHistory,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };

@@ -125,6 +125,8 @@ export const orderItems = pgTable("order_items", {
 	feeType: varchar("fee_type", { length: 20 }),
 	percent: integer(),
 	isCustom: boolean("is_custom").default(false).notNull(),
+	// Total pickup tracking (sum of all pickups)
+	pickedUpQuantity: integer("picked_up_quantity").default(0).notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
@@ -140,6 +142,39 @@ export const orderItems = pgTable("order_items", {
 			foreignColumns: [inventoryItems.id],
 			name: "order_items_inventory_item_id_fkey"
 		}),
+
+
+]);
+
+export const orderItemPickups = pgTable("order_item_pickups", {
+	id: serial().primaryKey().notNull(),
+	orderItemId: integer("order_item_id").notNull(),
+	pickedUpQuantity: integer("picked_up_quantity").notNull(),
+	pickedUpAt: timestamp("picked_up_at", { mode: 'string' }).notNull(),
+	pickedUpByUserId: integer("picked_up_by_user_id").notNull(),
+	facilitatedByUserId: integer("facilitated_by_user_id").notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("idx_order_item_pickups_order_item_id").using("btree", table.orderItemId.asc().nullsLast().op("int4_ops")),
+	index("idx_order_item_pickups_picked_up_at").using("btree", table.pickedUpAt.asc().nullsLast().op("timestamptz_ops")),
+	index("idx_order_item_pickups_picked_up_by_user_id").using("btree", table.pickedUpByUserId.asc().nullsLast().op("int4_ops")),
+	index("idx_order_item_pickups_facilitated_by_user_id").using("btree", table.facilitatedByUserId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+		columns: [table.orderItemId],
+		foreignColumns: [orderItems.id],
+		name: "fk_order_item_pickups_order_item"
+	}),
+	foreignKey({
+		columns: [table.pickedUpByUserId],
+		foreignColumns: [users.id],
+		name: "fk_order_item_pickups_picked_up_by"
+	}),
+	foreignKey({
+		columns: [table.facilitatedByUserId],
+		foreignColumns: [users.id],
+		name: "fk_order_item_pickups_facilitated_by"
+	}),
 ]);
 
 export const orderNotes = pgTable("order_notes", {

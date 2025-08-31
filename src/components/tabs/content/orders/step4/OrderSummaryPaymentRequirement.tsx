@@ -7,6 +7,7 @@ import PrintReceiptModal from './PrintReceiptModal';
 import VietQRModal from './VietQRModal';
 import { DocumentRetentionModal } from './DocumentRetentionModal';
 import { PickupConfirmationModal } from './PickupConfirmationModal';
+import { ItemPickupSelectionModal } from './ItemPickupSelectionModal';
 
 /**
  * Payment summary card for step 4 summary.
@@ -50,6 +51,7 @@ interface OrderSummaryPaymentRequirementProps {
   customer: { id: number; name: string; address?: string; phone?: string } | null;
   date: string;
   orderItems: Array<{
+    id?: number;
     inventoryItemId?: number | null;
     name: string;
     size: string;
@@ -173,6 +175,97 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
     date,
     expectedReturnDate.toLocaleDateString('vi-VN')
   );
+
+  // Item pickup selection modal state
+  const [showItemPickupSelectionModal, setShowItemPickupSelectionModal] = useState(false);
+
+  // Use actual order items with database IDs if available, otherwise fall back to orderItems
+  const itemsToUse = payment.actualOrderItems.length > 0 ? payment.actualOrderItems : orderItems;
+
+  // Handle item pickup confirmation
+  const handleItemPickupConfirm = async (
+    selectedItems: Array<{ itemId: number; quantity: number; isSelected: boolean }>,
+    customerName?: string
+  ) => {
+    try {
+      // Filter only selected items
+      const itemsToPickup = selectedItems.filter((item) => item.isSelected);
+
+      if (itemsToPickup.length === 0) {
+        alert('Vui lòng chọn ít nhất một sản phẩm để nhận hàng.');
+        return;
+      }
+
+      // Check if currentUser is available
+      if (!payment.currentUser?.id) {
+        alert('Không thể xác định nhân viên xử lý. Vui lòng đăng nhập lại.');
+        return;
+      }
+
+      // Use actual order ID if available, otherwise use the current orderId
+      const actualOrderId = payment.actualOrderId || orderId;
+
+      // Handle temporary order ID case or null actualOrderId
+      if (actualOrderId === '0000-A' || actualOrderId === '0' || actualOrderId === null) {
+        // For temporary orders or when actualOrderId is not set yet, we can't track pickup
+        // Just proceed with the pickup confirmation flow
+        console.log('Temporary order or no actualOrderId - skipping pickup tracking for now');
+        console.log('actualOrderId:', actualOrderId, 'type:', typeof actualOrderId);
+        setShowItemPickupSelectionModal(false);
+        payment.handlePickupConfirmed();
+        return;
+      }
+
+      console.log('=== Frontend Pickup Debug ===');
+      console.log('Actual Order ID:', actualOrderId);
+      console.log('Items to pickup:', itemsToPickup);
+      console.log('Order items (original):', orderItems);
+      console.log('Actual order items (with DB IDs):', payment.actualOrderItems);
+      console.log('Items to use:', itemsToUse);
+
+      // Call API to mark items as picked up
+      const response = await fetch(`/api/orders/${actualOrderId}/items/pickup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: itemsToPickup.map((item) => ({
+            itemId: item.itemId,
+            quantity: item.quantity,
+          })),
+          currentUser: payment.currentUser,
+          pickedUpByCustomerName: customerName,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to mark items as picked up');
+      }
+
+      const result = await response.json();
+      console.log('Pickup confirmation result:', result);
+
+      // Close the modal and proceed with the original flow
+      setShowItemPickupSelectionModal(false);
+      payment.handlePickupConfirmed();
+    } catch (error) {
+      console.error('Error confirming item pickup:', error);
+      alert(
+        `Lỗi khi xác nhận nhận hàng: ${error instanceof Error ? error.message : 'Lỗi không xác định'}`
+      );
+    }
+  };
+
+  // Handle pickup confirmation - show item selection modal if items exist
+  const handlePickupConfirmation = () => {
+    if (orderItems && orderItems.length > 0) {
+      setShowItemPickupSelectionModal(true);
+    } else {
+      payment.handlePickupConfirmed();
+    }
+  };
 
   // Effects
   useEffect(() => {
@@ -454,8 +547,19 @@ export const OrderSummaryPaymentRequirement: React.FC<OrderSummaryPaymentRequire
       {/* Pickup Confirmation Modal */}
       <PickupConfirmationModal
         show={payment.showPickupConfirmationModal}
-        onConfirm={payment.handlePickupConfirmed}
+        onConfirm={handlePickupConfirmation}
         onCancel={payment.handlePickupCancelled}
+        orderItems={itemsToUse}
+        onItemPickupConfirm={handleItemPickupConfirm}
+      />
+
+      {/* Item Pickup Selection Modal */}
+      <ItemPickupSelectionModal
+        show={showItemPickupSelectionModal}
+        onClose={() => setShowItemPickupSelectionModal(false)}
+        onConfirm={handleItemPickupConfirm}
+        orderItems={itemsToUse}
+        isLoading={false}
       />
     </>
   );

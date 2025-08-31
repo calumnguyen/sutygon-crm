@@ -692,7 +692,10 @@ export function useOrderStep3ItemsLogic(
 
     setOrderItems((prev: OrderItem[]) => {
       const key = `${item.id}-${sizeTitle}`;
-      const idx = prev.findIndex((i) => i.id === key);
+      const numericId = prev.length > 0 ? Math.max(...prev.map((i) => i.id)) + 1 : 1;
+      const idx = prev.findIndex(
+        (i) => `${i.id}` === key || (typeof i.id === 'string' && i.id === key)
+      );
 
       if (idx !== -1) {
         const updated = prev.map((i, iIdx) => {
@@ -713,8 +716,8 @@ export function useOrderStep3ItemsLogic(
         return updated;
       }
 
-      const newOrderItem = {
-        id: key,
+      const newOrderItem: OrderItem = {
+        id: numericId,
         name: item.name,
         size: sizeTitle,
         quantity: 1,
@@ -738,9 +741,9 @@ export function useOrderStep3ItemsLogic(
     setSizeOptions([]);
   }
 
-  const handleQuantityChange = (id: string, delta: number) => {
+  const handleQuantityChange = (id: string | number, delta: number) => {
     setOrderItems((prev: OrderItem[]) => {
-      const item = prev.find((i) => i.id === id);
+      const item = prev.find((i) => String(i.id) === String(id));
       if (!item) return prev;
 
       // Use the stored onHand value from the order item
@@ -752,7 +755,7 @@ export function useOrderStep3ItemsLogic(
         return prev;
       }
       return prev.map((i) =>
-        i.id === id
+        String(i.id) === String(id)
           ? {
               ...i,
               quantity: Math.max(1, i.quantity + delta),

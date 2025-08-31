@@ -19,9 +19,9 @@ export const OrderSummaryTable: React.FC<{
     if (item.inventoryItemId && typeof item.inventoryItemId === 'number') {
       inv = inventory.find((invItem) => invItem.id.toString() === item.inventoryItemId!.toString());
     } else {
-      const invId = item.id.replace('-' + item.size, '');
+      // For items without inventoryItemId, try to find by formattedId or name
       inv = inventory.find(
-        (invItem) => (invItem.formattedId || invItem.id) === invId || invItem.id === invId
+        (invItem) => invItem.formattedId === item.name || invItem.name === item.name
       );
     }
 

@@ -365,14 +365,14 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
         {items.map((item: OrderItem, index: number) => {
           if (item.isCustom) {
             const customKey = item.name + '_' + item.price;
-            const isSelected = selectedItemId === customKey;
+            const isSelected = selectedItemId === String(item.id);
             return (
               <div
                 key={customKey}
                 className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 py-3 cursor-pointer rounded ${isSelected ? 'bg-gray-800' : 'bg-gray-900'}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onItemClick({ ...item, id: customKey });
+                  onItemClick(item);
                 }}
               >
                 <div className="flex items-start gap-3 min-w-0 w-full sm:flex-1">
@@ -406,7 +406,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                       className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onQuantityChange(customKey, -1);
+                        onQuantityChange(String(item.id), -1);
                       }}
                       aria-label="Giảm số lượng"
                     >
@@ -420,7 +420,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                       className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onQuantityChange(customKey, 1);
+                        onQuantityChange(String(item.id), 1);
                       }}
                       aria-label="Tăng số lượng"
                     >
@@ -443,10 +443,10 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                 (invItem) => invItem.id.toString() === item.inventoryItemId!.toString()
               ) || null;
           } else {
-            const invId = item.id.replace('-' + item.size, '');
+            // For items without inventoryItemId, try to find by formattedId or name
             inv =
               inventory.find(
-                (invItem) => (invItem.formattedId || invItem.id) === invId || invItem.id === invId
+                (invItem) => invItem.formattedId === item.name || invItem.name === item.name
               ) || null;
           }
           const normalize = (str: string) => str.replace(/[-_ ]/g, '').toLowerCase();
@@ -485,7 +485,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
             availableStock = invSize ? parseInt(invSize.onHand.toString(), 10) : 0;
           }
           const showWarning = item.quantity > availableStock;
-          const isSelected = selectedItemId === item.id;
+          const isSelected = selectedItemId === String(item.id);
           const imageUrl = ((): string => {
             const fromItem = (item as { imageUrl?: string | null }).imageUrl;
             if (fromItem) return fromItem;
@@ -563,7 +563,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                     className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onQuantityChange(item.id, -1);
+                      onQuantityChange(String(item.id), -1);
                     }}
                     aria-label="Giảm số lượng"
                   >
@@ -577,7 +577,7 @@ const OrderStep3AddedItemsList: React.FC<OrderStep3AddedItemsListProps> = ({
                     className="w-8 h-8 flex items-center justify-center rounded bg-gray-800 border border-blue-500 text-blue-400 hover:bg-blue-700 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onQuantityChange(item.id, 1);
+                      onQuantityChange(String(item.id), 1);
                     }}
                     aria-label="Tăng số lượng"
                   >
