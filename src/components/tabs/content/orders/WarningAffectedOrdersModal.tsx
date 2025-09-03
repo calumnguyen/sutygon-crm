@@ -73,10 +73,11 @@ export const WarningAffectedOrdersModal: React.FC<WarningAffectedOrdersModalProp
     }
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
+    const dateObj = new Date(date);
     // Convert to Vietnam time (UTC+7)
     const vietnamOffset = 7 * 60 * 60 * 1000; // 7 hours in milliseconds
-    const vietnamDate = new Date(date.getTime() + vietnamOffset);
+    const vietnamDate = new Date(dateObj.getTime() + vietnamOffset);
     return vietnamDate.toLocaleDateString('vi-VN', {
       day: '2-digit',
       month: '2-digit',

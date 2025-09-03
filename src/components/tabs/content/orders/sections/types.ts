@@ -27,6 +27,12 @@ export interface OrderItem {
   facilitatedByUserId?: number;
   facilitatedByUserName?: string;
   pickupHistory?: PickupHistory[];
+  // Extension properties
+  isExtension?: boolean;
+  extraDays?: number | null;
+  feeType?: string | null;
+  percent?: number | null;
+  isCustom?: boolean;
 }
 
 export interface CustomerDetails {

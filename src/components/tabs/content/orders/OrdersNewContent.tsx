@@ -37,7 +37,7 @@ function getExpectedReturnDate(dateStr: string): { date: string; day: string } |
   const parsed = parse(dateStr, 'dd/MM/yyyy', new Date());
   if (isNaN(parsed.getTime())) return null;
   const returnDate = new Date(parsed.getTime());
-  returnDate.setDate(returnDate.getDate() + 3);
+  returnDate.setDate(returnDate.getDate() + 2); // Add 2 days for 3-day rental period (rent on day 1, return on day 3)
   const formatted = format(returnDate, 'dd/MM/yyyy');
   return { date: formatted, day: DAY_LABELS[returnDate.getDay()] };
 }

@@ -209,8 +209,13 @@ const OrderDetailsContent: React.FC<OrderDetailsContentProps> = ({ orderId }) =>
           />
         ) : (
           <OrderDatesSection
-            orderDate={order?.orderDate || ''}
-            expectedReturnDate={order?.expectedReturnDate || new Date()}
+            orderDate={order?.orderDate ? new Date(order.orderDate) : new Date()}
+            orderItems={orderItems || []}
+            orderId={order?.id || 0}
+            onOrderUpdate={() => {
+              // Refresh all data when order is updated
+              window.location.reload();
+            }}
           />
         )}
 

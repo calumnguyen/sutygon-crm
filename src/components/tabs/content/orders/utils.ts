@@ -22,7 +22,7 @@ export const getDayLabel = (dateStr: string) => {
 export const getExpectedReturnDate = (dateStr: string) => {
   try {
     const date = parse(dateStr, 'dd/MM/yyyy', new Date());
-    const returnDate = addDays(date, 3);
+    const returnDate = addDays(date, 2); // Add 2 days for 3-day rental period (rent on day 1, return on day 3)
     return {
       date: format(returnDate, 'dd/MM/yyyy'),
       day: format(returnDate, 'EEEE', { locale: vi }),
